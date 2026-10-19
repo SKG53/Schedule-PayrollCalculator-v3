@@ -559,6 +559,7 @@ function loadApp(opts) {
       reviewBucketKey, _personNameOnEntity, _schedNameForPerson, _empIdText, _isIdPending, _dropBlankRecords, _fileMatchFor,
       unpaidReviewRows, leftOutRowsFor, setRowLeftOut, payGateApprove, payGateLeaveOut, payGateApproveAll, payGateCancel, payGateGoToRow, payGateIsOpen, _payGateHtml, _leftOutNoteText,
       hoursFormat, setHoursFormat, fmtHrs, fmtHmm, dayBreakLine, renderPayDayCell, _isoDayLabel, _rowWorkedMinutes,
+      punctualityFlags, _punctGroups, scheduledNoPunchDays, entityStats, renderStatsTable, _statsCells, _writeStatsSheet, setPayrollSubTab, STATS_HEADERS,
       getActiveEntityIdx: () => activeEntityIdx,
       getStaged: () => _staged,
       getCurrentTabName: () => currentTab,

@@ -431,6 +431,8 @@ table.review tr.source-ec{}
 .flag-pills{display:flex;flex-wrap:wrap;gap:4px}
 .flag-pill{display:inline-flex;align-items:center;gap:3px;padding:2px 7px;border-radius:999px;font-size:10px;font-weight:600;letter-spacing:0.2px;background:rgba(217,119,6,0.12);color:var(--amber);border:1px solid rgba(217,119,6,0.25);white-space:normal;word-break:break-word;max-width:100%;line-height:1.3;text-align:left}
 .flag-pill.err{background:rgba(220,38,38,0.12);color:var(--red);border-color:rgba(220,38,38,0.25)}
+.punct-pill.punct-yellow{background:#FEF9C3;color:#854D0E;border-color:#FDE047}
+.punct-pill.punct-red{background:#FEE2E2;color:#B91C1C;border-color:#FCA5A5}
 .flag-pill.info{background:rgba(37,99,235,0.12);color:var(--blue);border-color:rgba(37,99,235,0.25)}
 .flag-pill.ok{background:rgba(22,163,74,0.12);color:var(--green);border-color:rgba(22,163,74,0.25)}
 
@@ -4787,10 +4789,12 @@ function renderPayrollEntityContent(idx){
     <div class="payroll-subtab-bar" role="tablist">
       <button class="payroll-subtab${activeSub==='timecard'?' active':''}" onclick="setPayrollSubTab(${idx},'timecard')">Time Card Data</button>
       <button class="payroll-subtab${activeSub==='payroll'?' active':''}" onclick="setPayrollSubTab(${idx},'payroll')">Payroll Calculation</button>
+      <button class="payroll-subtab${activeSub==='stats'?' active':''}" onclick="setPayrollSubTab(${idx},'stats')">Stats</button>
     </div>
     <div class="payroll-subtab-content">
       <div id="timecardDataWrap" style="display:${activeSub==='timecard'?'block':'none'}"><div class="sched-table-wrap" style="display:block"><table class="sched" id="timecardDataTable"></table></div></div>
       <div id="payrollCalcWrap" style="display:${activeSub==='payroll'?'block':'none'}"><div class="sched-table-wrap" style="display:block"><table class="sched" id="payrollCalcTable"></table></div></div>
+      <div id="statsWrap" style="display:${activeSub==='stats'?'block':'none'}"><div style="font-size:12px;color:var(--text3);margin:0 0 6px">Against the loaded schedule. Late: 1–5 min yellow, over 5 red. Early clock-ins are counted, never flagged. Counts show next to every percent.</div><div class="sched-table-wrap" style="display:block"><table class="sched stats-table" id="statsTable"></table></div></div>
     </div>`;
 
   const noSchedule=ent.employees.length===0; // FC-00017: signal for "no schedule loaded for this entity"
@@ -4798,6 +4802,7 @@ function renderPayrollEntityContent(idx){
   renderPayrollGrid(allRows,ent,hasActuals,noSchedule);
   renderTimeCardData(allRows,hasActuals,ent,noSchedule);
   renderPayrollCalc(allRows,hasActuals,ent,noSchedule);
+  if(activeSub==='stats')renderStatsTable(idx); // FC-00051
   renderAllEntityPreview();
   renderFc00013PreviewPanel();
 }
@@ -7277,6 +7282,7 @@ function renderReviewTableHtml(ent,idx){
   }
   const activeKey=ent.intake.activeEmpTab;
   const activeRows=buckets.get(activeKey)||[];
+  const _pg=_punctGroups(ent); // FC-00051
 
   // Render tab bar
   let html='<div class="emp-subtabs" role="tablist">';
@@ -7331,6 +7337,11 @@ function renderReviewTableHtml(ent,idx){
     }
   }
   html+='</span></div>';
+  // FC-00051: a scheduled day with no approved punches would go unpaid without anyone noticing.
+  if(activeKey!=='__unrecognized__'){
+    const miss=scheduledNoPunchDays(ent,activeKey);
+    if(miss.length)html+=`<div class="sched-no-punch" style="margin-top:6px;padding:5px 8px;border-radius:6px;background:#FEF2F2;color:var(--red);font-size:12px;font-weight:600">Scheduled, no approved punches: ${miss.map(_isoDayLabel).map(escHtml).join(', ')}</div>`;
+  }
 
   // FC-00048: Unrecognized rows grouped by the name OCR read — one button per group, so two new
   // people this week show as two groups, and nobody is created until a button is clicked.
@@ -7439,7 +7450,7 @@ function renderReviewTableHtml(ent,idx){
     const supBadge=r._superseded?'<span class="new-badge" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1" title="An approved manual entry for the same employee and date overlaps this row, so its overlapping punches are not paid.">⤳ replaced by manual entry</span>':'';
     const msBadge=(r._merged?'<span class="new-badge" style="background:#F5F3FF;color:#5B21B6;border-color:#C4B5FD" title="Made by merging rows by hand. Values unchanged; check and approve.">⧉ merged</span>':'')+(r._split?'<span class="new-badge" style="background:#F5F3FF;color:#5B21B6;border-color:#C4B5FD" title="Made by splitting a multi-pair row by hand. Values unchanged; check and approve.">⇹ split</span>':'');
     const leftOutTag=(!r.approved&&r.leftOut)?`<span class="new-badge left-out-tag" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1" title="Left out of pay when exporting (FC-00049). It is not paid.">Left out of pay</span> <a href="#" class="undo-left-out" onclick="setRowLeftOut('${escJs(r.id)}',false);return false" style="font-size:10px">Undo leave out</a>`:'';
-    html+=`<td class="flag-cell">${leftOutTag}${renderFlagPills(r.flags)}${r._newSinceUpload?'<span class="new-badge" title="Added in a later upload for this employee — not part of the original batch">🆕 new</span>':''}${editBadge}${supBadge}${msBadge}</td>`;
+    html+=`<td class="flag-cell">${leftOutTag}${renderFlagPills(r.flags)}${_punctPillsHtml(punctualityFlags(r,ent,_pg))}${r._newSinceUpload?'<span class="new-badge" title="Added in a later upload for this employee — not part of the original batch">🆕 new</span>':''}${editBadge}${supBadge}${msBadge}</td>`;
     // Per-row approve/unapprove button
     html+=`<td class="actions-cell" style="width:110px">`;
     if(_rowPairList(r).length>=2)html+=`<button class="mini-btn" onclick="splitRow(${idx},'${r.id}')" title="Split into one row per in/out pair (same date)" style="margin-right:4px">⇹ Split</button>`;
@@ -8108,6 +8119,185 @@ function dayBreakLine(day){
   if(minH>0&&minH>rawH+1e-9)return'break '+fmtHmm(brkH)+' min.';
   if(Math.round(rawH*60)<=0)return'';
   return'break '+fmtHmm(brkH);
+}
+
+// ================================================================
+// FC-00051 — punctuality flags on the review tab, per-person stats
+// ================================================================
+// Read-only: flags and stats never change hours, approvals or pay. Flags compare a person's
+// punches on a date (every review row of theirs that day) with their loaded shift.
+const PUNCT_LATE_YELLOW_MAX=5,PUNCT_OUT_YELLOW_MAX=10;
+function _rowPunchHours(r){
+  const out=[];
+  _rowPairList(r).forEach(p=>{
+    if(!p.in||!p.out)return;
+    const a=parseClockTime(p.in),b0=parseClockTime(p.out);
+    if(a==null||b0==null)return;
+    out.push({in:a,out:b0<=a?b0+24:b0});
+  });
+  return out;
+}
+function _dayIdxOfIso(iso){if(!iso)return null;const d=new Date(iso+'T00:00:00');return isNaN(d)?null:d.getDay();}
+// {firstIn,lastOut} per "person|date" from every review row of the entity (approved or not).
+function _punctGroups(ent){
+  const g=new Map();
+  ((ent&&ent.intake&&ent.intake.reviewRows)||[]).forEach(r=>{
+    if(!r||!r.date)return;
+    const name=reviewBucketKey(r,ent);if(name==='__unrecognized__')return;
+    const ps=_rowPunchHours(r);if(!ps.length)return;
+    const k=name+'|'+r.date;
+    const cur=g.get(k)||{firstIn:Infinity,lastOut:-Infinity};
+    ps.forEach(p=>{if(p.in<cur.firstIn)cur.firstIn=p.in;if(p.out>cur.lastOut)cur.lastOut=p.out;});
+    g.set(k,cur);
+  });
+  return g;
+}
+// Clock-in against the shift start (minutes, + = late) and clock-out against the shift end.
+function _punctDiffs(shift,firstIn,lastOut){
+  return{inMin:Math.round((firstIn-shift.start)*60),outMin:Math.round((lastOut-shift.end)*60)};
+}
+function _punctFlagsFor(inMin,outMin){
+  const f=[];
+  if(inMin>PUNCT_LATE_YELLOW_MAX)f.push({level:'red',text:'Late '+fmtHmm(inMin/60)});
+  else if(inMin>=1)f.push({level:'yellow',text:'Late '+fmtHmm(inMin/60)});
+  const a=Math.abs(outMin);
+  const t='Out '+fmtHmm(a/60)+(outMin<0?' early':' late');
+  if(a>PUNCT_OUT_YELLOW_MAX)f.push({level:'red',text:t});
+  else if(a>1)f.push({level:'yellow',text:t});
+  return f;
+}
+// Punctuality flags for one review row (shared by every row of that person on that date).
+function punctualityFlags(r,ent,groups){
+  if(!r||!r.date||!ent)return[];
+  const wk=_weekIsoSet(ent);if(wk.size&&!wk.has(r.date))return[];
+  const name=reviewBucketKey(r,ent);if(name==='__unrecognized__')return[];
+  const emp=(ent.employees||[]).find(e=>e&&e.name===name);if(!emp)return[];
+  const di=_dayIdxOfIso(r.date);if(di==null)return[];
+  if(!_rowPunchHours(r).length)return[];
+  const shift=parseShift(emp.shifts[di]);
+  if(!shift)return[{level:'yellow',text:'Worked a day off'}];
+  const gr=(groups||_punctGroups(ent)).get(name+'|'+r.date);if(!gr)return[];
+  const d=_punctDiffs(shift,gr.firstIn,gr.lastOut);
+  return _punctFlagsFor(d.inMin,d.outMin);
+}
+function _punctPillsHtml(flags){
+  return(flags||[]).map(f=>`<span class="flag-pill punct-pill punct-${f.level}" title="Compared with the loaded schedule (FC-00051). Information only.">${escHtml(f.text)}</span>`).join('');
+}
+// Scheduled days in the week with no approved punches for this person ("Scheduled, no punches").
+function scheduledNoPunchDays(ent,name){
+  const emp=(ent&&ent.employees||[]).find(e=>e&&e.name===name);if(!emp)return[];
+  if(ent.intake&&ent.intake.ignoredEmployees&&ent.intake.ignoredEmployees[name])return[];
+  const isos=(ent.dateLabels||[]).map(schedLabelToIso);
+  const rows=((ent.intake&&ent.intake.reviewRows)||[]).filter(r=>r&&r.approved&&_rowPunchHours(r).length&&reviewBucketKey(r,ent)===name);
+  const out=[];
+  for(let d=0;d<7;d++){
+    if(!parseShift(emp.shifts[d])||!isos[d])continue;
+    if(!rows.some(r=>r.date===isos[d]))out.push(isos[d]);
+  }
+  return out;
+}
+// Per-person weekly stats from the paid actuals (approved rows) against the loaded schedule.
+function entityStats(idx){
+  const ent=entities[idx];if(!ent)return null;
+  const {results,orphanRows}=computePayrollForEntity(idx);
+  const people=[];
+  results.concat(orphanRows).forEach(r=>{
+    const key=r.schedName||r.name;
+    if(!_isInPayroll(ent.id,key))return;
+    const hourly=!r.isFlat&&r.wage>0;
+    const s={name:key,display:r.name,orphan:!!r.isOrphan,isFlat:!!r.isFlat,rate:hourly?r.wage:null,
+      expected:r.expectedH||0,worked:r.actualHours||0,schedDays:r.scheduledDays||0,workedSchedDays:0,missedDays:0,
+      lateDays:0,late5Days:0,lateMin:0,earlyDays:0,earlyMin:0,earlyMax:0,stayDays:0,stayMin:0,
+      expBreak:r.expectedBreakH||0,actBreak:r.actualBreakH||0,otH:r.otH||0};
+    (r.days||[]).forEach(d=>{
+      if(!d.shift)return;
+      if(!d.actual||!(d.workedH>0)){if(d.status==='noshow')s.missedDays++;return;}
+      s.workedSchedDays++;
+      const x=_punctDiffs(d.shift,d.actual.firstIn,d.actual.lastOut);
+      if(x.inMin>=1){s.lateDays++;s.lateMin+=x.inMin;if(x.inMin>PUNCT_LATE_YELLOW_MAX)s.late5Days++;}
+      else if(x.inMin<0){s.earlyDays++;s.earlyMin+=-x.inMin;if(-x.inMin>s.earlyMax)s.earlyMax=-x.inMin;}
+      if(x.outMin>0){s.stayDays++;s.stayMin+=x.outMin;}
+    });
+    s.workedPct=s.expected>0?s.worked/s.expected:null;
+    s.avgLate=s.lateDays?s.lateMin/s.lateDays:null;
+    s.avgEarly=s.earlyDays?s.earlyMin/s.earlyDays:null;
+    s.earlyCost=hourly?_r2(s.earlyMin/60*r.wage):null;
+    s.stayCost=hourly?_r2(s.stayMin/60*r.wage):null;
+    people.push(s);
+  });
+  const sum=k=>people.reduce((a,p)=>a+(p[k]||0),0);
+  const t={name:'Total',display:'Total',expected:_r2(sum('expected')),worked:_r2(sum('worked')),workedSchedDays:sum('workedSchedDays'),missedDays:sum('missedDays'),
+    lateDays:sum('lateDays'),late5Days:sum('late5Days'),lateMin:sum('lateMin'),earlyDays:sum('earlyDays'),earlyMin:sum('earlyMin'),
+    earlyMax:people.reduce((a,p)=>Math.max(a,p.earlyMax),0),stayDays:sum('stayDays'),stayMin:sum('stayMin'),
+    expBreak:_r2(sum('expBreak')),actBreak:_r2(sum('actBreak')),otCount:people.filter(p=>p.otH>0).length,
+    earlyCost:_r2(people.reduce((a,p)=>a+(p.earlyCost||0),0)),stayCost:_r2(people.reduce((a,p)=>a+(p.stayCost||0),0))};
+  t.workedPct=t.expected>0?t.worked/t.expected:null;
+  t.avgLate=t.lateDays?t.lateMin/t.lateDays:null;
+  t.avgEarly=t.earlyDays?t.earlyMin/t.earlyDays:null;
+  return{entity:ent.name||('Entity '+(idx+1)),entityId:ent.id,people,total:t};
+}
+function _nOfPct(n,m){return m>0?`${n}/${m} · ${Math.round(n/m*100)}%`:'—';}
+const STATS_HEADERS=['Employee','Expected','Worked','Worked %','Late days','Late >5 min','Avg late','Early days','Early min (total · avg · max)','Early cost','Stayed late (days · min)','Stayed-late cost','Break expected','Break actual','40 h+'];
+function _statsCells(p,isTotal){
+  const m=v=>v==null?'—':fmtHmm(v/60);
+  const money=v=>v==null?'—':'$'+v.toFixed(2);
+  return[
+    p.display,
+    fmtHrs(p.expected),fmtHrs(p.worked),
+    p.workedPct==null?'—':(Math.round(p.workedPct*1000)/10).toFixed(1)+'%',
+    _nOfPct(p.lateDays,p.workedSchedDays),_nOfPct(p.late5Days,p.workedSchedDays),m(p.avgLate),
+    _nOfPct(p.earlyDays,p.workedSchedDays),
+    p.earlyDays?`${fmtHmm(p.earlyMin/60)} · ${m(p.avgEarly)} · ${fmtHmm(p.earlyMax/60)}`:'—',
+    money(p.earlyCost),
+    p.stayDays?`${p.stayDays} · ${fmtHmm(p.stayMin/60)}`:'—',
+    money(p.stayCost),
+    fmtHrs(p.expBreak),fmtHrs(p.actBreak),
+    isTotal?(p.otCount?p.otCount+' over':'—'):(p.otH>0?'⚠ '+fmtHrs(p.otH)+' over':'—')
+  ];
+}
+function renderStatsTable(idx){
+  const table=document.getElementById('statsTable');if(!table)return;
+  const st=entityStats(idx);if(!st){table.innerHTML='';return;}
+  let h='<thead><tr>'+STATS_HEADERS.map(x=>`<th>${escHtml(x)}</th>`).join('')+'</tr></thead><tbody>';
+  st.people.forEach(p=>{h+='<tr>'+_statsCells(p).map((c,i)=>`<td class="${i?'num-cell':'name-cell'}">${escHtml(c)}</td>`).join('')+'</tr>';});
+  h+='<tr class="total-row">'+_statsCells(st.total,true).map((c,i)=>`<td class="${i?'num-cell':'name-cell'}">${escHtml(c)}</td>`).join('')+'</tr>';
+  h+='</tbody>';
+  table.innerHTML=h;
+}
+const XL_FMT_HMM='[h]:mm';
+// FC-00051: the Stats sheet of the Combined Excel — one block per entity, payroll-sheet order
+// and colors, names as the payroll report prints them.
+function _writeStatsSheet(ewb,data){
+  const ws=ewb.addWorksheet('Stats');
+  const nm=_makeNameFormatter('payroll');
+  const per=_exportPeriodStr();
+  const t=ws.addRow(['STATS — punctuality and hours vs schedule'+(per?' — '+per:'')]);
+  t.getCell(1).font={name:'Arial',bold:true,size:13};
+  const hrsCell=(v)=>({v:_r2(v||0)/24,fmt:XL_FMT_HMM});
+  data.forEach(({entityId})=>{
+    const idx=entities.findIndex(e=>e.id===entityId);if(idx<0)return;
+    const st=entityStats(idx);if(!st||!st.people.length)return;
+    const pal=_paletteForEntity(entities[idx]);
+    ws.addRow([]);
+    const er=ws.addRow([st.entity]);er.getCell(1).font={name:'Arial',bold:true,size:11};
+    const hr=ws.addRow(STATS_HEADERS);
+    hr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};c.fill=_fc12Fill('FFE8E8E4');});
+    const put=(p,isTotal)=>{
+      const vals=_statsCells(p,isTotal);
+      vals[0]=isTotal?st.entity+' total':nm(st.entityId,p.name);
+      const row=ws.addRow(vals);
+      // Hours as real durations (h:mm) so they still add up in Excel.
+      [[1,p.expected],[2,p.worked],[12,p.expBreak],[13,p.actBreak]].forEach(([ci,v])=>{const c=row.getCell(ci+1);const x=hrsCell(v);c.value=x.v;c.numFmt=x.fmt;});
+      if(p.workedPct!=null){const c=row.getCell(4);c.value=Math.round(p.workedPct*1000)/1000;c.numFmt='0.0%';}
+      [[9,p.earlyCost],[11,p.stayCost]].forEach(([ci,v])=>{if(v==null)return;const c=row.getCell(ci+1);c.value=v;c.numFmt=XL_FMT_MONEY;});
+      row.eachCell(c=>{c.font={name:'Arial',size:10,bold:!!isTotal};});
+      _applyEntityPalette(row,pal,isTotal?'subtotal':'body',null);
+    };
+    st.people.forEach(p=>put(p,false));
+    put(st.total,true);
+  });
+  [22,10,10,9,13,13,9,13,24,10,20,13,12,12,12].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+  return ws;
 }
 
 function _exportPeriodStr(){
@@ -8780,6 +8970,7 @@ async function _exportExcel(kind){
   }else{
     await writeSection(kind);
   }
+  if(kind==='combined')_writeStatsSheet(ewb,data); // FC-00051
 
   const fname=_exportFilenameBase(kind)+'.xlsx';
   downloadBlob(await ewb.xlsx.writeBuffer(),fname);
