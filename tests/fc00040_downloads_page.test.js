@@ -78,12 +78,13 @@ test('test_status_reports_unapproved_and_exclusions', () => {
   api.syncActualsFromReview();
   const st = api.downloadStatus('payroll');
   assert.equal(st.ok, false);
-  assert.ok(st.reasons.includes('ZION: 1 row not approved'), st.reasons.join(' | '));
+  // FC-00049: the payroll line names the rows the export will stop on.
+  assert.ok(st.reasons.some(x => /^Not approved, won't be paid: .+ · \w{3} \w{3} \d+ \(the export asks first\)$/.test(x)), st.reasons.join(' | '));
   assert.ok(st.reasons.includes('Active unchecked with hours: Ann Able'), st.reasons.join(' | '));
   assert.ok(st.reasons.includes('Break not confirmed: NIRVANA 11TH'), st.reasons.join(' | '));
   assert.deepEqual(api.downloadStatus('timecards').reasons, ['ZION: 1 row not approved']);
   api.renderDownloadsPanel();
-  assert.match(api.__sandbox.document.getElementById('downloadsHost').innerHTML, /⚠ ZION: 1 row not approved/);
+  assert.match(api.__sandbox.document.getElementById('downloadsHost').innerHTML, /⚠ ZION: 1 row not approved/); // the timecards line keeps the count
 });
 
 test('test_download_selected_writes_each_file', async () => {

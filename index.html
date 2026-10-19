@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Schedule Planning & Payroll Calculation</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='6' fill='%232563EB'/%3E%3Ctext x='16' y='22' font-family='Arial' font-size='16' font-weight='700' fill='white' text-anchor='middle'%3E$%3C/text%3E%3C/svg%3E">
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
@@ -192,6 +193,7 @@ table.sched td.pay-day .pay-sched-line strong{font-weight:700}
 table.sched td.pay-day .pay-sched-off strong,.pay-sched-off{color:var(--text3)}
 table.sched td.pay-day .pay-sched-dash{color:var(--text3)}
 table.sched td.pay-day .pay-hours-line{margin-top:3px;font-family:'IBM Plex Mono',monospace;font-size:12px;font-weight:600}
+table.sched td.pay-day .pay-break-line{margin-top:1px;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)}
 table.sched td.pay-day .pay-diff-inline{font-family:'IBM Plex Mono',monospace;font-size:10px;font-weight:400;margin-left:3px;opacity:0.75}
 table.sched td.pay-day.status-off{color:var(--text3)}
 /* Cell background tints removed per user preference — color lives in hours text */
@@ -603,6 +605,14 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
   </div>
 </div>
 
+<!-- ===== NOT APPROVED — EXPORT STOP (FC-00049) ===== -->
+<div id="payGateOverlay" class="overlay" style="display:none">
+  <div class="overlay-panel history-panel">
+    <h2>Not approved — these rows won't be paid</h2>
+    <div id="payGateBody"></div>
+  </div>
+</div>
+
 <!-- ===== MERGE PREVIEW (FC-00043) ===== -->
 <div id="mergeOverlay" class="overlay" style="display:none" onclick="if(event.target===this)closeMergePreview()">
   <div class="overlay-panel" style="max-width:640px">
@@ -641,6 +651,14 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
       <span>Auto-retry with Pro when confidence is low</span>
     </label>
     <p class="hint">If the timecard model returns a row below 75% confidence, automatically re-run that image with Gemini 2.5 Pro. Catches hard-to-read cards without re-running the whole batch.</p>
+
+    <label style="margin-top:14px">Hours shown as</label>
+    <select id="hoursFmtInput" onchange="setHoursFormat(this.value)">
+      <option value="both">h:mm (decimal) — e.g. 7:59 (7.98)</option>
+      <option value="hmm">h:mm — e.g. 7:59</option>
+      <option value="dec">decimal — e.g. 7.98</option>
+    </select>
+    <p class="hint">Screens only. Pay uses the decimal; exports keep decimal hours. Saved in this browser.</p>
 
     <details style="margin-top:14px"><summary style="cursor:pointer;font-size:12px;color:var(--text3)">Advanced — custom model names</summary>
       <label style="margin-top:8px">Custom timecard model</label>
@@ -1390,6 +1408,9 @@ function renameEmployeeViaDispatcher(entId,oldName,newName,screen){
   if(!to||_aliasNorm(from)===_aliasNorm(to))return false;
   if(!confirm(`Rename '${from}' \u2192 '${to}'? This updates all pages and exports.`))return false;
   dispatch({type:'rosterRename',screen:screen||'payroll',target:{kind:'employee',entity:entId,id:wKey(entId,from),field:'canonical_name'},from,to,meta:{empName:from}});
+  // FC-00049 (review item): the old spelling is saved as an alternate spelling, so next week's
+  // schedule or card spelled the old way lands on the same person and the settings file carries it.
+  const _ent=entities.find(e=>e.id===entId);if(_ent&&from)_learnSpelling(_ent,to,from);
   return true;
 }
 // Click-to-edit name cell shared by Schedules(read-only tables)/Actuals Intake/Payroll/Roster.
@@ -2022,7 +2043,7 @@ function _recordBulkApproval(ent,changed,to,label){
 }
 // The same checks approveReviewRow makes, for reverts that would re-approve a row.
 function _approvable(row){return isRowStructurallyValid(row)&&!row._reread;}
-const _REVIEW_LOG_TYPES=new Set(['reviewEdit','reviewApprove','reviewApproveBulk','reviewRowAdd','reviewRowDelete','reviewIgnore','reviewReread','reviewMerge','reviewSplit']);
+const _REVIEW_LOG_TYPES=new Set(['reviewEdit','reviewApprove','reviewLeftOut','reviewApproveBulk','reviewRowAdd','reviewRowDelete','reviewIgnore','reviewReread','reviewMerge','reviewSplit']);
 function _applyReviewChange(entry,invert){
   const t=entry.target||{};
   const value=invert?entry.from:entry.to;
@@ -2031,6 +2052,8 @@ function _applyReviewChange(entry,invert){
     const h=findReviewRow(t.id);if(h)_setReviewFieldRaw(h,t.field,value);
   }else if(entry.type==='reviewApprove'){
     const h=findReviewRow(t.id);if(h)h.row.approved=!!value&&_approvable(h.row);
+  }else if(entry.type==='reviewLeftOut'){
+    const h=findReviewRow(t.id);if(h){if(value)h.row.leftOut=true;else delete h.row.leftOut;}
   }else if(entry.type==='reviewApproveBulk'){
     Object.keys(value||{}).forEach(id=>{const h=findReviewRow(id);if(h)h.row.approved=!!value[id]&&_approvable(h.row);});
   }else if(entry.type==='reviewRowAdd'||entry.type==='reviewRowDelete'){
@@ -2062,7 +2085,7 @@ function canRevertEntry(e){
   if(e.type==='toolSetting')return true;
   if(!_REVIEW_LOG_TYPES.has(e.type))return !!_reducers[e.type];
   const t=e.target||{};
-  if(e.type==='reviewEdit'||e.type==='reviewApprove'||e.type==='reviewReread')return !!findReviewRow(t.id);
+  if(e.type==='reviewEdit'||e.type==='reviewApprove'||e.type==='reviewLeftOut'||e.type==='reviewReread')return !!findReviewRow(t.id);
   if(e.type==='reviewMerge'||e.type==='reviewSplit')return _mergeSplitRevertable(e);
   if(e.type==='reviewApproveBulk')return Object.keys(e.from||{}).some(id=>findReviewRow(id));
   const ent=entities.find(x=>x.id===t.entity);if(!ent)return false;
@@ -2085,7 +2108,7 @@ const _HISTORY_KIND={wage:'Wage',wageBlank:'Wage',payMethod:'Pay method',splitDe
   breakOverride:'Break',entityBreak:'Entity break',sortMode:'Sort order',entityPaletteSet:'Palette',rosterAdd:'Added to roster',
   rosterRename:'Name',rosterAliasAdd:'Alias added',rosterAliasRemove:'Alias removed',rosterActiveSet:'Active',rosterFieldSet:'Roster field',
   reviewEdit:'Punch edit',reviewApprove:'Approval',reviewApproveBulk:'Approval (bulk)',reviewRowAdd:'Row added',reviewRowDelete:'Row deleted',
-  reviewIgnore:'Ignore time cards',reviewReread:'Re-read applied',reviewMerge:'Rows merged',reviewSplit:'Row split',toolSetting:'Tool setting',revert:'Revert'};
+  reviewIgnore:'Ignore time cards',reviewLeftOut:'Left out of pay',reviewReread:'Re-read applied',reviewMerge:'Rows merged',reviewSplit:'Row split',toolSetting:'Tool setting',revert:'Revert'};
 const _REVIEW_FIELD_LABEL={date:'Date',empName:'Employee',clockIn1:'In 1',clockOut1:'Out 1',clockIn2:'In 2',clockOut2:'Out 2',clockIn3:'In 3',clockOut3:'Out 3'};
 function _historyKind(e){
   if(e.type==='reviewEdit'&&e.target&&e.target.field==='empName')return'Employee assignment';
@@ -2094,7 +2117,7 @@ function _historyKind(e){
 function _historyField(e){
   const t=e.target||{};
   if(e.type==='reviewEdit')return(_REVIEW_FIELD_LABEL[t.field]||t.field)+(e.meta&&e.meta.date&&t.field!=='date'?' · '+e.meta.date:'');
-  if(e.type==='reviewApprove'||e.type==='reviewRowAdd'||e.type==='reviewRowDelete')return(e.meta&&e.meta.date)||'';
+  if(e.type==='reviewApprove'||e.type==='reviewLeftOut'||e.type==='reviewRowAdd'||e.type==='reviewRowDelete')return(e.meta&&e.meta.date)||'';
   if(e.type==='reviewReread')return((e.meta&&e.meta.fields)||[]).map(k=>_REVIEW_FIELD_LABEL[k]||k).join(', ')+(e.meta&&e.meta.date?' · '+e.meta.date:'');
   if(e.type==='reviewMerge'||e.type==='reviewSplit')return(e.meta&&e.meta.date)||'';
   if(e.type==='reviewApproveBulk')return((e.meta&&e.meta.count)||0)+' row'+((e.meta&&e.meta.count)===1?'':'s');
@@ -2121,6 +2144,7 @@ function _historyVal(e,v){
   const f=e.target&&e.target.field;
   if(e.type==='reviewEdit'&&/^clock/.test(f||''))return to12h(String(v));
   if(e.type==='reviewApprove')return v?'Approved':'Not approved';
+  if(e.type==='reviewLeftOut')return v?'Left out':'Not left out';
   if(['wage','flatWage'].includes(e.type)&&!isNaN(parseFloat(v)))return'$'+parseFloat(v).toFixed(2);
   return String(v);
 }
@@ -3183,7 +3207,7 @@ function _renderStageOverlay(open){
 // _savePdf and _downloadText hand their bytes to the capture instead of the browser), then
 // saves the bytes under the owner's file-name convention. No export's content changes.
 async function _captureOne(fn){
-  const prev=_dlCapture;const cap=[];cap.breaksOk=true;_dlCapture=cap;
+  const prev=_dlCapture;const cap=[];cap.breaksOk=true;cap.gateOk=true;_dlCapture=cap; // FC-00049: the download asked once
   try{await fn();}finally{_dlCapture=prev;}
   return cap;
 }
@@ -3224,8 +3248,32 @@ function downloadFileNames(key){
   });
   return out;
 }
+// FC-00049 (review item): the Downloads panel asks every line for its status; the payroll
+// checks are computed once per panel render instead of once per line.
+let _dlMemo=null;
+function _memo(key,fn){if(!_dlMemo)return fn();if(!(key in _dlMemo))_dlMemo[key]=fn();return _dlMemo[key];}
+// FC-00049 (review item): people paid this week who are not on the schedule and whom nobody
+// confirmed (not in a settings file, not added with "Add as new employee"). Exports no longer
+// print "(orphan)", so the status line names them instead.
+function _unconfirmedNames(){
+  return _memo('unconf',()=>{
+    const out=[];
+    _collectExportData().forEach(d=>{
+      const ent=entities.find(e=>e.id===d.entityId);
+      if(!ent||!(ent.employees||[]).length)return; // no schedule: everyone is actuals-only by design
+      d.rows.forEach(r=>{
+        if(!r.isOrphan)return;
+        const rec=_resolveRecordNoMint(ent.id,r._empName);
+        if(rec&&(rec.fromFile||rec.addedNew))return;
+        out.push(r._empName);
+      });
+    });
+    return out;
+  });
+}
 // FC-00048: hourly people with hours this week and no rate (they would be paid $0).
-function _rateMissingNames(){
+function _rateMissingNames(){return _memo('rm',_rateMissingNamesRaw);}
+function _rateMissingNamesRaw(){
   const out=[];
   entities.forEach((ent,i)=>{
     let res;try{res=computePayrollForEntity(i);}catch(e){return;}
@@ -3245,11 +3293,14 @@ function downloadStatus(key){
   const unapproved=()=>entities.forEach(e=>{const n=e.intake?(e.intake.reviewRows||[]).filter(r=>!r.approved).length:0;if(n)reasons.push((e.name||'Entity')+': '+n+' row'+(n===1?'':'s')+' not approved');});
   if(_PAYROLL_KINDS.includes(key)){
     if(!_collectExportData().length)reasons.push('No payroll rows yet');
-    unapproved();
+    // FC-00049: name the rows the export will stop on.
+    const up=unpaidReviewRows();
+    if(up.length)reasons.push('Not approved, won\'t be paid: '+up.slice(0,6).map(x=>x.name+' · '+_isoDayLabel(x.row.date)).join(', ')+(up.length>6?' and '+(up.length-6)+' more':'')+' (the export asks first)');
     const wk=_weekExclusionSummary();if(wk.count)reasons.push(wk.count+' punch day'+(wk.count===1?'':'s')+' outside the schedule week');
     const ina=_inactiveExclusionSummary();if(ina.withPay.length)reasons.push('Active unchecked with hours: '+ina.withPay.map(x=>x.empName).join(', '));
     const nb=withData.filter(e=>!e.breakMinutesSet);if(nb.length)reasons.push('Break not confirmed: '+nb.map(e=>e.name||'Entity').join(', '));
     const rm=_rateMissingNames();if(rm.length)reasons.push('Rate missing: '+rm.join(', ')); // FC-00048
+    const uc=_unconfirmedNames();if(uc.length)reasons.push('Not on the schedule and not confirmed: '+uc.join(', ')+' (add them as new employees or match them to someone)'); // FC-00049
   }else if(key==='timecards'){
     if(!entities.some(e=>e.intake&&(e.intake.reviewRows||[]).length))reasons.push('No punch rows yet');
     unapproved();
@@ -3263,9 +3314,10 @@ function downloadStatus(key){
   return{ok:!reasons.length,reasons};
 }
 // Writes every ticked file into memory: [{name,data,type}].
-async function buildSelectedDownloads(){
+async function buildSelectedDownloads(cont){
   const files=[];
   const ticked=DOWNLOADS.filter(d=>!d.disabled&&Object.keys(d.formats).some(f=>_dlTick(d.key,f)));
+  if(ticked.some(d=>_PAYROLL_KINDS.includes(d.key))&&!_payrollGateOk(cont))return null; // FC-00049
   if(ticked.some(d=>_PAYROLL_KINDS.includes(d.key))&&!_confirmBreaksOrBail())return null;
   const stem=_fileStem();
   for(const d of ticked){
@@ -3298,7 +3350,7 @@ function _saveBytes(f){
   setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 async function downloadSelected(){
-  const files=await buildSelectedDownloads();
+  const files=await buildSelectedDownloads(()=>downloadSelected());
   if(!files)return null;
   if(!files.length){showToast('Nothing ticked to download','err');return files;}
   files.forEach(_saveBytes);
@@ -3308,7 +3360,7 @@ async function downloadSelected(){
 }
 async function downloadZip(){
   if(typeof JSZip==='undefined'){showToast('The zip library did not load. Use "Download selected" instead, or reload the page.','err');return null;}
-  const files=await buildSelectedDownloads();
+  const files=await buildSelectedDownloads(()=>downloadZip());
   if(!files)return null;
   if(!files.length){showToast('Nothing ticked to download','err');return null;}
   const zip=new JSZip();
@@ -3332,6 +3384,10 @@ function setEntityFileLabel(idx,val){
   return true;
 }
 function _downloadsHtml(){
+  _dlMemo={};
+  try{return _downloadsHtmlInner();}finally{_dlMemo=null;}
+}
+function _downloadsHtmlInner(){
   let h='<div class="dl-panel"><div class="wow-head"><h3>Downloads</h3><span class="wow-src">Tick what you need, then download each file or one zip. Nothing here is ever blocked.</span></div>';
   h+=_nameControlsHtml();
   h+='<div class="dl-labels">File labels: '+entities.map((e,i)=>`<label>${escHtml(e.name||'Entity '+(i+1))} <input type="text" value="${escHtml(_entityFileLabel(e))}" onchange="setEntityFileLabel(${i},this.value)"></label>`).join(' ')+'</div>';
@@ -3972,7 +4028,7 @@ function renderTable(idx){
     html+='</tr>';
     if(currentView==='manager'){
       html+=`<tr class="hours-row"><td class="hours-cell" style="border-right:2px solid #999;font-style:italic;color:var(--text3);font-size:10px">Hours</td><td class="hours-cell" style="border-right:2px solid #999"></td>`;
-      for(let d=0;d<7;d++){const h=calcHours(parseShift(emp.shifts[d]));html+=`<td class="hours-cell">${h>0?h.toFixed(1):''}</td>`}
+      for(let d=0;d<7;d++){const h=calcHours(parseShift(emp.shifts[d]));html+=`<td class="hours-cell">${h>0?fmtH(h):''}</td>`}
       html+='</tr>';
     }
   });
@@ -3993,7 +4049,7 @@ function renderInfoBar(idx){
     const chip=document.createElement('div');
     chip.className='info-chip'+(totalH>40?' overtime':'');
     const hrsColor=totalH>40?'color:#C2410C':'color:'+col.hex;
-    chip.innerHTML=`<div class="top-row"><span class="dot" style="background:${col.hex}"></span><span class="name" style="color:${col.hex}">${escHtml(emp.name||'(unnamed)')}</span></div><div class="hrs" style="${hrsColor}">${totalH.toFixed(1)}h</div><div class="days">${daysWorked} days</div>`;
+    chip.innerHTML=`<div class="top-row"><span class="dot" style="background:${col.hex}"></span><span class="name" style="color:${col.hex}">${escHtml(emp.name||'(unnamed)')}</span></div><div class="hrs" style="${hrsColor}">${hoursFormat()==='dec'?totalH.toFixed(2)+'h':fmtHmm(totalH)}${hoursFormat()==='both'?'<span style="font-size:11px;font-weight:400"> ('+totalH.toFixed(2)+')</span>':''}</div><div class="days">${daysWorked} days</div>`;
     chip.dataset.name=emp.name;
     chip.addEventListener('click',()=>{
       if(activeEmp===emp.name){activeEmp=null;document.querySelectorAll('.info-chip').forEach(c=>c.classList.remove('dimmed'));document.querySelectorAll('.shift-block').forEach(b=>b.style.opacity='');}
@@ -4595,7 +4651,7 @@ function _weekFilterBannerHtml(ent,calc){
   if(ex.length){
     const hrs=Math.round(ex.reduce((a,x)=>a+x.hours,0)*100)/100;
     const list=ex.slice().sort((a,b)=>(a.date+a.empName).localeCompare(b.date+b.empName))
-      .map(x=>`<li>${escHtml(x.empName)} — ${_fmtIsoShort(x.date)} (${x.hours.toFixed(2)} h worked)</li>`).join('');
+      .map(x=>`<li>${escHtml(x.empName)} — ${_fmtIsoShort(x.date)} (${fmtH(x.hours)} worked)</li>`).join('');
     html+=`<div class="week-filter-banner" style="background:#FFF7ED;color:#9A3412;border:1px solid #FB923C;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px">`+
       `<strong>⚠ ${ex.length} approved punch day${ex.length===1?' is':'s are'} outside this schedule's week (${_fmtIsoShort(wi.start)} – ${_fmtIsoShort(wi.end)}) and NOT counted</strong> — ${hrs.toFixed(2)} h total. `+
       `Only the loaded schedule's week is paid. If a date below is wrong, fix it in Actuals Intake (rows flagged "Outside week").`+
@@ -5254,14 +5310,16 @@ function renderPayDayCell(day,isOrphan,hasActuals){
   if(day.status==='off')return `<td class="pay-day status-off">${schedLine}</td>`;
   // NO SHOW: employee missed the shift — pay less than expected → green (per user's pay-centric rule)
   if(day.status==='ignored')return `<td class="pay-day" style="opacity:0.5">${schedLine}<span class="pay-times-line pay-times" style="color:var(--text3)">IGNORED</span><div class="pay-hours-line" style="color:var(--text3)">no actuals tracked</div></td>`;
-  if(day.status==='noshow')return `<td class="pay-day status-noshow">${schedLine}<span class="pay-times-line pay-times hours-good">NO SHOW</span><div class="pay-hours-line hours-good">missed ${day.expectedH.toFixed(2)}h</div></td>`;
+  if(day.status==='noshow')return `<td class="pay-day status-noshow">${schedLine}<span class="pay-times-line pay-times hours-good">NO SHOW</span><div class="pay-hours-line hours-good">missed ${fmtH(day.expectedH)}</div></td>`;
   // UNSCHED: unscheduled clock-ins — pay for unexpected work → red
   if(day.status==='unsched'){
     let h=`<td class="pay-day status-unsched">${schedLine}`;
     day.actual.pairs.forEach(p=>{h+=`<span class="pay-times-line pay-times">${compactH(p.in)} – ${compactH(p.out)}</span>`;});
-    h+=`<div class="pay-hours-line hours-bad">${day.billableH.toFixed(2)}h · unsched</div></td>`;return h;
+    h+=`<div class="pay-hours-line hours-bad">${fmtH(day.billableH)} · unsched</div>`;
+    const _bl=dayBreakLine(day);if(_bl)h+=`<div class="pay-break-line">${_bl}</div>`; // FC-00049
+    h+='</td>';return h;
   }
-  if(!hasActuals)return `<td class="pay-day">${schedLine}<div class="pay-hours-line hours-neutral">${day.expectedH.toFixed(2)}h expected</div></td>`;
+  if(!hasActuals)return `<td class="pay-day">${schedLine}<div class="pay-hours-line hours-neutral">${fmtH(day.expectedH)} expected</div></td>`;
   const stCls=day.status==='ok'?'':'status-'+day.status;
   let h=`<td class="pay-day ${stCls}">${schedLine}`;
   day.actual.pairs.forEach(p=>{h+=`<span class="pay-times-line pay-times">${compactH(p.in)} – ${compactH(p.out)}</span>`;});
@@ -5272,7 +5330,9 @@ function renderPayDayCell(day,isOrphan,hasActuals){
   else if(hDiff>0)hClass='hours-bad';
   else hClass='hours-good';
   const diffInline=absM<1?'':`<span class="pay-diff-inline">(${absM}m ${hDiff>0?'more':'less'})</span>`;
-  h+=`<div class="pay-hours-line ${hClass}">${day.billableH.toFixed(2)}h${diffInline}</div></td>`;
+  h+=`<div class="pay-hours-line ${hClass}">${fmtH(day.billableH)}${diffInline}</div>`;
+  const _bl=dayBreakLine(day);if(_bl)h+=`<div class="pay-break-line">${_bl}</div>`; // FC-00049
+  h+='</td>';
   return h;
 }
 
@@ -5306,11 +5366,11 @@ function renderPayrollGrid(rows,ent,hasActuals,noSchedule){
     if(r.isOrphan)diffHtml=`<span class="wk-diff">no schedule</span>`;
     else if(hasActuals){
       if(absDiff<0.01)diffHtml=`<span class="wk-diff">as expected</span>`;
-      else diffHtml=`<span class="wk-diff">${absDiff.toFixed(2)}h ${diff>0?'More':'Less'}</span>`;
+      else diffHtml=`<span class="wk-diff">${fmtH(absDiff)} ${diff>0?'More':'Less'}</span>`;
     }else{
       diffHtml=`<span class="wk-diff">expected</span>`;
     }
-    const wkVal=hasActuals?r.actualHours.toFixed(2)+'h':r.expectedH.toFixed(2)+'h';
+    const wkVal=hasActuals?fmtH(r.actualHours):fmtH(r.expectedH);
     html+=`<td class="pay-weekly ${wkCls}"><span class="wk-actual">${wkVal}</span>${diffHtml}</td></tr>`;
   });
   html+='</tbody>';
@@ -5338,37 +5398,37 @@ function renderTimeCardData(rows,hasActuals,ent,noSchedule){
     if(!r.isOrphan&&hasActuals){
       const diff=r.actualHours-r.expectedH,abs=Math.abs(diff);
       if(abs<0.01){diffStr='as expected';diffCls='diff-zero';}
-      else if(diff>0){diffStr=`${abs.toFixed(2)}h More`;diffCls='diff-pos';}
-      else{diffStr=`${abs.toFixed(2)}h Less`;diffCls='diff-neg';}
+      else if(diff>0){diffStr=`${fmtH(abs)} More`;diffCls='diff-pos';}
+      else{diffStr=`${fmtH(abs)} Less`;diffCls='diff-neg';}
     }
     const keyName=r.schedName||r.name;
     const empId=keyName?_empIdText(ent.id,keyName):'';
     const rowCls=r.isOrphan?(noSchedule?' class="orphan-row-quiet"':' class="orphan-row"'):'';
     html+=`<tr${rowCls}><td class="name-cell" style="padding:8px 6px">${inlineEditableNameHtml(ent.id,keyName,'payroll',()=>renderPayroll())}${_dupFlagHtml(ent.id,keyName)}</td>`;
     html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text3)">${r.expectedBreakH.toFixed(2)}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text2)">${r.expectedH.toFixed(2)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text3)">${fmtH(r.expectedBreakH)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text2)">${fmtH(r.expectedH)}</td>`;
     if(hasActuals){
-      html+=`<td class="num-cell" style="color:var(--text3)">${r.actualBreakH.toFixed(2)}</td>`;
+      html+=`<td class="num-cell" style="color:var(--text3)">${fmtH(r.actualBreakH)}</td>`;
       let actCls='diff-zero';
       if(r.isOrphan)actCls='diff-pos';
       else{const d=r.actualHours-r.expectedH;if(Math.abs(d)<0.01)actCls='diff-zero';else if(d>0)actCls='diff-pos';else actCls='diff-neg';}
-      html+=`<td class="num-cell ${actCls}">${r.actualHours.toFixed(2)}</td>`;
+      html+=`<td class="num-cell ${actCls}">${fmtH(r.actualHours)}</td>`;
       html+=`<td class="num-cell ${diffCls}">${diffStr}</td>`;
       html+=`<td class="metric-cell ${metricClsStr(r.avgInDiff,'in')}">${metricStr(r.avgInDiff)}</td>`;
       html+=`<td class="metric-cell ${metricClsStr(r.avgOutDiff,'out')}">${metricStr(r.avgOutDiff)}</td>`;
-      const otFlag=r.actualHours>40?`<span class="ot-flag-inline">⚠ ${r.otH.toFixed(2)}h over</span>`:'<span style="color:var(--text3)">—</span>';
+      const otFlag=r.actualHours>40?`<span class="ot-flag-inline">⚠ ${fmtH(r.otH)} over</span>`:'<span style="color:var(--text3)">—</span>';
       html+=`<td class="num-cell">${otFlag}</td>`;
     }
     html+='</tr>';
   });
   html+='<tr class="total-row"><td class="name-cell" style="padding:8px 6px">TOTAL</td><td class="name-cell"></td>';
-  html+=`<td class="num-cell">${totExpBreak.toFixed(2)}</td><td class="num-cell">${totExp.toFixed(2)}</td>`;
+  html+=`<td class="num-cell">${fmtH(totExpBreak)}</td><td class="num-cell">${fmtH(totExp)}</td>`;
   if(hasActuals){
     const tDiff=totAct-totExp,absT=Math.abs(tDiff);
     let tStr='as expected',tCls='diff-zero';
-    if(absT>=0.01){if(tDiff>0){tStr=`${absT.toFixed(2)}h More`;tCls='diff-pos';}else{tStr=`${absT.toFixed(2)}h Less`;tCls='diff-neg';}}
-    html+=`<td class="num-cell">${totActBreak.toFixed(2)}</td><td class="num-cell ${tCls}">${totAct.toFixed(2)}</td>`;
+    if(absT>=0.01){if(tDiff>0){tStr=`${fmtH(absT)} More`;tCls='diff-pos';}else{tStr=`${fmtH(absT)} Less`;tCls='diff-neg';}}
+    html+=`<td class="num-cell">${fmtH(totActBreak)}</td><td class="num-cell ${tCls}">${fmtH(totAct)}</td>`;
     html+=`<td class="num-cell ${tCls}">${tStr}</td><td></td><td></td><td></td>`;
   }
   html+='</tr></tbody>';
@@ -5414,8 +5474,8 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
       <button class="btn btn-small" onclick="openRenameEmployeeModal(${ent.id},'${escJs(keyName)}')" title="Rename Employee" style="margin-left:6px;font-size:10px;padding:2px 6px">Rename Employee</button>${_dupFlagHtml(ent.id,keyName)}</td>`;
     html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
     html+=`<td style="text-align:center;padding:6px"><input type="checkbox" ${rowActive?'checked':''} onchange="setRowActive(${i},this.checked)" title="${rowActive?'Active — in this week\'s export and loads with the next schedule':'Unchecked — left out of this week\'s export and the next schedule'}" style="width:15px;height:15px;cursor:pointer"></td>`;
-    html+=`<td class="num-cell" style="color:var(--text3)">${r.actualBreakH.toFixed(2)}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text2)">${r.actualHours.toFixed(2)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text3)">${fmtH(r.actualBreakH)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text2)">${fmtH(r.actualHours)}</td>`;
 
     const typeToggleHtml=`<div class="type-toggle"><button class="${r.isFlat?'':'selected'}" onclick="setRowType(${i},'hourly')" title="Compute pay as wage × hours">Hourly</button><button class="${r.isFlat?'selected':''}" onclick="setRowType(${i},'flat')" title="Use a flat dollar amount">Flat</button></div>`;
 
@@ -5431,7 +5491,7 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
     }else{
       const wageVal=wageBlankFlag?'':r.wage.toFixed(2);
       // FC-00048: an hourly person with hours and no rate is red until the rate is entered.
-      const rateMissing=!r.isFlat&&!(r.wage>0)&&r.actualHours>0;
+      const rateMissing=!r.isFlat&&!(r.wage>0)&&r.actualHours>0&&!wageBlankFlag&&rowActive; // same rule as the export status
       html+=`<td style="padding:6px;text-align:center"><input type="number" class="wage-input${rateMissing?' rate-missing':''}" value="${rateMissing?'':wageVal}" step="0.01" min="0" placeholder="${rateMissing?'rate missing':'(blank)'}"${rateMissing?' style="border:2px solid var(--red);background:#FEF2F2" title="Rate missing — enter it before exporting"':''} onchange="setWage(${i},this.value)"></td>`;
       html+=`<td style="padding:6px;text-align:center">${typeToggleHtml}</td>`;
     }
@@ -5740,6 +5800,7 @@ function openSettings(){
   document.getElementById('settingsOverlay').style.display='flex';
   document.getElementById('apiKeyInput').value=_prefGet('pv26_api_key')||'';
   updateKeyStatusBadge();
+  const hf=document.getElementById('hoursFmtInput');if(hf)hf.value=hoursFormat(); // FC-00049
   // Migrate legacy single-model value if present
   const legacy=_prefGet('pv26_model');
   const tcSel=document.getElementById('tcModelInput');
@@ -7389,7 +7450,8 @@ function renderReviewTableHtml(ent,idx){
     const editBadge=r._reviewerEdited?`<span class="new-badge" style="background:#E0F2FE;color:#075985;border-color:#7DD3FC" title="You changed what OCR read. Your values are final: this row is now a manual entry and survives OCR re-runs.">✎ edited (was ${escHtml(r._ocrSource||'OCR')})</span>`:'';
     const supBadge=r._superseded?'<span class="new-badge" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1" title="An approved manual entry for the same employee and date overlaps this row, so its overlapping punches are not paid.">⤳ replaced by manual entry</span>':'';
     const msBadge=(r._merged?'<span class="new-badge" style="background:#F5F3FF;color:#5B21B6;border-color:#C4B5FD" title="Made by merging rows by hand. Values unchanged; check and approve.">⧉ merged</span>':'')+(r._split?'<span class="new-badge" style="background:#F5F3FF;color:#5B21B6;border-color:#C4B5FD" title="Made by splitting a multi-pair row by hand. Values unchanged; check and approve.">⇹ split</span>':'');
-    html+=`<td class="flag-cell">${renderFlagPills(r.flags)}${r._newSinceUpload?'<span class="new-badge" title="Added in a later upload for this employee — not part of the original batch">🆕 new</span>':''}${editBadge}${supBadge}${msBadge}</td>`;
+    const leftOutTag=(!r.approved&&r.leftOut)?`<span class="new-badge left-out-tag" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1" title="Left out of pay when exporting (FC-00049). It is not paid.">Left out of pay</span> <a href="#" class="undo-left-out" onclick="setRowLeftOut('${escJs(r.id)}',false);return false" style="font-size:10px">Undo leave out</a>`:'';
+    html+=`<td class="flag-cell">${leftOutTag}${renderFlagPills(r.flags)}${r._newSinceUpload?'<span class="new-badge" title="Added in a later upload for this employee — not part of the original batch">🆕 new</span>':''}${editBadge}${supBadge}${msBadge}</td>`;
     // Per-row approve/unapprove button
     html+=`<td class="actions-cell" style="width:110px">`;
     if(_rowPairList(r).length>=2)html+=`<button class="mini-btn" onclick="splitRow(${idx},'${r.id}')" title="Split into one row per in/out pair (same date)" style="margin-right:4px">⇹ Split</button>`;
@@ -7631,6 +7693,7 @@ function approveReviewRow(id){
   }
   if(!h.row.approved)_record({type:'reviewApprove',screen:'intake',target:{kind:'reviewRow',entity:h.ent.id,id,field:'approved'},from:false,to:true,meta:_rowMeta(h.row,h.ent)});
   h.row.approved=true;
+  if(h.row.leftOut)setRowLeftOut(id,false,true); // FC-00049: approving a left-out row puts it back in pay
   refreshReviewTable(entities.indexOf(h.ent));
   scheduleDynamicRecompute();
 }
@@ -7889,6 +7952,174 @@ function _confirmBreaksOrBail(){
     if(!confirm('Break minutes not confirmed for: '+names+'.\n\nCurrent values will be used anyway. Continue with export?'))return false;
   }
   return true;
+}
+
+// ================================================================
+// FC-00049 — unapproved rows stop the payroll export
+// ================================================================
+// A review row in the pay week that is neither approved nor left out is not paid. A payroll
+// export first lists every such row; each one is approved or left out, then the export runs.
+// Rows of an ignored employee ("Ignore Time Cards") and rows outside the week never count.
+function _weekIsoSet(ent){return new Set((ent&&ent.dateLabels||[]).map(schedLabelToIso).filter(Boolean));}
+function _ignoredNameSet(ent){
+  const ig=(ent&&ent.intake&&ent.intake.ignoredEmployees)||{};
+  return new Set(Object.keys(ig).filter(k=>ig[k]).map(k=>k.toLowerCase().trim()));
+}
+function _rowWorkedMinutes(r){
+  let m=0;
+  _rowPairList(r).forEach(p=>{
+    if(!p.in||!p.out)return;
+    const a=parseClockTime(p.in),b=parseClockTime(p.out);
+    if(a==null||b==null)return;
+    let d=b-a;if(d<=0)d+=24;
+    if(d>0&&d<24)m+=Math.round(d*60);
+  });
+  return m;
+}
+function _isoDayLabel(iso){
+  if(!iso)return'(no date)';
+  const d=new Date(iso+'T00:00:00');if(isNaN(d))return iso;
+  return DAY_SHORT[d.getDay()]+' '+MONTHS[d.getMonth()]+' '+d.getDate();
+}
+function _reviewRowPersonName(r,ent){
+  const k=reviewBucketKey(r,ent);
+  return k==='__unrecognized__'?((r.empName||'').trim()||'(no name)'):k;
+}
+// Rows that a payroll export would leave unpaid without the owner deciding.
+function unpaidReviewRows(){
+  const out=[];
+  entities.forEach((ent,ei)=>{
+    const rows=(ent.intake&&ent.intake.reviewRows)||[];
+    if(!rows.length)return;
+    const wk=_weekIsoSet(ent),ign=_ignoredNameSet(ent);
+    rows.forEach(r=>{
+      if(!r||r.approved||r.leftOut)return;
+      if(wk.size&&r.date&&!wk.has(r.date))return;
+      if(!_rowPairList(r).length)return; // no punches at all ("did not work"): nothing would be paid
+      const name=_reviewRowPersonName(r,ent);
+      if(ign.has(name.toLowerCase().trim())||ign.has((r.empName||'').toLowerCase().trim()))return;
+      out.push({entIdx:ei,entity:ent.name||('Entity '+(ei+1)),name,row:r,minutes:_rowWorkedMinutes(r)});
+    });
+  });
+  return out;
+}
+// Left-out rows of one entity in its pay week (printed under the entity's totals).
+function leftOutRowsFor(ent){
+  const rows=(ent&&ent.intake&&ent.intake.reviewRows)||[];
+  const wk=_weekIsoSet(ent);
+  return rows.filter(r=>r&&r.leftOut&&!r.approved&&(!wk.size||!r.date||wk.has(r.date)))
+    .map(r=>({name:_reviewRowPersonName(r,ent),date:r.date||'',minutes:_rowWorkedMinutes(r),row:r}));
+}
+function _leftOutNoteText(ent){
+  const lo=leftOutRowsFor(ent);
+  if(!lo.length)return'';
+  return'Left out of pay: '+lo.map(x=>x.name+' · '+_isoDayLabel(x.date)+' · '+fmtHmm(x.minutes/60)).join('; ');
+}
+function setRowLeftOut(id,on,quiet){
+  const h=findReviewRow(id);if(!h)return false;
+  const was=!!h.row.leftOut;on=!!on;
+  if(was===on)return false;
+  if(on&&h.row.approved)return false;
+  if(on)h.row.leftOut=true;else delete h.row.leftOut;
+  _record({type:'reviewLeftOut',screen:'intake',target:{kind:'reviewRow',entity:h.ent.id,id,field:'leftOut'},from:was,to:on,meta:_rowMeta(h.row,h.ent)});
+  if(!quiet&&!_simulating){
+    if(currentTab==='intake')refreshReviewTable(entities.indexOf(h.ent));
+    if(currentTab==='payroll')renderDownloadsPanel();
+  }
+  return true;
+}
+let _payGateCont=null;
+function _payrollGateOk(cont){
+  if(_simulating)return true;
+  if(_dlCapture&&_dlCapture.gateOk)return true;
+  if(!unpaidReviewRows().length)return true;
+  _payGateCont=cont||null;
+  _renderPayGate(true);
+  return false;
+}
+function _payGateHtml(){
+  const list=unpaidReviewRows();
+  let h='<p class="sub">These timecard rows are not approved, so this export would not pay them. Approve each one, or leave it out on purpose. The export runs when every row is decided.</p>';
+  h+='<table class="history-table pay-gate-table"><tbody>';
+  list.forEach(x=>{
+    const r=x.row;
+    const pairs=_rowPairList(r).map(p=>(to12h(p.in)||'?')+'–'+(to12h(p.out)||'?')).join(' · ')||'no punches';
+    const why=r._reread?'A re-read is waiting':(!isRowStructurallyValid(r)?'Missing clock-in or clock-out':'');
+    const act=why?`<span style="color:var(--amber);font-size:11px">${escHtml(why)}</span> <button class="mini-btn" onclick="payGateGoToRow(${x.entIdx},'${escJs(r.id)}')">Go to row</button>`
+      :`<button class="mini-btn approve" onclick="payGateApprove('${escJs(r.id)}')">✓ Approve</button>`;
+    h+=`<tr data-row-id="${escHtml(r.id)}"><td>${escHtml(x.entity)}</td><td><b>${escHtml(x.name)}</b></td><td>${escHtml(_isoDayLabel(r.date))}</td><td class="mono">${escHtml(pairs)}</td><td class="mono">${fmtHmm(x.minutes/60)} won't be paid</td><td style="white-space:nowrap">${act} <button class="mini-btn" onclick="payGateLeaveOut('${escJs(r.id)}')">Leave out</button></td></tr>`;
+  });
+  h+='</tbody></table>';
+  h+='<div class="actions"><button class="btn" onclick="payGateCancel()">Cancel</button><button class="btn btn-primary" onclick="payGateApproveAll()">✓ Approve all</button></div>';
+  return h;
+}
+function _renderPayGate(open){
+  const ov=document.getElementById('payGateOverlay');
+  if(!ov)return;
+  if(!open){ov.style.display='none';return;}
+  document.getElementById('payGateBody').innerHTML=_payGateHtml();
+  ov.style.display='flex';
+}
+function _payGateAfterChange(){
+  if(unpaidReviewRows().length){_renderPayGate(true);return;}
+  const c=_payGateCont;_payGateCont=null;
+  _renderPayGate(false);
+  if(c)return c();
+}
+function payGateApprove(id){approveReviewRow(id);return _payGateAfterChange();}
+function payGateLeaveOut(id){setRowLeftOut(id,true);return _payGateAfterChange();}
+function payGateApproveAll(){
+  unpaidReviewRows().forEach(x=>{if(_approvable(x.row))approveReviewRow(x.row.id);});
+  return _payGateAfterChange();
+}
+function payGateCancel(){_payGateCont=null;_renderPayGate(false);}
+function payGateGoToRow(entIdx,id){
+  payGateCancel();
+  const ent=entities[entIdx];const h=findReviewRow(id);
+  if(!ent||!h)return;
+  ensureIntakeState(ent);
+  ent.intake.activeEmpTab=reviewBucketKey(h.row,ent);
+  setTab('intake');
+}
+function payGateIsOpen(){const ov=document.getElementById('payGateOverlay');return!!(ov&&ov.style.display==='flex');}
+
+// ================================================================
+// FC-00049 — hours as h:mm on screen (display only; pay math and exports stay decimal)
+// ================================================================
+const HOURS_FMT_PREF='pv26_hours_fmt';
+const HOURS_FMT_LABEL={both:'h:mm (decimal)',hmm:'h:mm',dec:'decimal'};
+function hoursFormat(){const v=_prefGet(HOURS_FMT_PREF);return HOURS_FMT_LABEL[v]?v:'both';}
+function setHoursFormat(v){
+  if(!HOURS_FMT_LABEL[v])return false;
+  _prefSet(HOURS_FMT_PREF,v);
+  if(!_simulating){try{_rerenderAll();}catch(_){}}
+  return true;
+}
+// Hours → "h:mm", rounded to the nearest minute.
+function fmtHmm(h){
+  if(h==null||isNaN(h))return'';
+  const m=Math.round(h*60),a=Math.abs(m);
+  return(m<0?'-':'')+Math.floor(a/60)+':'+String(a%60).padStart(2,'0');
+}
+// Hours as the owner chose to read them. The decimal is the value pay uses.
+function fmtH(h,digits){
+  if(h==null||isNaN(h))return'';
+  const d=h.toFixed(digits==null?2:digits);
+  const f=hoursFormat();
+  if(f==='dec')return d;
+  if(f==='hmm')return fmtHmm(h);
+  return fmtHmm(h)+' ('+d+')';
+}
+// FC-00049: the break counted for pay on one worked day, and where it came from.
+function dayBreakLine(day){
+  if(!day||!day.actual||!(day.workedH>0))return'';
+  const brkH=day.actualBreakH||0;
+  if(day.breakOverrideMin!=null)return'break '+fmtHmm(brkH)+' set';
+  const rawH=Math.max(0,(day.spanH||0)-(day.workedH||0));
+  const minH=(day.defaultBreakMin||0)/60;
+  if(minH>0&&minH>rawH+1e-9)return'break '+fmtHmm(brkH)+' min.';
+  if(Math.round(rawH*60)<=0)return'';
+  return'break '+fmtHmm(brkH);
 }
 
 function _exportPeriodStr(){
@@ -8412,6 +8643,7 @@ function _toastExportWithWeekNote(fname){
 
 // ---- Excel writer ----
 async function _exportExcel(kind){
+  if(!_payrollGateOk(()=>_exportExcel(kind)))return; // FC-00049
   if(!_confirmBreaksOrBail())return;
   const data=_collectExportData();
   if(data.length===0){if(!_dlCapture)alert('No data to export.');return;}
@@ -8519,6 +8751,9 @@ async function _exportExcel(kind){
         cell.border={top:medB,bottom:medB,left:thinB,right:thinB};
       });
       if(_fc12Colorize)_applyEntityPalette(sub,entPal,'subtotal',null);
+      // FC-00049: rows the owner left out of pay are listed under the entity's totals.
+      const _lo=_leftOutNoteText(entities.find(e=>e.id===entityId));
+      if(_lo){const nr=ws.addRow([_lo]);nr.getCell(1).font={name:'Arial',italic:true,size:9,color:{argb:'FF555555'}};ws.mergeCells(nr.number,1,nr.number,spec.headers.length);}
       // Blank separator row between entities, matching the reference report's layout.
       if(_fc12Colorize)ws.addRow([]);
     });
@@ -8565,6 +8800,7 @@ async function _exportExcel(kind){
 
 // ---- PDF writer ----
 async function _exportPdf(kind){
+  if(!_payrollGateOk(()=>_exportPdf(kind)))return; // FC-00049
   if(!_confirmBreaksOrBail())return;
   if(!window.jspdf||!window.jspdf.jsPDF){alert('PDF library failed to load. Please reload the page and try again.');return;}
   const {jsPDF}=window.jspdf;
@@ -8646,6 +8882,9 @@ async function _exportPdf(kind){
       // possible — autoTable's own per-row 'avoid' setting (vs. the table-wide 'avoid',
       // which would force the whole table onto one page) does exactly this.
       rowRoles.push({role:'subtotal',pal:entPal,pageBreak:'avoid'});
+      // FC-00049: rows the owner left out of pay are listed under the entity's totals.
+      const _lo=_leftOutNoteText(entities.find(e=>e.id===entityId));
+      if(_lo){body.push([{content:_lo,colSpan:spec.headers.length,styles:{fontStyle:'italic',textColor:[85,85,85],fontSize:7}}]);rowRoles.push({role:'note',pal:null});}
     });
 
     const grandRow=new Array(spec.headers.length).fill({content:'',styles:{fillColor:[224,222,213],fontStyle:'bold'}});
@@ -8745,6 +8984,7 @@ function _gatherActualsIntakeRows(){
         in2:r.clockIn2||'',out2:r.clockOut2||'',
         in3:r.clockIn3||'',out3:r.clockOut3||'',
         approved:!!r.approved,
+        leftOut:!r.approved&&!!r.leftOut,
         source:r.source||'',
         image:r.originalName||'',
         confidence:typeof r.confidence==='number'?r.confidence:'',
@@ -8784,7 +9024,7 @@ function _writeActualsIntakeSheet(ws,rows,opts){
     const xlsxRow=ws.addRow([
       r.entity,r.emp,r.date,r.dayName,
       to12h(r.in1),to12h(r.out1),to12h(r.in2),to12h(r.out2),to12h(r.in3),to12h(r.out3),
-      r.approved?'Yes':'No',r.source,r.image,
+      r.approved?'Yes':(r.leftOut?'Left out':'No'),r.source,r.image,
       typeof r.confidence==='number'?Math.round(r.confidence*100)/100:'',
       flagsStr,r.suggested,r.rowId
     ]);
@@ -8963,6 +9203,7 @@ function _ingestActualsIntakeRows(rows,colMap){
     const iso=parsedDate?parsedDate.isoStr:'';
     const approvedTxt=get(row,'approved').toLowerCase();
     const approved=approvedTxt==='yes'||approvedTxt==='true'||approvedTxt==='y'||approvedTxt==='1';
+    const leftOutImp=approvedTxt==='left out'; // FC-00049
     const source=get(row,'source')||'XL';
     const image=get(row,'image')||'(imported)';
     const confRaw=get(row,'confidence');
@@ -8982,6 +9223,7 @@ function _ingestActualsIntakeRows(rows,colMap){
       _lowConf:false,_gt2Pairs:false,_escalated:false,
       flags:[],needsReview:false,approved:false
     };
+    if(leftOutImp)newRow.leftOut=true;
     if(suggested)newRow._suggestedName=suggested;
     if(iso){const d=new Date(iso+'T00:00:00');if(!isNaN(d))newRow.dayIdx=d.getDay();}
     // Try to map empName to scheduled name (so reviewBucketKey works)
@@ -9424,6 +9666,9 @@ function _ingestPayrollSettings(rows,colMap,includeBreaks){
   // FC-00046: nameless records left by older sessions (an empty lookup used to create one per
   // entity) are dropped before renumbering, so they never hold an ID in front of a real person.
   touchedEntities.forEach(entId=>_dropBlankRecords(entId));
+  // FC-00049 (review item): a file without an Employee ID column still counts as loaded, so the
+  // "load first?" prompt stops. The marker key is never an entity code.
+  if(touchedEntities.size||touchedEntities.length){session._fileIdMax=session._fileIdMax||{};if(!('_loaded' in session._fileIdMax))session._fileIdMax._loaded=0;}
   const report={conflicts:[],archivedWorked:[]};
   touchedEntities.forEach(entId=>{mergedCount+=_mergeProvisionalRecords(entId,report);_renumberProvisionalIds(entId);});
   // FC-00046: a person the file marks archived who has punches this week is kept active and

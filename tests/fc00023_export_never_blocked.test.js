@@ -79,6 +79,13 @@ EXPORTS.forEach(name => {
   test(`test_${name}_writes_file_with_duplicates_and_flags`, async () => {
     const { api, written } = setup();
     await api[name]();
+    // FC-00049: a payroll export first asks about the unapproved row (it would not be paid);
+    // once the row is left out, the export writes its file. Duplicates and flags still never stop it.
+    if (api.payGateIsOpen()) {
+      assert.equal(written.length, 0, `${name} waits for the unapproved row to be decided`);
+      const id = api.entities[0].intake.reviewRows[0].id;
+      await api.payGateLeaveOut(id);
+    }
     assert.equal(written.length, 1, `${name} must write exactly one file despite duplicates/flags`);
   });
 });

@@ -31,7 +31,7 @@ test('test_payroll_tab_shows_excluded_banner', () => {
   api.renderPayrollEntityContent(0);
   const html = api.__sandbox.document.getElementById('payrollEntityContent').innerHTML;
   assert.match(html, /1 approved punch day is outside this schedule's week \(08\/09\/26 – 08\/15\/26\) and NOT counted/);
-  assert.match(html, /Ann — 08\/03\/26 \(8\.00 h worked\)/);
+  assert.match(html, /Ann — 08\/03\/26 \(8:00 \(8\.00\) worked\)/); // FC-00049: h:mm (decimal)
 });
 
 test('test_preview_and_export_toast_report_exclusion', async () => {
