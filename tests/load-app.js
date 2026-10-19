@@ -558,7 +558,7 @@ function loadApp(opts) {
       _openFileEntities, _closeOpenedEntities, renderSettingsFirstBar, skipSettingsFirst, _settingsLoadedThisSession, _learnSpelling, _archivedMatch, updateReviewField, matchEmployeeName,
       reviewBucketKey, _personNameOnEntity, _schedNameForPerson, _empIdText, _isIdPending, _dropBlankRecords, _fileMatchFor,
       unpaidReviewRows, leftOutRowsFor, setRowLeftOut, payGateApprove, payGateLeaveOut, payGateApproveAll, payGateCancel, payGateGoToRow, payGateIsOpen, _payGateHtml, _leftOutNoteText,
-      hoursFormat, setHoursFormat, fmtH, fmtHmm, dayBreakLine, renderPayDayCell, _isoDayLabel, _rowWorkedMinutes,
+      hoursFormat, setHoursFormat, fmtHrs, fmtHmm, dayBreakLine, renderPayDayCell, _isoDayLabel, _rowWorkedMinutes,
       getActiveEntityIdx: () => activeEntityIdx,
       getStaged: () => _staged,
       getCurrentTabName: () => currentTab,

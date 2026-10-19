@@ -165,11 +165,11 @@ test('test_downloads_ask_once_then_write', async () => {
 test('test_hmm_display_both_hmm_decimal', () => {
   const { api } = setup();
   assert.equal(api.hoursFormat(), 'both', 'default');
-  assert.equal(api.fmtH(7.98), '7:59 (7.98)');
+  assert.equal(api.fmtHrs(7.98), '7:59 (7.98)');
   api.setHoursFormat('hmm');
-  assert.equal(api.fmtH(7.98), '7:59');
+  assert.equal(api.fmtHrs(7.98), '7:59');
   api.setHoursFormat('dec');
-  assert.equal(api.fmtH(7.98), '7.98');
+  assert.equal(api.fmtHrs(7.98), '7.98');
   assert.equal(api.setHoursFormat('weird'), false);
   assert.equal(api.hoursFormat(), 'dec');
   assert.equal(api.fmtHmm(0.5), '0:30');
@@ -266,4 +266,13 @@ test('test_row_without_punches_never_stops', () => {
   assert.equal(api.unpaidReviewRows().length, 0, 'nothing on it would be paid');
   add('BRAM', '2026-08-14', '', '17:00', false); // a clock-out with no clock-in still asks
   assert.equal(api.unpaidReviewRows().length, 1);
+});
+
+test('test_no_function_declared_twice', () => {
+  // A second top-level "function X" silently replaces the first in the browser. The hours
+  // formatter is fmtHrs; fmtH stays the clock-time formatter the schedule calendar uses.
+  const html = require('node:fs').readFileSync(require('node:path').join(__dirname, '..', 'index.html'), 'utf8');
+  const names = [...html.matchAll(/^(?:async\s+)?function\s+([A-Za-z0-9_$]+)\s*\(/gm)].map(m => m[1]);
+  const dup = names.filter((n, i) => names.indexOf(n) !== i);
+  assert.deepEqual(dup, []);
 });

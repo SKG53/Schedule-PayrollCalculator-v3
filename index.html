@@ -4016,7 +4016,7 @@ function renderTable(idx){
     html+='</tr>';
     if(currentView==='manager'){
       html+=`<tr class="hours-row"><td class="hours-cell" style="border-right:2px solid #999;font-style:italic;color:var(--text3);font-size:10px">Hours</td><td class="hours-cell" style="border-right:2px solid #999"></td>`;
-      for(let d=0;d<7;d++){const h=calcHours(parseShift(emp.shifts[d]));html+=`<td class="hours-cell">${h>0?fmtH(h):''}</td>`}
+      for(let d=0;d<7;d++){const h=calcHours(parseShift(emp.shifts[d]));html+=`<td class="hours-cell">${h>0?fmtHrs(h):''}</td>`}
       html+='</tr>';
     }
   });
@@ -4639,7 +4639,7 @@ function _weekFilterBannerHtml(ent,calc){
   if(ex.length){
     const hrs=Math.round(ex.reduce((a,x)=>a+x.hours,0)*100)/100;
     const list=ex.slice().sort((a,b)=>(a.date+a.empName).localeCompare(b.date+b.empName))
-      .map(x=>`<li>${escHtml(x.empName)} — ${_fmtIsoShort(x.date)} (${fmtH(x.hours)} worked)</li>`).join('');
+      .map(x=>`<li>${escHtml(x.empName)} — ${_fmtIsoShort(x.date)} (${fmtHrs(x.hours)} worked)</li>`).join('');
     html+=`<div class="week-filter-banner" style="background:#FFF7ED;color:#9A3412;border:1px solid #FB923C;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px">`+
       `<strong>⚠ ${ex.length} approved punch day${ex.length===1?' is':'s are'} outside this schedule's week (${_fmtIsoShort(wi.start)} – ${_fmtIsoShort(wi.end)}) and NOT counted</strong> — ${hrs.toFixed(2)} h total. `+
       `Only the loaded schedule's week is paid. If a date below is wrong, fix it in Actuals Intake (rows flagged "Outside week").`+
@@ -5298,16 +5298,16 @@ function renderPayDayCell(day,isOrphan,hasActuals){
   if(day.status==='off')return `<td class="pay-day status-off">${schedLine}</td>`;
   // NO SHOW: employee missed the shift — pay less than expected → green (per user's pay-centric rule)
   if(day.status==='ignored')return `<td class="pay-day" style="opacity:0.5">${schedLine}<span class="pay-times-line pay-times" style="color:var(--text3)">IGNORED</span><div class="pay-hours-line" style="color:var(--text3)">no actuals tracked</div></td>`;
-  if(day.status==='noshow')return `<td class="pay-day status-noshow">${schedLine}<span class="pay-times-line pay-times hours-good">NO SHOW</span><div class="pay-hours-line hours-good">missed ${fmtH(day.expectedH)}</div></td>`;
+  if(day.status==='noshow')return `<td class="pay-day status-noshow">${schedLine}<span class="pay-times-line pay-times hours-good">NO SHOW</span><div class="pay-hours-line hours-good">missed ${fmtHrs(day.expectedH)}</div></td>`;
   // UNSCHED: unscheduled clock-ins — pay for unexpected work → red
   if(day.status==='unsched'){
     let h=`<td class="pay-day status-unsched">${schedLine}`;
     day.actual.pairs.forEach(p=>{h+=`<span class="pay-times-line pay-times">${compactH(p.in)} – ${compactH(p.out)}</span>`;});
-    h+=`<div class="pay-hours-line hours-bad">${fmtH(day.billableH)} · unsched</div>`;
+    h+=`<div class="pay-hours-line hours-bad">${fmtHrs(day.billableH)} · unsched</div>`;
     const _bl=dayBreakLine(day);if(_bl)h+=`<div class="pay-break-line">${_bl}</div>`; // FC-00049
     h+='</td>';return h;
   }
-  if(!hasActuals)return `<td class="pay-day">${schedLine}<div class="pay-hours-line hours-neutral">${fmtH(day.expectedH)} expected</div></td>`;
+  if(!hasActuals)return `<td class="pay-day">${schedLine}<div class="pay-hours-line hours-neutral">${fmtHrs(day.expectedH)} expected</div></td>`;
   const stCls=day.status==='ok'?'':'status-'+day.status;
   let h=`<td class="pay-day ${stCls}">${schedLine}`;
   day.actual.pairs.forEach(p=>{h+=`<span class="pay-times-line pay-times">${compactH(p.in)} – ${compactH(p.out)}</span>`;});
@@ -5318,7 +5318,7 @@ function renderPayDayCell(day,isOrphan,hasActuals){
   else if(hDiff>0)hClass='hours-bad';
   else hClass='hours-good';
   const diffInline=absM<1?'':`<span class="pay-diff-inline">(${absM}m ${hDiff>0?'more':'less'})</span>`;
-  h+=`<div class="pay-hours-line ${hClass}">${fmtH(day.billableH)}${diffInline}</div>`;
+  h+=`<div class="pay-hours-line ${hClass}">${fmtHrs(day.billableH)}${diffInline}</div>`;
   const _bl=dayBreakLine(day);if(_bl)h+=`<div class="pay-break-line">${_bl}</div>`; // FC-00049
   h+='</td>';
   return h;
@@ -5354,11 +5354,11 @@ function renderPayrollGrid(rows,ent,hasActuals,noSchedule){
     if(r.isOrphan)diffHtml=`<span class="wk-diff">no schedule</span>`;
     else if(hasActuals){
       if(absDiff<0.01)diffHtml=`<span class="wk-diff">as expected</span>`;
-      else diffHtml=`<span class="wk-diff">${fmtH(absDiff)} ${diff>0?'More':'Less'}</span>`;
+      else diffHtml=`<span class="wk-diff">${fmtHrs(absDiff)} ${diff>0?'More':'Less'}</span>`;
     }else{
       diffHtml=`<span class="wk-diff">expected</span>`;
     }
-    const wkVal=hasActuals?fmtH(r.actualHours):fmtH(r.expectedH);
+    const wkVal=hasActuals?fmtHrs(r.actualHours):fmtHrs(r.expectedH);
     html+=`<td class="pay-weekly ${wkCls}"><span class="wk-actual">${wkVal}</span>${diffHtml}</td></tr>`;
   });
   html+='</tbody>';
@@ -5386,37 +5386,37 @@ function renderTimeCardData(rows,hasActuals,ent,noSchedule){
     if(!r.isOrphan&&hasActuals){
       const diff=r.actualHours-r.expectedH,abs=Math.abs(diff);
       if(abs<0.01){diffStr='as expected';diffCls='diff-zero';}
-      else if(diff>0){diffStr=`${fmtH(abs)} More`;diffCls='diff-pos';}
-      else{diffStr=`${fmtH(abs)} Less`;diffCls='diff-neg';}
+      else if(diff>0){diffStr=`${fmtHrs(abs)} More`;diffCls='diff-pos';}
+      else{diffStr=`${fmtHrs(abs)} Less`;diffCls='diff-neg';}
     }
     const keyName=r.schedName||r.name;
     const empId=keyName?_empIdText(ent.id,keyName):'';
     const rowCls=r.isOrphan?(noSchedule?' class="orphan-row-quiet"':' class="orphan-row"'):'';
     html+=`<tr${rowCls}><td class="name-cell" style="padding:8px 6px">${inlineEditableNameHtml(ent.id,keyName,'payroll',()=>renderPayroll())}${_dupFlagHtml(ent.id,keyName)}</td>`;
     html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text3)">${fmtH(r.expectedBreakH)}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text2)">${fmtH(r.expectedH)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrs(r.expectedBreakH)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrs(r.expectedH)}</td>`;
     if(hasActuals){
-      html+=`<td class="num-cell" style="color:var(--text3)">${fmtH(r.actualBreakH)}</td>`;
+      html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrs(r.actualBreakH)}</td>`;
       let actCls='diff-zero';
       if(r.isOrphan)actCls='diff-pos';
       else{const d=r.actualHours-r.expectedH;if(Math.abs(d)<0.01)actCls='diff-zero';else if(d>0)actCls='diff-pos';else actCls='diff-neg';}
-      html+=`<td class="num-cell ${actCls}">${fmtH(r.actualHours)}</td>`;
+      html+=`<td class="num-cell ${actCls}">${fmtHrs(r.actualHours)}</td>`;
       html+=`<td class="num-cell ${diffCls}">${diffStr}</td>`;
       html+=`<td class="metric-cell ${metricClsStr(r.avgInDiff,'in')}">${metricStr(r.avgInDiff)}</td>`;
       html+=`<td class="metric-cell ${metricClsStr(r.avgOutDiff,'out')}">${metricStr(r.avgOutDiff)}</td>`;
-      const otFlag=r.actualHours>40?`<span class="ot-flag-inline">⚠ ${fmtH(r.otH)} over</span>`:'<span style="color:var(--text3)">—</span>';
+      const otFlag=r.actualHours>40?`<span class="ot-flag-inline">⚠ ${fmtHrs(r.otH)} over</span>`:'<span style="color:var(--text3)">—</span>';
       html+=`<td class="num-cell">${otFlag}</td>`;
     }
     html+='</tr>';
   });
   html+='<tr class="total-row"><td class="name-cell" style="padding:8px 6px">TOTAL</td><td class="name-cell"></td>';
-  html+=`<td class="num-cell">${fmtH(totExpBreak)}</td><td class="num-cell">${fmtH(totExp)}</td>`;
+  html+=`<td class="num-cell">${fmtHrs(totExpBreak)}</td><td class="num-cell">${fmtHrs(totExp)}</td>`;
   if(hasActuals){
     const tDiff=totAct-totExp,absT=Math.abs(tDiff);
     let tStr='as expected',tCls='diff-zero';
-    if(absT>=0.01){if(tDiff>0){tStr=`${fmtH(absT)} More`;tCls='diff-pos';}else{tStr=`${fmtH(absT)} Less`;tCls='diff-neg';}}
-    html+=`<td class="num-cell">${fmtH(totActBreak)}</td><td class="num-cell ${tCls}">${fmtH(totAct)}</td>`;
+    if(absT>=0.01){if(tDiff>0){tStr=`${fmtHrs(absT)} More`;tCls='diff-pos';}else{tStr=`${fmtHrs(absT)} Less`;tCls='diff-neg';}}
+    html+=`<td class="num-cell">${fmtHrs(totActBreak)}</td><td class="num-cell ${tCls}">${fmtHrs(totAct)}</td>`;
     html+=`<td class="num-cell ${tCls}">${tStr}</td><td></td><td></td><td></td>`;
   }
   html+='</tr></tbody>';
@@ -5462,8 +5462,8 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
       <button class="btn btn-small" onclick="openRenameEmployeeModal(${ent.id},'${escJs(keyName)}')" title="Rename Employee" style="margin-left:6px;font-size:10px;padding:2px 6px">Rename Employee</button>${_dupFlagHtml(ent.id,keyName)}</td>`;
     html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
     html+=`<td style="text-align:center;padding:6px"><input type="checkbox" ${rowActive?'checked':''} onchange="setRowActive(${i},this.checked)" title="${rowActive?'Active — in this week\'s export and loads with the next schedule':'Unchecked — left out of this week\'s export and the next schedule'}" style="width:15px;height:15px;cursor:pointer"></td>`;
-    html+=`<td class="num-cell" style="color:var(--text3)">${fmtH(r.actualBreakH)}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text2)">${fmtH(r.actualHours)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrs(r.actualBreakH)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrs(r.actualHours)}</td>`;
 
     const typeToggleHtml=`<div class="type-toggle"><button class="${r.isFlat?'':'selected'}" onclick="setRowType(${i},'hourly')" title="Compute pay as wage × hours">Hourly</button><button class="${r.isFlat?'selected':''}" onclick="setRowType(${i},'flat')" title="Use a flat dollar amount">Flat</button></div>`;
 
@@ -8090,7 +8090,7 @@ function fmtHmm(h){
   return(m<0?'-':'')+Math.floor(a/60)+':'+String(a%60).padStart(2,'0');
 }
 // Hours as the owner chose to read them. The decimal is the value pay uses.
-function fmtH(h,digits){
+function fmtHrs(h,digits){
   if(h==null||isNaN(h))return'';
   const d=h.toFixed(digits==null?2:digits);
   const f=hoursFormat();
