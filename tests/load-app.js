@@ -40,7 +40,7 @@ function makeElement() {
   };
 }
 
-function loadApp() {
+function loadApp(opts) {
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   const match = html.match(/<script>([\s\S]*?)<\/script>/);
   if (!match) throw new Error('Could not find inline <script> in index.html');
@@ -573,6 +573,8 @@ function loadApp() {
   Object.defineProperty(api, '__lastExcelWorkbook', { get: () => sandbox.__lastExcelWorkbook });
   Object.defineProperty(api, '__lastAutoTableCalls', { get: () => sandbox.__lastAutoTableCalls });
   Object.defineProperty(api, '__revokedObjectUrls', { get: () => sandbox.__revokedObjectUrls });
+  // FC-00050: names print FIRST LAST by default. Tests written for the saved spelling ask for it.
+  if (opts && opts.savedNames) api.session.toolSettings = Object.assign(api.session.toolSettings || {}, { 'names:all': 'saved' });
   return api;
 }
 

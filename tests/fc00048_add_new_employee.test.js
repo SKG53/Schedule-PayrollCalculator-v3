@@ -4,6 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { webcrypto } = require('node:crypto');
+// FC-00050: these tests check the saved spelling, so they ask for "As saved" names.
 const { loadApp, resetToSingleEntity } = require('./load-app');
 
 const SCHED_HDR = ['Name', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -13,7 +14,7 @@ const H = ['Entity', 'Employee', 'Wage/hour', 'Pay Method', 'Employee ID', 'Alia
 const cm = () => { const m = {}; H.forEach((h, i) => { m[h.toLowerCase()] = i; }); return m; };
 
 function setup({ file = false } = {}) {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   api.__sandbox.alert = () => {};
   api.__sandbox.confirm = () => true;
   api.__sandbox.crypto = webcrypto;
@@ -123,7 +124,7 @@ test('test_no_orphan_label_on_exports', async () => {
 });
 
 test('test_reactivate_archived_from_review', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   api.__sandbox.alert = () => {}; api.__sandbox.confirm = () => true;
   const ent = resetToSingleEntity(api, { id: 0, name: 'Alpha Test', employees: [], dateLabels: WEEK, breakMinutes: 0, breakMinutesSet: true });
   api._syncEntityCode(ent);
@@ -141,7 +142,7 @@ test('test_reactivate_archived_from_review', () => {
 });
 
 test('test_new_employee_name_of_archived_person_refused', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   let said = '';
   api.__sandbox.alert = (m) => { said = m; };
   api.__sandbox.confirm = () => true;

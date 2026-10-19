@@ -762,7 +762,6 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
 
     <div class="toolbar" id="toolbar">
       <button class="btn btn-primary" onclick="exportEmployee()">Export Employee Schedule</button>
-      <button class="btn btn-green" onclick="exportManager()">Export Manager Report</button>
       <span class="spacer"></span>
       <button class="btn" onclick="addEmployee()">+ Add Employee</button>
       <button class="btn" onclick="reloadSchedule()">Load New File</button>
@@ -811,14 +810,7 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
 
     <!-- Export buttons — moved to the BOTTOM so the all-entity preview sits just above them. -->
     <div class="toolbar" id="payrollToolbar" style="display:none;margin-top:16px;flex-direction:column;align-items:stretch;gap:8px">
-      <div class="export-group-section">
-        <div class="export-row"><div class="export-label">Cash-Only Report</div><button class="btn btn-green" onclick="exportCashExcel()">Excel</button><button class="btn" onclick="exportCashPdf()">PDF</button></div>
-        <div class="export-row"><div class="export-label">Deposit-Only Report</div><button class="btn btn-green" onclick="exportDepositExcel()">Excel</button><button class="btn" onclick="exportDepositPdf()">PDF</button></div>
-        <div class="export-row"><div class="export-label">Combined Report</div><button class="btn btn-green" onclick="exportCombinedExcel()">Excel</button><button class="btn" onclick="exportCombinedPdf()">PDF</button></div>
-        <div class="export-row"><div class="export-label">Time Card Data</div><button class="btn btn-green" onclick="exportTimecardExcel()">Excel</button><button class="btn" onclick="exportTimecardPdf()">PDF</button></div>
-        <div class="export-row"><div class="export-label">Payroll Calculation</div><button class="btn btn-green" onclick="exportPayrollCalcExcel()">Excel</button><button class="btn" onclick="exportPayrollCalcPdf()">PDF</button></div>
-        <div class="export-row"><div class="export-label">Full Report</div><button class="btn btn-green" onclick="exportFullExcel()">Excel</button><button class="btn" onclick="exportFullPdf()">PDF</button></div>
-      </div>
+      <!-- FC-00050: the per-report export buttons are gone; every export is on the Downloads list. -->
       <div class="export-group-section">
         <h4>Wage / Payroll Calculation Settings</h4>
         <div class="export-row" style="flex-wrap:wrap;gap:8px;align-items:center">
@@ -3216,18 +3208,14 @@ function _mmddRange(labels){
   return a&&b?a.slice(5,7)+a.slice(8,10)+'to'+b.slice(5,7)+b.slice(8,10):'';
 }
 const _PAYROLL_KINDS=['payroll','cashOnly','depositOnly','timecardData','payrollCalc','full'];
+// FC-00050: the payroll-side files the owner uses. The other reports (Cash-only, Deposit-only,
+// Time Card Data, Payroll Calculation, Full, Manager, the Timecards PDF and the accountant
+// placeholder) were removed from the screen; their writers stay in the code, unreachable.
 const DOWNLOADS=[
   {key:'payroll',label:'Payroll report',desc:'Combined report: every entity, hours, rate, deposit and cash, with totals.',formats:{xlsx:true,pdf:true},suffix:'AllEmployeesPayroll',run:{xlsx:()=>_exportExcel('combined'),pdf:()=>_exportPdf('combined')}},
-  {key:'timecards',label:'Reviewed timecards',desc:'Every punch row with its approval — re-importable on Actuals Intake.',formats:{xlsx:true,pdf:false},suffix:'AllEmployeesTimecards',run:{xlsx:()=>exportActualsIntakeExcel(),pdf:()=>exportActualsIntakePdf()}},
+  {key:'timecards',label:'Reviewed timecards',desc:'Every punch row with its approval — re-importable on Actuals Intake.',formats:{xlsx:true},suffix:'AllEmployeesTimecards',run:{xlsx:()=>exportActualsIntakeExcel(),pdf:()=>exportActualsIntakePdf()}},
   {key:'settings',label:'Settings (new master)',desc:'Every employee\'s ID, name, aliases, rate, pay method and Active, plus tool settings and file labels.',formats:{xlsx:true},suffix:'AllEmployeesPayroll_Settings',run:{xlsx:()=>exportPayrollSettingsExcel(false)}},
   {key:'snapshot',label:'Snapshot',desc:'The whole session in one file, to reopen every screen exactly as it is now.',formats:{json:true},suffix:'Snapshot'},
-  {key:'accountant',label:'Accountant file',desc:'Coming soon — the format is being agreed with the accountant.',formats:{},disabled:true},
-  {key:'cashOnly',label:'Cash-only report',desc:'Cash payees only.',formats:{xlsx:false,pdf:false},suffix:'CashOnly',run:{xlsx:()=>_exportExcel('cashOnly'),pdf:()=>_exportPdf('cashOnly')}},
-  {key:'depositOnly',label:'Deposit-only report',desc:'Deposit payees only.',formats:{xlsx:false,pdf:false},suffix:'DepositOnly',run:{xlsx:()=>_exportExcel('depositOnly'),pdf:()=>_exportPdf('depositOnly')}},
-  {key:'timecardData',label:'Time Card Data',desc:'Expected vs actual hours and breaks per employee.',formats:{xlsx:false,pdf:false},suffix:'TimeCardData',run:{xlsx:()=>_exportExcel('timecard'),pdf:()=>_exportPdf('timecard')}},
-  {key:'payrollCalc',label:'Payroll Calculation',desc:'Rate, hours and pay detail per employee.',formats:{xlsx:false,pdf:false},suffix:'PayrollCalculation',run:{xlsx:()=>_exportExcel('payrollCalc'),pdf:()=>_exportPdf('payrollCalc')}},
-  {key:'full',label:'Full report',desc:'Everything in one report.',formats:{xlsx:false,pdf:false},suffix:'FullReport',run:{xlsx:()=>_exportExcel('full'),pdf:()=>_exportPdf('full')}},
-  {key:'manager',label:'Manager schedule report',desc:'Next week\'s schedule with daily hours, one file per entity with a schedule.',formats:{xlsx:false},perEntity:true},
 ];
 const _FMT_LABEL={xlsx:'Excel',pdf:'PDF',json:'Data file'};
 const _FMT_EXT={xlsx:'xlsx',pdf:'pdf',json:'json'};
@@ -3388,7 +3376,7 @@ function _downloadsHtml(){
   try{return _downloadsHtmlInner();}finally{_dlMemo=null;}
 }
 function _downloadsHtmlInner(){
-  let h='<div class="dl-panel"><div class="wow-head"><h3>Downloads</h3><span class="wow-src">Tick what you need, then download each file or one zip. Nothing here is ever blocked.</span></div>';
+  let h='<div class="dl-panel"><div class="wow-head"><h3>Downloads</h3><span class="wow-src">Tick what you need, then download each file or one zip. The payroll report first asks about any row that is not approved.</span></div>';
   h+=_nameControlsHtml();
   h+='<div class="dl-labels">File labels: '+entities.map((e,i)=>`<label>${escHtml(e.name||'Entity '+(i+1))} <input type="text" value="${escHtml(_entityFileLabel(e))}" onchange="setEntityFileLabel(${i},this.value)"></label>`).join(' ')+'</div>';
   h+='<table class="dl-table"><tbody>';
@@ -3405,12 +3393,12 @@ function _downloadsHtmlInner(){
 // FC-00045 — how names print on exports (display only; IDs and saved names never change)
 // ================================================================
 const NAME_MODE_LABEL={saved:'As saved',firstLast:'FIRST LAST',first:'FIRST'};
-const NAME_EXPORT_KEYS=['payroll','cashOnly','depositOnly','timecardData','payrollCalc','full','manager'];
+const NAME_EXPORT_KEYS=['payroll']; // FC-00050: the only export that prints names by choice
 const _DL_KEY_FOR_KIND={combined:'payroll',cashOnly:'cashOnly',depositOnly:'depositOnly',timecard:'timecardData',payrollCalc:'payrollCalc',full:'full',manager:'manager'};
 function exportNameScope(){return getToolSetting('names:scope')==='per'?'per':'all';}
 function exportNameMode(key){
   const v=exportNameScope()==='per'?(getToolSetting('names:'+key)||getToolSetting('names:all')):getToolSetting('names:all');
-  return NAME_MODE_LABEL[v]?v:'saved';
+  return NAME_MODE_LABEL[v]?v:'firstLast'; // FC-00050: FIRST LAST by default
 }
 function setExportNameScope(v){setToolSetting('names:scope',v==='per'?'per':'all','payroll');_refreshNameViews();}
 function setExportNameMode(key,v){if(!NAME_MODE_LABEL[v])return;setToolSetting('names:'+(key||'all'),v,'payroll');_refreshNameViews();}
@@ -8856,6 +8844,7 @@ async function _exportPdf(kind){
     // row content. Built in lockstep with `body` as rows are pushed.
     const rowRoles=[];
     const body=[];
+    const blocks=[]; // FC-00050: [start,end) of each entity block in body, kept on one page when it fits
     // Subtotals come from the same spec.totals the Excel writer sums (FC-00033), so the PDF
     // and the workbook always total the same columns.
     const totals=spec.totals||[];
@@ -8865,6 +8854,7 @@ async function _exportPdf(kind){
       if(filtered.length===0)return;
       if(spec.sortFn)filtered=filtered.slice().sort(spec.sortFn);
       const entPal=_fc15Colorize?_paletteForEntity(entities.find(e=>e.id===entityId)):null;
+      const b0=body.length;
       filtered.forEach(r=>{
         // PDF is a rendered document — unwrap the numeric cells back to display text.
         body.push(spec.rowFn(r).map(_cellText));
@@ -8885,6 +8875,7 @@ async function _exportPdf(kind){
       // FC-00049: rows the owner left out of pay are listed under the entity's totals.
       const _lo=_leftOutNoteText(entities.find(e=>e.id===entityId));
       if(_lo){body.push([{content:_lo,colSpan:spec.headers.length,styles:{fontStyle:'italic',textColor:[85,85,85],fontSize:7}}]);rowRoles.push({role:'note',pal:null});}
+      blocks.push([b0,body.length]);
     });
 
     const grandRow=new Array(spec.headers.length).fill({content:'',styles:{fillColor:[224,222,213],fontStyle:'bold'}});
@@ -8892,47 +8883,81 @@ async function _exportPdf(kind){
     totals.forEach(t=>{
       grandRow[t.col]={content:_totalCellText(t,Math.round(grandVals[t.col]*100)/100),styles:{fillColor:[224,222,213],fontStyle:'bold',halign:'right'}};
     });
+    blocks.push([body.length,body.length+1]);
     body.push(grandRow);
     rowRoles.push({role:'grand',pal:_fc15Colorize?FC14_PRESETS.Plain:null,pageBreak:'avoid'});
 
+    // FC-00050: the table fits one landscape letter page width. Column widths keep the
+    // Excel proportions and are scaled to the space between the margins.
+    const M=30,pageH=doc.internal.pageSize.getHeight();
+    const avail=pageW-2*M;
+    const sumW=spec.widths.reduce((a,b)=>a+b,0)||1;
+    const colW=spec.widths.map(w=>w*avail/sumW);
     const columnStyles={};
     spec.numCols.forEach(ci=>{columnStyles[ci]={halign:'right'}});
-    // Approximate the Excel column widths in PDF points (rough Excel-unit-to-point
-    // conversion, ~7pt per narrow Excel width unit: spec.widths are already the same
-    // px-ish units _exportExcel divides by 6 to get Excel units, so w/6*7 lines the two
-    // writers' column proportions up without hardcoding a second widths table here).
-    spec.widths.forEach((w,i)=>{columnStyles[i]=Object.assign({},columnStyles[i]||{},{cellWidth:(w/6)*7})});
-
-    doc.autoTable({
-      head:[spec.headers],
-      body,
-      startY,
-      theme:'grid',
-      styles:{font:'helvetica',fontSize:8,cellPadding:3,lineColor:[176,176,176],lineWidth:0.4},
-      headStyles:{fillColor:[232,232,228],textColor:[26,26,24],fontStyle:'bold',halign:'left'},
-      columnStyles,
-      margin:{left:30,right:30},
-      // FC-00015: applies the resolved per-entity palette fill to every body/subtotal/grand
-      // cell, mirroring _applyEntityPalette's Excel logic. Header row keeps its static
-      // headStyles fill (set above) and is left alone here. Runs for every section, but
-      // rowRoles[i].pal is null when _fc15Colorize is false (timecard/payrollCalc/full),
-      // so this is a guaranteed no-op fill-wise for those uncolored modes.
-      didParseCell(hookData){
-        if(hookData.section!=='body')return;
-        const meta=rowRoles[hookData.row.index];
-        if(!meta||!meta.pal)return;
-        const pal=meta.pal;
-        const ci=hookData.column.index;
-        let argb;
-        if(meta.role==='grand')argb=pal.grand;
-        else if(meta.role==='subtotal')argb=pal.subtotal;
-        else argb=(cashColIdx!=null&&ci===cashColIdx)?pal.cash:pal.body;
-        hookData.cell.styles.fillColor=_argbToRgbTriplet(argb);
-        if(meta.role==='subtotal'||meta.role==='grand'){
-          hookData.cell.styles.fontStyle='bold';
-          hookData.row.pageBreak=meta.pageBreak;
+    colW.forEach((w,i)=>{columnStyles[i]=Object.assign({},columnStyles[i]||{},{cellWidth:w,overflow:'linebreak'})});
+    // Row heights are estimated with the same font (8 pt, 3 pt padding, long names wrap) so
+    // pages can be cut between entity blocks; the header repeats on every page.
+    const FS=8,PAD=3,LH=FS*1.15;
+    const lines=(txt,w)=>{
+      const t=String(txt==null?'':txt);
+      if(!t)return 1;
+      if(typeof doc.splitTextToSize==='function'){try{doc.setFontSize(FS);return Math.max(1,doc.splitTextToSize(t,Math.max(1,w-2*PAD)).length);}catch(_){}}
+      return Math.max(1,Math.ceil(t.length*FS*0.5/Math.max(1,w-2*PAD)));
+    };
+    const cellText=c=>(c&&typeof c==='object'&&'content' in c)?c.content:c;
+    const rowH=row=>{
+      let n=1;
+      if(row.length===1&&row[0]&&row[0].colSpan)n=lines(cellText(row[0]),avail);
+      else row.forEach((c,i)=>{n=Math.max(n,lines(cellText(c),colW[i]||avail));});
+      return n*LH+2*PAD+0.5;
+    };
+    const headH=rowH(spec.headers);
+    const pages=[];let cur=[],y=startY+headH;
+    blocks.forEach(([a,b])=>{
+      let h=0;for(let i=a;i<b;i++)h+=rowH(body[i]);
+      if(cur.length&&y+h>pageH-M){pages.push(cur);cur=[];y=M+headH;}
+      for(let i=a;i<b;i++)cur.push(i);
+      y+=h;
+    });
+    if(cur.length)pages.push(cur);
+    pages.forEach((idxs,pi)=>{
+      if(pi>0)doc.addPage();
+      const roles=idxs.map(i=>rowRoles[i]);
+      doc.autoTable({
+        head:[spec.headers],
+        body:idxs.map(i=>body[i]),
+        startY:pi===0?startY:M,
+        theme:'grid',
+        styles:{font:'helvetica',fontSize:FS,cellPadding:PAD,lineColor:[176,176,176],lineWidth:0.4,overflow:'linebreak'},
+        headStyles:{fillColor:[232,232,228],textColor:[26,26,24],fontStyle:'bold',halign:'left'},
+        columnStyles,
+        tableWidth:avail,
+        showHead:'everyPage',
+        rowPageBreak:'avoid',
+        margin:{left:M,right:M,top:M,bottom:M},
+        // FC-00015: applies the resolved per-entity palette fill to every body/subtotal/grand
+        // cell, mirroring _applyEntityPalette's Excel logic. Header row keeps its static
+        // headStyles fill (set above) and is left alone here. Runs for every section, but
+        // roles[i].pal is null when _fc15Colorize is false (timecard/payrollCalc/full),
+        // so this is a guaranteed no-op fill-wise for those uncolored modes.
+        didParseCell(hookData){
+          if(hookData.section!=='body')return;
+          const meta=roles[hookData.row.index];
+          if(!meta||!meta.pal)return;
+          const pal=meta.pal;
+          const ci=hookData.column.index;
+          let argb;
+          if(meta.role==='grand')argb=pal.grand;
+          else if(meta.role==='subtotal')argb=pal.subtotal;
+          else argb=(cashColIdx!=null&&ci===cashColIdx)?pal.cash:pal.body;
+          hookData.cell.styles.fillColor=_argbToRgbTriplet(argb);
+          if(meta.role==='subtotal'||meta.role==='grand'){
+            hookData.cell.styles.fontStyle='bold';
+            hookData.row.pageBreak=meta.pageBreak;
+          }
         }
-      }
+      });
     });
     startY=doc.lastAutoTable.finalY+20;
   }

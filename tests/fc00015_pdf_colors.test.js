@@ -11,6 +11,7 @@
 // what a live export's autoTable() call would paint.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// FC-00050: these tests check the saved spelling, so they ask for "As saved" names.
 const { loadApp, resetToSingleEntity } = require('./load-app');
 
 // Builds a 2-entity fixture — one Nirvana 11th (hardcoded default palette), one Zion — each
@@ -59,7 +60,7 @@ function lastCallParsedCells(api) {
 }
 
 test('test_pdf_export_applies_palette_via_didparse', async () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeTwoEntityFixture(api);
 
   await api.exportCombinedPdf();
@@ -113,7 +114,7 @@ test('test_pdf_export_uses_user_selected_fc00014_preset', async () => {
   // FC-00015 DoD #3: palette resolution must go through _paletteForEntity (which consults
   // entityPalettes, the FC-00014 user-selection map), not the raw FC12_PALETTES constant —
   // so a user-selected preset override actually changes the PDF's fill colors.
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   const { nirvana } = makeTwoEntityFixture(api);
 
   // Sanity: Nirvana 11th's hardcoded default is 'Green', not 'Sunset'.
@@ -134,7 +135,7 @@ test('test_pdf_export_uses_user_selected_fc00014_preset', async () => {
 });
 
 test('test_pdf_cashonly_and_depositonly_apply_palette_correctly', async () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeTwoEntityFixture(api);
 
   // Cash-Only: last column (Cash Portion) gets the cash tint.
@@ -169,7 +170,7 @@ test('test_pdf_uncolored_modes_no_palette', async () => {
   // row content objects, not via the palette hook) — that shading predates FC-00015 and is
   // unrelated to entity palettes, so this test targets DATA rows only, where a palette fill
   // would show up if the hook wrongly colorized these modes.
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeTwoEntityFixture(api);
 
   await api.exportTimecardPdf();
@@ -186,7 +187,7 @@ test('test_pdf_uncolored_modes_no_palette', async () => {
 });
 
 test('test_argb_to_rgb_triplet_conversion', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   assert.deepEqual(api._argbToRgbTriplet('FFAABBCC'), [0xAA, 0xBB, 0xCC]);
   assert.deepEqual(api._argbToRgbTriplet('FF000000'), [0, 0, 0]);
   assert.deepEqual(api._argbToRgbTriplet('FFFFFFFF'), [255, 255, 255]);
@@ -198,7 +199,7 @@ test('test_pdf_flat_employee_row_shape_preserved', async () => {
   // FC-00015 DoD #1 last bullet: flat employees keep the same display shape in PDF as
   // Excel — name gets " (flat)" suffix, Hours blank, Rate literal "flat" — and still get
   // their entity's palette body fill like every other row for that entity.
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   const { zion } = makeTwoEntityFixture(api);
   api.payMethod[api.wKey(1, 'Emery')] = 'cash';
   api.flatWages[api.wKey(1, 'Emery')] = 400;

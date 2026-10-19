@@ -2,6 +2,7 @@
 // both previews. It used to compute on screen and then silently vanish from the files.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// FC-00050: these tests check the saved spelling, so they ask for "As saved" names.
 const { loadApp, resetToSingleEntity } = require('./load-app');
 const { xlNum } = require('./xl-helpers');
 
@@ -9,7 +10,7 @@ const WEEK = ['Aug 9 2026', 'Aug 10 2026', 'Aug 11 2026', 'Aug 12 2026', 'Aug 13
 const day = (empName, entityName) => ({ empName, entityName, date: '2026-08-10', dayIdx: 1, pairs: [{ in: 9, out: 17, outAdj: 17, minutes: 480 }] });
 
 function setup() {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   resetToSingleEntity(api, {
     id: 0, name: 'Sched Co', employees: [{ name: 'Ann', shifts: ['', '9AM - 5PM', '', '', '', '', ''] }],
     dateLabels: WEEK, breakMinutesSet: true, actualDays: [day('Ann', 'Sched Co')],

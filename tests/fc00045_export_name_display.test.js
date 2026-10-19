@@ -44,6 +44,9 @@ const sig = (api) => api._stateSig(api._captureState());
 
 test('test_three_options_format_names', async () => {
   const api = setup();
+  // FC-00050: FIRST LAST is the default.
+  assert.deepEqual(await printed(api), ['AVERY STONE', 'AVERY TOBIN', 'BRAM M.', 'QUILL PELL', 'QUILL PENN', 'WREN (flat)']);
+  api.setExportNameMode('all', 'saved');
   assert.deepEqual(await printed(api), ['Avery Stone', 'Avery Tobin', 'Bram M.', 'Quill Pell', 'Quill Penn', 'Wren (flat)']);
   api.setExportNameMode('all', 'firstLast');
   assert.deepEqual(await printed(api), ['AVERY STONE', 'AVERY TOBIN', 'BRAM M.', 'QUILL PELL', 'QUILL PENN', 'WREN (flat)']);
@@ -71,17 +74,18 @@ test('test_same_for_all_vs_per_export_toggle', async () => {
   const api = setup();
   api.setExportNameMode('all', 'firstLast');
   api.setExportNameScope('per');
-  api.setExportNameMode('cashOnly', 'first');
+  api.setExportNameMode('payroll', 'first');
   api.setDownloadTick && api.renderDownloadsPanel();
-  assert.equal(api.exportNameMode('payroll'), 'firstLast', 'an export with no own choice follows "all"');
-  assert.equal(api.exportNameMode('cashOnly'), 'first');
+  assert.equal(api.exportNameMode('timecards'), 'firstLast', 'an export with no own choice follows "all"');
+  assert.equal(api.exportNameMode('payroll'), 'first');
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
   assert.match(html, /Per export/);
-  assert.equal((html.match(/class="dl-line-names"/g) || []).length, 7, 'one name choice on each of the seven export lines');
+  // FC-00050: only the payroll report prints names by choice now.
+  assert.equal((html.match(/class="dl-line-names"/g) || []).length, 1, 'one name choice, on the payroll line');
   api.setExportNameScope('all');
-  assert.equal(api.exportNameMode('cashOnly'), 'firstLast', 'Same for all wins while it is on');
+  assert.equal(api.exportNameMode('payroll'), 'firstLast', 'Same for all wins while it is on');
   api.setExportNameScope('per');
-  assert.equal(api.exportNameMode('cashOnly'), 'first', 'the per-export choice was kept');
+  assert.equal(api.exportNameMode('payroll'), 'first', 'the per-export choice was kept');
 });
 
 test('test_settings_and_timecards_keep_saved_names', async () => {
@@ -156,6 +160,7 @@ test('test_printed_name_is_the_person_who_is_paid', async () => {
   // A punch spelled with one person's former name that is also another person's alias:
   // pay goes to the former-name owner, so the printed name must be theirs too.
   const api = setup();
+  api.setExportNameMode('all', 'saved');
   api.renameEmployeeViaDispatcher(0, 'Avery Stone', 'Averill Stone', 'payroll');
   api.setAliases(0, 'Averill Stone', []);
   api.setAliases(0, 'Avery Tobin', ['Avery Stone']);

@@ -7,6 +7,7 @@
 // FC_00013_BRIEF.md and the FC-00012 Combined Excel export (_exportExcel) it mirrors.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// FC-00050: these tests check the saved spelling, so they ask for "As saved" names.
 const { loadApp, resetToSingleEntity } = require('./load-app');
 
 // Standard Mon-Sun-style week labels in the exact "Mon D YYYY" shape formatDateCell()
@@ -73,7 +74,7 @@ function makeThreeEntityFixture(api) {
 }
 
 test('test_preview_renders_expected_row_count', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   const html = api.renderPayrollExportPreviewHtml();
@@ -100,7 +101,7 @@ test('test_preview_renders_expected_row_count', () => {
 });
 
 test('test_preview_readonly_no_inputs', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   const html = api.renderPayrollExportPreviewHtml();
@@ -112,7 +113,7 @@ test('test_preview_readonly_no_inputs', () => {
 });
 
 test('test_preview_title_matches_combined_export_format', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   const html = api.renderPayrollExportPreviewHtml();
@@ -121,7 +122,7 @@ test('test_preview_title_matches_combined_export_format', () => {
 });
 
 test('test_preview_uses_fc12_palette_colors', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   const html = api.renderPayrollExportPreviewHtml();
@@ -142,7 +143,7 @@ test('test_preview_uses_fc12_palette_colors', () => {
 });
 
 test('test_preview_flat_employee_row_shape', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   const html = api.renderPayrollExportPreviewHtml();
@@ -152,7 +153,7 @@ test('test_preview_flat_employee_row_shape', () => {
 });
 
 test('test_preview_cells_have_tooltip_title_attributes', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   const html = api.renderPayrollExportPreviewHtml();
@@ -164,14 +165,14 @@ test('test_preview_cells_have_tooltip_title_attributes', () => {
 });
 
 test('test_preview_empty_when_no_data', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   resetToSingleEntity(api, { id: 0, name: 'Empty Co', employees: [] });
   const html = api.renderPayrollExportPreviewHtml();
   assert.equal(html, '', 'no employees anywhere means no preview table at all');
 });
 
 test('test_preview_panel_mounts_in_dom_above_toolbar', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   api.renderPayrollEntityContent(0);
@@ -182,7 +183,7 @@ test('test_preview_panel_mounts_in_dom_above_toolbar', () => {
 });
 
 test('test_preview_live_updates_when_wage_changes', () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   const before = api.renderPayrollExportPreviewHtml();

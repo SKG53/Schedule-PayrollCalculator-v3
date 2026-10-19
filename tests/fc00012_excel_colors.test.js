@@ -12,6 +12,7 @@
 // no-op'ing), so they observe exactly what a live export would paint onto the workbook.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// FC-00050: these tests check the saved spelling, so they ask for "As saved" names.
 const { loadApp, resetToSingleEntity } = require('./load-app');
 
 // Builds a 3-entity fixture — one Nirvana 11th, one Zion, one Hefner — each with a simple
@@ -99,7 +100,7 @@ function findRowIndex(ws, predicate) {
 }
 
 test('test_export_applies_entity_palette', async () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   await api.exportCombinedExcel();
@@ -171,7 +172,7 @@ test('test_export_applies_entity_palette', async () => {
 });
 
 test('test_export_flat_employee_row_shape', async () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   makeThreeEntityFixture(api);
 
   await api.exportCombinedExcel();
@@ -193,7 +194,7 @@ test('test_export_flat_employee_row_shape', async () => {
 });
 
 test('test_export_unknown_entity_code_falls_back_to_default_palette', async () => {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   const ent = resetToSingleEntity(api, {
     id: 0,
     name: 'Some New Client LLC',

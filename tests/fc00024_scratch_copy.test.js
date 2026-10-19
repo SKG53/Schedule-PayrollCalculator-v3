@@ -6,6 +6,7 @@
 // session data, the roster, computePayroll or the read-only preview.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+// FC-00050: these tests check the saved spelling, so they ask for "As saved" names.
 const { loadApp, resetToSingleEntity } = require('./load-app');
 const { xlNum } = require('./xl-helpers');
 
@@ -14,7 +15,7 @@ const SHIFT = ['', '9AM - 5PM', '', '', '', '', ''];
 const day = (empName, entityName, out) => ({ empName, entityName, date: '2026-08-10', dayIdx: 1, pairs: [{ in: 9, out, outAdj: out, minutes: (out - 9) * 60 }] });
 
 function setup() {
-  const api = loadApp();
+  const api = loadApp({ savedNames: true });
   const ent = resetToSingleEntity(api, {
     id: 0, name: 'Alpha Test',
     employees: [{ name: 'Ann', shifts: SHIFT }, { name: 'Ben', shifts: SHIFT }, { name: 'Cy', shifts: SHIFT }],

@@ -42,12 +42,14 @@ function setup() {
 
 test('test_lists_every_export_with_defaults', () => {
   const { api } = setup();
-  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'timecards', 'settings', 'snapshot', 'accountant', 'cashOnly', 'depositOnly', 'timecardData', 'payrollCalc', 'full', 'manager']);
+  // FC-00050: the unused reports and the accountant placeholder are gone.
+  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'timecards', 'settings', 'snapshot']);
   const ticks = Object.fromEntries(api.DOWNLOADS.map(d => [d.key, Object.keys(d.formats).filter(f => api.downloadFileNames(d.key).some(n => n.endsWith('.' + f))).join('+')]));
-  assert.deepEqual(ticks, { payroll: 'xlsx+pdf', timecards: 'xlsx', settings: 'xlsx', snapshot: 'json', accountant: '', cashOnly: '', depositOnly: '', timecardData: '', payrollCalc: '', full: '', manager: '' });
+  assert.deepEqual(ticks, { payroll: 'xlsx+pdf', timecards: 'xlsx', settings: 'xlsx', snapshot: 'json' });
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  for (const t of ['Payroll report', 'Reviewed timecards', 'Settings (new master)', 'Snapshot', 'Accountant file', 'Cash-only report', 'Manager schedule report', 'Download selected', 'Download all (.zip)']) assert.ok(html.includes(t), t);
+  for (const t of ['Payroll report', 'Reviewed timecards', 'Settings (new master)', 'Snapshot', 'Download selected', 'Download all (.zip)']) assert.ok(html.includes(t), t);
+  for (const t of ['Accountant file', 'Cash-only report', 'Manager schedule report', 'Time Card Data', 'Full report']) assert.ok(!html.includes(t), t + ' removed');
 });
 
 test('test_file_names_follow_convention', () => {
@@ -102,26 +104,21 @@ test('test_zip_contains_ticked_files_only', async () => {
   api.__sandbox.JSZip = class { constructor() { this.files = {}; zips.push(this); } file(n, d) { this.files[n] = d; } async generateAsync() { return new api.__sandbox.Blob(); } };
   api.setDownloadTick('payroll', 'pdf', false);
   api.setDownloadTick('snapshot', 'json', false);
-  api.setDownloadTick('cashOnly', 'pdf', true);
-  api.setDownloadTick('manager', 'xlsx', true);
-  const managerNames = api.downloadFileNames('manager');
-  assert.equal(managerNames.length, 2, 'one per entity with a schedule');
-  assert.ok(managerNames[0].startsWith('Nirvana_') && managerNames[1].startsWith('Zion_'));
+  api.setDownloadTick('cashOnly', 'pdf', true); // FC-00050: a removed report cannot be ticked
   const out = await api.downloadZip();
   assert.equal(out.name, STEM + '_All.zip');
   assert.deepEqual(saved, [STEM + '_All.zip'], 'one file saved');
-  assert.deepEqual(Object.keys(zips[0].files), [STEM + '_AllEmployeesPayroll.xlsx', STEM + '_AllEmployeesTimecards.xlsx', STEM + '_AllEmployeesPayroll_Settings.xlsx', STEM + '_CashOnly.pdf', ...managerNames]);
+  assert.deepEqual(Object.keys(zips[0].files), [STEM + '_AllEmployeesPayroll.xlsx', STEM + '_AllEmployeesTimecards.xlsx', STEM + '_AllEmployeesPayroll_Settings.xlsx']);
   // Ticks are part of the snapshot.
   const snap = await api.buildSnapshot();
-  assert.equal(snap.parts.downloadTicks.cashOnly.pdf, true);
+  assert.equal(snap.parts.downloadTicks.payroll.pdf, false);
 });
 
-test('test_accountant_line_disabled', () => {
+test('test_accountant_line_removed', () => {
+  // FC-00050: the accountant placeholder comes back as its own card once the format is agreed.
   const { api } = setup();
   api.setDownloadTick('accountant', 'xlsx', true);
   assert.deepEqual(api.downloadFileNames('accountant'), []);
   api.renderDownloadsPanel();
-  const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  assert.match(html, /<tr class="dl-disabled"><td class="dl-name"><b>Accountant file<\/b>/);
-  assert.match(html, /coming soon/);
+  assert.doesNotMatch(api.__sandbox.document.getElementById('downloadsHost').innerHTML, /Accountant file|coming soon/);
 });
