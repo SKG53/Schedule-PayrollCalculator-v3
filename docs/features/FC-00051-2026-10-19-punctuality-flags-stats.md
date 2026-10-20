@@ -89,8 +89,10 @@ Fully reversible via one revert commit.
 
 ## Built
 - **Flags.** `punctualityFlags(row,ent)` compares the first clock-in and the last clock-out of all of the person's review rows that day (`_punctGroups`) with the loaded shift.
+  - Pairs are read against the shift start (`_anchoredSpan`), so a night shift split at midnight, on one row or two, reads as one shift. An independent review caught this: it was flagged red as "early out".
   - The pills (`.punct-pill`) sit next to the row flags and never change `flags`, `needsReview` or approval.
   - Clock-out is flagged from 2 minutes off the end: 1 minute is treated as on time.
+- **Other hours.** A day more than 2 hours off the shift at either end is shown as "Other hours than scheduled" (yellow). It is counted as "Other hours days", not as late, early or stayed late. On a real week, scheduled evenings worked as mornings had been counted as 8 hours early.
 - **Scheduled, no punches.** `scheduledNoPunchDays(ent,name)` puts a red line on the employee tab. The Payroll grid's existing NO SHOW cell shows the same day.
 - **Stats.**
   - `entityStats(idx)` works from the paid actuals (approved rows) per person, plus an entity total.

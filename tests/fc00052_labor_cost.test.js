@@ -118,7 +118,7 @@ test('test_semi_monthly_tick_override_and_zero_row_kept', () => {
   assert.ok(w, 'a $0 week keeps the row');
   assert.equal(w._breakdown.actualFinal, 0);
   const k = api.wKey(0, 'WREN');
-  api.dispatch({ type: 'semiPaidSet', screen: 'payroll', target: { kind: 'employee', entity: 0, id: k, field: 'semiPaid' }, from: null, to: true, meta: { empName: 'WREN' } });
+  api.dispatch({ type: 'semiPaidSet', screen: 'payroll', target: { kind: 'employee', entity: 0, id: k, field: 'semiPaid' }, from: null, to: { runIso: '2026-10-19', paid: true }, meta: { empName: 'WREN' } });
   w = api._collectExportData()[0].rows.find(r => r._empName === 'WREN');
   assert.equal(w._breakdown.actualFinal, 2000, 'the owner ticked it');
   api.renderPayroll();
@@ -199,4 +199,30 @@ test('test_semi_monthly_type_button', () => {
   assert.equal(api.isSemiMonthly(0, 'WREN'), false);
   api.setRowType(i, 'hourly');
   assert.equal(api.flatWages[api.wKey(0, 'WREN')], undefined);
+});
+
+// Review fixes.
+test('test_paid_this_run_choice_never_carries_to_next_week', () => {
+  const { api, e } = setup('2026-10-11'); // run Oct 19: rule says not paid
+  makeSemi(api);
+  const k = api.wKey(0, 'WREN');
+  api.dispatch({ type: 'semiPaidSet', screen: 'payroll', target: { kind: 'employee', entity: 0, id: k, field: 'semiPaid' }, from: null, to: { runIso: '2026-10-19', paid: true }, meta: { empName: 'WREN' } });
+  assert.equal(api.semiPaidThisRun(0, 'WREN'), true, 'the hand choice for this run');
+  assert.ok(api.downloadStatus('payroll').reasons.some(x => /Semi-monthly: WREN: paid this run, set by hand \(the rule says not paid\)/.test(x)));
+  // Next week (run Oct 26, not paid by the rule) and the Nov 2 run (paid by the rule).
+  e.dateLabels = week('2026-10-18');
+  assert.equal(api.semiPaidThisRun(0, 'WREN'), false, 'the old choice does not apply');
+  e.dateLabels = week('2026-10-25');
+  assert.equal(api.semiPaidThisRun(0, 'WREN'), true);
+});
+
+test('test_semi_monthly_without_dates_uses_session_week_and_is_named', () => {
+  const { api, e } = setup('2026-10-04');
+  makeSemi(api);
+  api.entities.push({ id: 1, name: 'Beta Test', code: '', employees: [], dateLabels: ['', '', '', '', '', '', ''], newDateLabels: ['', '', '', '', '', '', ''], newWeekStartVal: '', breakMinutes: 0, breakMinutesSet: true, actualDays: [], intake: null });
+  assert.equal(api.semiRunInfo(api.entities[1]).runIso, '2026-10-12', 'falls back to the session week');
+  e.dateLabels = ['', '', '', '', '', '', ''];
+  api.syncActualsFromReview();
+  assert.equal(api.semiRunInfo(e), null);
+  assert.ok(api.downloadStatus('payroll').reasons.some(x => /WREN: no schedule dates, not paid unless ticked/.test(x)));
 });

@@ -92,6 +92,12 @@ Fully reversible via one revert commit. In the tool:
   - the red rate cell uses the export status rule;
   - the Downloads status is computed once per render.
 - **Also:** a site icon, so the page no longer logs a favicon 404.
+- **An independent review found:**
+  - the editable copy's exports were not stopped;
+  - people with Active unchecked were listed although they are not paid;
+  - Approve all would pay an unrecognized name.
+
+  All three are fixed: these rows show "Name matches nobody" with Go to row, and Approve all skips them. Editing a time on a left-out row also asks again.
 
 ## Verification
 - `npm test`: all pass. The new `tests/fc00049_review_safety.test.js` has 21 tests. fc00023, fc00032 and fc00040 were updated to the new stop and wording.

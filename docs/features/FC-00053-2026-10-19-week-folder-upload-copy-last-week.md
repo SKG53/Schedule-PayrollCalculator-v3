@@ -82,6 +82,10 @@ Fully reversible via one revert commit. In the tool, each entity's OCR run is on
   - folder mapping with Skip;
   - lists of skipped duplicates (same SHA-256 as an image already in the session) and non-images.
   - Start OCR stays off until nothing is classifying, unmapped or unsure.
+- **Review fixes:**
+  - an image the browser gave no type (e.g. `.HEIC`) gets one from its extension, so it is never dropped at Start OCR;
+  - a type chosen by hand wins over a late classifier answer;
+  - Start OCR waits while another OCR run is going.
 - **Start OCR** adds the images to each entity's typed lists (`addIntakeFiles`) and runs OCR entity by entity. Each entity's run is its own undo step, as today.
 - **Copy last week.** `copyLastWeekSchedule(idx)` takes the shifts from last week's snapshot: the one loaded for Since last week, or a file picker. It moves the dates +7 days and loads them through `parseSchedule` (one undo step; archived people are left out as on any load). It asks before replacing a schedule.
 

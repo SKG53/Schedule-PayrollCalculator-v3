@@ -285,3 +285,27 @@ test('test_info_chips_use_hmm', () => {
   api.setHoursFormat('hmm');
   assert.equal(api._chipHours(7.3), '7:18');
 });
+
+// Review fixes.
+test('test_gate_skips_inactive_and_names_unrecognized', async () => {
+  const { api, b, add } = setup();
+  api.setRosterActive(0, 'BRAM', false);
+  assert.equal(api.unpaidReviewRows().length, 0, 'Active unchecked: not paid anyway');
+  api.setRosterActive(0, 'BRAM', true);
+  const z = add('Zed Quill', '2026-08-12', '09:00', '12:00', false);
+  const html = api._payGateHtml();
+  assert.match(html, /Name matches nobody/);
+  await api.exportCombinedExcel();
+  await api.payGateApproveAll();
+  assert.equal(b.approved, true);
+  assert.equal(z.approved, false, 'Approve all leaves an unrecognized name for the owner');
+  assert.equal(api.payGateIsOpen(), true);
+});
+
+test('test_editing_a_left_out_row_asks_again', () => {
+  const { api, b } = setup();
+  api.setRowLeftOut(b.id, true);
+  api.updateReviewField(b.id, 'clockOut1', '16:30');
+  assert.equal(!!b.leftOut, false);
+  assert.equal(api.unpaidReviewRows().length, 1);
+});

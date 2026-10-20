@@ -62,7 +62,7 @@ Fully reversible via one revert commit.
 6. **Names on exports:**
    - the default is FIRST LAST for a new session;
    - a choice saved in a settings file or snapshot still wins;
-   - with only two export kinds left, Per export lists just the Payroll report and the Timecards export, and the Timecards export keeps saved names as before.
+   - with one report left that prints names by choice, Per export shows a choice only on the Payroll report line; the Timecards export keeps saved names as before.
 7. **Old files load cleanly.** Settings files and snapshots that name a removed report (a format tick, a file label or a name choice) load without error, and the entries are ignored.
 8. **Five real weeks plus Oct 4–10:**
    - the Payroll Excel and the Timecards Excel are cell-identical to the live version, names aside: with As saved selected they are fully identical;

@@ -1741,7 +1741,7 @@ function _applyChange(entry,invert){
     }else if(entry.type==='semiMonthlySet'){
       if(value)semiMonthly[key]=true;else{delete semiMonthly[key];delete semiPaid[key];}
     }else if(entry.type==='semiPaidSet'){
-      if(value==null)delete semiPaid[key];else semiPaid[key]=!!value;
+      if(value==null||typeof value!=='object')delete semiPaid[key];else semiPaid[key]={runIso:String(value.runIso||''),paid:!!value.paid};
     }else if(entry.type==='breakOverride'){
       const bk=key+'|'+target.day;
       if(value==null)delete breakOverrides[bk];else breakOverrides[bk]=Math.round(parseFloat(value)||0);
@@ -3309,6 +3309,12 @@ function downloadStatus(key){
     const ina=_inactiveExclusionSummary();if(ina.withPay.length)reasons.push('Active unchecked with hours: '+ina.withPay.map(x=>x.empName).join(', '));
     const nb=withData.filter(e=>!e.breakMinutesSet);if(nb.length)reasons.push('Break not confirmed: '+nb.map(e=>e.name||'Entity').join(', '));
     const rm=_rateMissingNames();if(rm.length)reasons.push('Rate missing: '+rm.join(', ')); // FC-00048
+    // FC-00052 (review fix): a semi-monthly pay decided by hand, or with no run date, is named.
+    const semiNotes=[];
+    _collectExportData().forEach(d=>d.rows.forEach(r=>{if(!r.isSemi)return;const info=semiRunInfo(entities.find(e=>e.id===d.entityId));
+      if(!info)semiNotes.push(r._empName+': no schedule dates, not paid unless ticked');
+      else if(r.semiByHand)semiNotes.push(r._empName+': '+(r.semiPaid?'paid':'not paid')+' this run, set by hand (the rule says '+(info.paid?'paid':'not paid')+')');}));
+    if(semiNotes.length)reasons.push('Semi-monthly: '+semiNotes.join('; '));
     const uc=_unconfirmedNames();if(uc.length)reasons.push('Not on the schedule and not confirmed: '+uc.join(', ')+' (add them as new employees or match them to someone)'); // FC-00049
   }else if(key==='timecards'){
     if(!entities.some(e=>e.intake&&(e.intake.reviewRows||[]).length))reasons.push('No punch rows yet');
@@ -4464,7 +4470,9 @@ function clearActuals(){
 // (Sun–Sat around the Monday run date) holds the 1st or the 15th, $0 otherwise. The run date
 // is the Monday after the pay week's Saturday; the computer's clock is never read for this.
 function semiRunInfo(ent){
-  const isos=((ent&&ent.dateLabels)||[]).map(schedLabelToIso);
+  let isos=((ent&&ent.dateLabels)||[]).map(schedLabelToIso);
+  // An entity without schedule dates uses the session's pay week (the first entity with dates).
+  if(!isos[6]){const o=entities.find(e=>e&&e.dateLabels&&schedLabelToIso(e.dateLabels[6]||''));if(o)isos=o.dateLabels.map(schedLabelToIso);}
   const sat=isos[6];
   if(!sat)return null;
   const d=new Date(sat+'T00:00:00');if(isNaN(d))return null;
@@ -4475,9 +4483,16 @@ function semiRunInfo(ent){
   return{runIso:iso(run),paid:!!hit,hitIso:hit?iso(hit):'',weekStartIso:iso(days[0]),weekEndIso:iso(days[6])};
 }
 function isSemiMonthly(entId,empName){return!!semiMonthly[wKey(entId,empName)];}
+// The owner's "Paid this run" choice counts only for the run it was made for; any other
+// week follows the rule again (review fix: a choice must never carry into next week).
+function semiOverride(entId,empName){
+  const v=semiPaid[wKey(entId,empName)];
+  const info=semiRunInfo(entities.find(e=>e.id===entId));
+  return(v&&typeof v==='object'&&info&&v.runIso===info.runIso)?!!v.paid:null;
+}
 function semiPaidThisRun(entId,empName){
-  const k=wKey(entId,empName);
-  if(semiPaid[k]!=null)return!!semiPaid[k];
+  const o=semiOverride(entId,empName);
+  if(o!=null)return o;
   const info=semiRunInfo(entities.find(e=>e.id===entId));
   return!!(info&&info.paid);
 }
@@ -4489,13 +4504,16 @@ function _applySemi(row,entId,empName){
   if(!row||!row.isFlat||!isSemiMonthly(entId,empName))return row;
   row.isSemi=true;row.semiAmount=row.flatAmount;
   row.semiPaid=semiPaidThisRun(entId,empName);
+  row.semiByHand=semiOverride(entId,empName)!=null;
   row.flatAmount=row.semiPaid?row.semiAmount:0;row.pay=row.flatAmount;
   return row;
 }
 function setSemiPaidForRow(rowIdx,on){
   const item=_flatRows[rowIdx];if(!item)return;
   const ent=entities[item.entityIdx];const keyName=_rowKey(item);const k=wKey(ent.id,keyName);
-  dispatch({type:'semiPaidSet',screen:'payroll',target:{kind:'employee',entity:ent.id,id:k,field:'semiPaid'},from:semiPaid[k]==null?null:semiPaid[k],to:!!on,meta:{empName:keyName}});
+  const info=semiRunInfo(ent);
+  const to=info?{runIso:info.runIso,paid:!!on}:{runIso:'',paid:!!on};
+  dispatch({type:'semiPaidSet',screen:'payroll',target:{kind:'employee',entity:ent.id,id:k,field:'semiPaid'},from:semiPaid[k]==null?null:_cloneState(semiPaid[k]),to,meta:{empName:keyName}});
   renderPayrollEntityContent(item.entityIdx);
 }
 
@@ -4856,7 +4874,7 @@ function renderPayrollEntityContent(idx){
     <div class="payroll-subtab-content">
       <div id="timecardDataWrap" style="display:${activeSub==='timecard'?'block':'none'}"><div class="sched-table-wrap" style="display:block"><table class="sched" id="timecardDataTable"></table></div></div>
       <div id="payrollCalcWrap" style="display:${activeSub==='payroll'?'block':'none'}"><div class="sched-table-wrap" style="display:block"><table class="sched" id="payrollCalcTable"></table></div></div>
-      <div id="statsWrap" style="display:${activeSub==='stats'?'block':'none'}"><div style="font-size:12px;color:var(--text3);margin:0 0 6px">Against the loaded schedule. Late: 1–5 min yellow, over 5 red. Early clock-ins are counted, never flagged. Counts show next to every percent.</div><div class="sched-table-wrap" style="display:block"><table class="sched stats-table" id="statsTable"></table></div></div>
+      <div id="statsWrap" style="display:${activeSub==='stats'?'block':'none'}"><div style="font-size:12px;color:var(--text3);margin:0 0 6px">Against the loaded schedule. Late: 1–5 min yellow, over 5 red. Early clock-ins are counted, never flagged. A day more than 2 hours off the shift counts as other hours, not late or early. Counts show next to every percent.</div><div class="sched-table-wrap" style="display:block"><table class="sched stats-table" id="statsTable"></table></div></div>
       <div id="laborCostWrap" style="display:${activeSub==='labor'?'block':'none'}"><div id="laborCostHost"></div></div>
     </div>`;
 
@@ -5070,6 +5088,7 @@ function _fc24CssToArgb(css){return /^#[0-9a-f]{6}$/i.test(css||'')?'FF'+css.sli
 async function _fc24ExportScratchExcel(){
   const m=_fc24Scratch;
   if(!m){showToast('Make an editable copy first','err');return;}
+  if(!_payrollGateOk(()=>_fc24ExportScratchExcel()))return; // FC-00049: a payroll document asks first
   const hdr=m.rows.find(r=>r.kind==='hdr');
   const n=hdr?hdr.cells.length:m.headers.length;
   const ewb=_xlFormulaWorkbook();
@@ -5131,6 +5150,7 @@ async function _fc24ExportScratchExcel(){
 async function _fc24ExportScratchPdf(){
   const m=_fc24Scratch;
   if(!m){showToast('Make an editable copy first','err');return;}
+  if(!_payrollGateOk(()=>_fc24ExportScratchPdf()))return; // FC-00049: a payroll document asks first
   if(!window.jspdf||!window.jspdf.jsPDF){alert('PDF library failed to load. Please reload the page and try again.');return;}
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'pt',format:'letter',orientation:'landscape'});
@@ -5546,7 +5566,7 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
           <span style="font-size:13px;color:var(--text3)">$</span>
           <input type="number" class="flat-input semi-input" value="${(r.semiAmount||0).toFixed(2)}" step="0.01" min="0" onchange="setFlatAmount(${i},this.value)" style="width:100px;text-align:right">
           <label style="font-weight:500;font-size:12px;display:inline-flex;align-items:center;gap:4px" title="${escHtml(why)}"><input type="checkbox" class="semi-paid" ${r.semiPaid?'checked':''} onchange="setSemiPaidForRow(${i},this.checked)" style="width:auto;margin:0"> Paid this run</label>
-          <span style="font-size:10px;color:var(--text3);font-weight:400">${escHtml(why)}</span>
+          <span style="font-size:10px;color:var(--text3);font-weight:400">${escHtml(why)}${r.semiByHand?' · set by hand this run':''}</span>
         </div>
       </td>`;
       html+=`<td style="padding:6px;text-align:center">${typeToggleHtml}</td>`;
@@ -7533,7 +7553,7 @@ function renderReviewTableHtml(ent,idx){
     const editBadge=r._reviewerEdited?`<span class="new-badge" style="background:#E0F2FE;color:#075985;border-color:#7DD3FC" title="You changed what OCR read. Your values are final: this row is now a manual entry and survives OCR re-runs.">✎ edited (was ${escHtml(r._ocrSource||'OCR')})</span>`:'';
     const supBadge=r._superseded?'<span class="new-badge" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1" title="An approved manual entry for the same employee and date overlaps this row, so its overlapping punches are not paid.">⤳ replaced by manual entry</span>':'';
     const msBadge=(r._merged?'<span class="new-badge" style="background:#F5F3FF;color:#5B21B6;border-color:#C4B5FD" title="Made by merging rows by hand. Values unchanged; check and approve.">⧉ merged</span>':'')+(r._split?'<span class="new-badge" style="background:#F5F3FF;color:#5B21B6;border-color:#C4B5FD" title="Made by splitting a multi-pair row by hand. Values unchanged; check and approve.">⇹ split</span>':'');
-    const leftOutTag=(!r.approved&&r.leftOut)?`<span class="new-badge left-out-tag" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1" title="Left out of pay when exporting (FC-00049). It is not paid.">Left out of pay</span> <a href="#" class="undo-left-out" onclick="setRowLeftOut('${escJs(r.id)}',false);return false" style="font-size:10px">Undo leave out</a>`:'';
+    const leftOutTag=(!r.approved&&r.leftOut)?`<span class="new-badge left-out-tag" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1" title="Left out of pay when exporting (FC-00049). It is not paid.">Left out of pay</span> <a href="#" class="undo-left-out" onclick="setRowLeftOut('${escHtml(escJs(r.id))}',false);return false" style="font-size:10px">Undo leave out</a>`:'';
     html+=`<td class="flag-cell">${leftOutTag}${renderFlagPills(r.flags)}${_punctPillsHtml(punctualityFlags(r,ent,_pg))}${r._newSinceUpload?'<span class="new-badge" title="Added in a later upload for this employee — not part of the original batch">🆕 new</span>':''}${editBadge}${supBadge}${msBadge}</td>`;
     // Per-row approve/unapprove button
     html+=`<td class="actions-cell" style="width:110px">`;
@@ -7698,6 +7718,8 @@ function updateReviewField(id,field,val){
   }
   const from=_takeEditStart(h.row,field);
   h.row[field]=val;
+  // FC-00049 (review fix): an edited time or date on a left-out row is a new decision to make.
+  if(h.row.leftOut&&REVIEWER_EDIT_FIELDS.includes(field)&&String(from==null?'':from)!==String(val==null?'':val))setRowLeftOut(id,false,true);
   // FC-00047: picking a person for a row teaches the tool the card's spelling for them; moving the
   // row to someone else takes back a spelling this row taught.
   if(field==='empName'&&String(from==null?'':from)!==String(val==null?'':val)){
@@ -8081,7 +8103,9 @@ function unpaidReviewRows(){
       if(!_rowPairList(r).length)return; // no punches at all ("did not work"): nothing would be paid
       const name=_reviewRowPersonName(r,ent);
       if(ign.has(name.toLowerCase().trim())||ign.has((r.empName||'').toLowerCase().trim()))return;
-      out.push({entIdx:ei,entity:ent.name||('Entity '+(ei+1)),name,row:r,minutes:_rowWorkedMinutes(r)});
+      const unrec=reviewBucketKey(r,ent)==='__unrecognized__';
+      if(!unrec&&!_isInPayroll(ent.id,name))return; // Active unchecked: not paid anyway
+      out.push({entIdx:ei,entity:ent.name||('Entity '+(ei+1)),name,row:r,minutes:_rowWorkedMinutes(r),unrec});
     });
   });
   return out;
@@ -8127,10 +8151,11 @@ function _payGateHtml(){
   list.forEach(x=>{
     const r=x.row;
     const pairs=_rowPairList(r).map(p=>(to12h(p.in)||'?')+'–'+(to12h(p.out)||'?')).join(' · ')||'no punches';
-    const why=r._reread?'A re-read is waiting':(!isRowStructurallyValid(r)?'Missing clock-in or clock-out':'');
-    const act=why?`<span style="color:var(--amber);font-size:11px">${escHtml(why)}</span> <button class="mini-btn" onclick="payGateGoToRow(${x.entIdx},'${escJs(r.id)}')">Go to row</button>`
-      :`<button class="mini-btn approve" onclick="payGateApprove('${escJs(r.id)}')">✓ Approve</button>`;
-    h+=`<tr data-row-id="${escHtml(r.id)}"><td>${escHtml(x.entity)}</td><td><b>${escHtml(x.name)}</b></td><td>${escHtml(_isoDayLabel(r.date))}</td><td class="mono">${escHtml(pairs)}</td><td class="mono">${fmtHmm(x.minutes/60)} won't be paid</td><td style="white-space:nowrap">${act} <button class="mini-btn" onclick="payGateLeaveOut('${escJs(r.id)}')">Leave out</button></td></tr>`;
+    const why=r._reread?'A re-read is waiting':(!isRowStructurallyValid(r)?'Missing clock-in or clock-out':(x.unrec?'Name matches nobody':''));
+    const id=escHtml(escJs(r.id));
+    const act=why?`<span style="color:var(--amber);font-size:11px">${escHtml(why)}</span> <button class="mini-btn" onclick="payGateGoToRow(${x.entIdx},'${id}')">Go to row</button>`
+      :`<button class="mini-btn approve" onclick="payGateApprove('${id}')">✓ Approve</button>`;
+    h+=`<tr data-row-id="${escHtml(r.id)}"><td>${escHtml(x.entity)}</td><td><b>${escHtml(x.name)}</b></td><td>${escHtml(_isoDayLabel(r.date))}</td><td class="mono">${escHtml(pairs)}</td><td class="mono">${fmtHmm(x.minutes/60)} won't be paid</td><td style="white-space:nowrap">${act} <button class="mini-btn" onclick="payGateLeaveOut('${id}')">Leave out</button></td></tr>`;
   });
   h+='</tbody></table>';
   h+='<div class="actions"><button class="btn" onclick="payGateCancel()">Cancel</button><button class="btn btn-primary" onclick="payGateApproveAll()">✓ Approve all</button></div>';
@@ -8152,7 +8177,7 @@ function _payGateAfterChange(){
 function payGateApprove(id){approveReviewRow(id);return _payGateAfterChange();}
 function payGateLeaveOut(id){setRowLeftOut(id,true);return _payGateAfterChange();}
 function payGateApproveAll(){
-  unpaidReviewRows().forEach(x=>{if(_approvable(x.row))approveReviewRow(x.row.id);});
+  unpaidReviewRows().forEach(x=>{if(_approvable(x.row)&&!x.unrec)approveReviewRow(x.row.id);});
   return _payGateAfterChange();
 }
 function payGateCancel(){_payGateCont=null;_renderPayGate(false);}
@@ -8217,6 +8242,10 @@ function dayBreakLine(day){
 // Read-only: flags and stats never change hours, approvals or pay. Flags compare a person's
 // punches on a date (every review row of theirs that day) with their loaded shift.
 const PUNCT_LATE_YELLOW_MAX=5,PUNCT_OUT_YELLOW_MAX=10;
+// More than 2 hours off at either end is a different shift worked, not lateness or earliness
+// (found on a real week: a scheduled evening worked as a morning). Counted on its own.
+const PUNCT_OTHER_HOURS_MIN=120;
+function _isOtherHours(x){return Math.abs(x.inMin)>PUNCT_OTHER_HOURS_MIN||Math.abs(x.outMin)>PUNCT_OTHER_HOURS_MIN;}
 function _rowPunchHours(r){
   const out=[];
   _rowPairList(r).forEach(p=>{
@@ -8227,8 +8256,23 @@ function _rowPunchHours(r){
   });
   return out;
 }
+// First clock-in and last clock-out of a day's pairs, read against the shift: a pair that
+// starts more than 12 h before the shift start is after midnight of the same shift (review
+// fix: a night shift split at midnight, on one row or two, reads as one shift).
+function _anchoredSpan(pairs,shiftStart){
+  let first=Infinity,last=-Infinity;
+  (pairs||[]).forEach(p=>{
+    const dur=Math.max(0,(p.outAdj!=null?p.outAdj:p.out)-p.in);
+    let a=p.in%24;
+    while(a<shiftStart-12)a+=24;
+    while(a>shiftStart+12)a-=24;
+    if(a<first)first=a;
+    if(a+dur>last)last=a+dur;
+  });
+  return{firstIn:first,lastOut:last};
+}
 function _dayIdxOfIso(iso){if(!iso)return null;const d=new Date(iso+'T00:00:00');return isNaN(d)?null:d.getDay();}
-// {firstIn,lastOut} per "person|date" from every review row of the entity (approved or not).
+// The punched pairs per "person|date" from every review row of the entity (approved or not).
 function _punctGroups(ent){
   const g=new Map();
   ((ent&&ent.intake&&ent.intake.reviewRows)||[]).forEach(r=>{
@@ -8236,9 +8280,8 @@ function _punctGroups(ent){
     const name=reviewBucketKey(r,ent);if(name==='__unrecognized__')return;
     const ps=_rowPunchHours(r);if(!ps.length)return;
     const k=name+'|'+r.date;
-    const cur=g.get(k)||{firstIn:Infinity,lastOut:-Infinity};
-    ps.forEach(p=>{if(p.in<cur.firstIn)cur.firstIn=p.in;if(p.out>cur.lastOut)cur.lastOut=p.out;});
-    g.set(k,cur);
+    if(!g.has(k))g.set(k,[]);
+    ps.forEach(p=>g.get(k).push({in:p.in,outAdj:p.out}));
   });
   return g;
 }
@@ -8266,8 +8309,10 @@ function punctualityFlags(r,ent,groups){
   if(!_rowPunchHours(r).length)return[];
   const shift=parseShift(emp.shifts[di]);
   if(!shift)return[{level:'yellow',text:'Worked a day off'}];
-  const gr=(groups||_punctGroups(ent)).get(name+'|'+r.date);if(!gr)return[];
-  const d=_punctDiffs(shift,gr.firstIn,gr.lastOut);
+  const gr=(groups||_punctGroups(ent)).get(name+'|'+r.date);if(!gr||!gr.length)return[];
+  const sp=_anchoredSpan(gr,shift.start);
+  const d=_punctDiffs(shift,sp.firstIn,sp.lastOut);
+  if(_isOtherHours(d))return[{level:'yellow',text:'Other hours than scheduled'}];
   return _punctFlagsFor(d.inMin,d.outMin);
 }
 function _punctPillsHtml(flags){
@@ -8296,14 +8341,16 @@ function entityStats(idx){
     if(!_isInPayroll(ent.id,key))return;
     const hourly=!r.isFlat&&r.wage>0;
     const s={name:key,display:r.name,orphan:!!r.isOrphan,isFlat:!!r.isFlat,rate:hourly?r.wage:null,
-      expected:r.expectedH||0,worked:r.actualHours||0,schedDays:r.scheduledDays||0,workedSchedDays:0,missedDays:0,
+      expected:r.expectedH||0,worked:r.actualHours||0,schedDays:r.scheduledDays||0,workedSchedDays:0,missedDays:0,otherDays:0,
       lateDays:0,late5Days:0,lateMin:0,earlyDays:0,earlyMin:0,earlyMax:0,stayDays:0,stayMin:0,
       expBreak:r.expectedBreakH||0,actBreak:r.actualBreakH||0,otH:r.otH||0};
     (r.days||[]).forEach(d=>{
       if(!d.shift)return;
       if(!d.actual||!(d.workedH>0)){if(d.status==='noshow')s.missedDays++;return;}
       s.workedSchedDays++;
-      const x=_punctDiffs(d.shift,d.actual.firstIn,d.actual.lastOut);
+      const sp=_anchoredSpan(d.actual.pairs,d.shift.start);
+      const x=_punctDiffs(d.shift,sp.firstIn,sp.lastOut);
+      if(_isOtherHours(x)){s.otherDays++;return;}
       if(x.inMin>=1){s.lateDays++;s.lateMin+=x.inMin;if(x.inMin>PUNCT_LATE_YELLOW_MAX)s.late5Days++;}
       else if(x.inMin<0){s.earlyDays++;s.earlyMin+=-x.inMin;if(-x.inMin>s.earlyMax)s.earlyMax=-x.inMin;}
       if(x.outMin>0){s.stayDays++;s.stayMin+=x.outMin;}
@@ -8316,7 +8363,7 @@ function entityStats(idx){
     people.push(s);
   });
   const sum=k=>people.reduce((a,p)=>a+(p[k]||0),0);
-  const t={name:'Total',display:'Total',expected:_r2(sum('expected')),worked:_r2(sum('worked')),workedSchedDays:sum('workedSchedDays'),missedDays:sum('missedDays'),
+  const t={name:'Total',display:'Total',expected:_r2(sum('expected')),worked:_r2(sum('worked')),workedSchedDays:sum('workedSchedDays'),missedDays:sum('missedDays'),otherDays:sum('otherDays'),
     lateDays:sum('lateDays'),late5Days:sum('late5Days'),lateMin:sum('lateMin'),earlyDays:sum('earlyDays'),earlyMin:sum('earlyMin'),
     earlyMax:people.reduce((a,p)=>Math.max(a,p.earlyMax),0),stayDays:sum('stayDays'),stayMin:sum('stayMin'),
     expBreak:_r2(sum('expBreak')),actBreak:_r2(sum('actBreak')),otCount:people.filter(p=>p.otH>0).length,
@@ -8327,7 +8374,7 @@ function entityStats(idx){
   return{entity:ent.name||('Entity '+(idx+1)),entityId:ent.id,people,total:t};
 }
 function _nOfPct(n,m){return m>0?`${n}/${m} · ${Math.round(n/m*100)}%`:'—';}
-const STATS_HEADERS=['Employee','Expected','Worked','Worked %','Late days','Late >5 min','Avg late','Early days','Early min (total · avg · max)','Early cost','Stayed late (days · min)','Stayed-late cost','Break expected','Break actual','40 h+'];
+const STATS_HEADERS=['Employee','Expected','Worked','Worked %','Late days','Late >5 min','Avg late','Early days','Early min (total · avg · max)','Early cost','Stayed late (days · min)','Stayed-late cost','Break expected','Break actual','40 h+','Other hours days','Missed days'];
 function _statsCells(p,isTotal){
   const m=v=>v==null?'—':fmtHmm(v/60);
   const money=v=>v==null?'—':'$'+v.toFixed(2);
@@ -8342,7 +8389,9 @@ function _statsCells(p,isTotal){
     p.stayDays?`${p.stayDays} · ${fmtHmm(p.stayMin/60)}`:'—',
     money(p.stayCost),
     fmtHrs(p.expBreak),fmtHrs(p.actBreak),
-    isTotal?(p.otCount?p.otCount+' over':'—'):(p.otH>0?'⚠ '+fmtHrs(p.otH)+' over':'—')
+    isTotal?(p.otCount?p.otCount+' over':'—'):(p.otH>0?'⚠ '+fmtHrs(p.otH)+' over':'—'),
+    p.otherDays?String(p.otherDays):'—',
+    p.missedDays?String(p.missedDays):'—'
   ];
 }
 function renderStatsTable(idx){
@@ -8386,7 +8435,7 @@ function _writeStatsSheet(ewb,data){
     st.people.forEach(p=>put(p,false));
     put(st.total,true);
   });
-  [22,10,10,9,13,13,9,13,24,10,20,13,12,12,12].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+  [22,10,10,9,13,13,9,13,24,10,20,13,12,12,12,12,10].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
   return ws;
 }
 
@@ -8566,6 +8615,15 @@ function folderEntityIdx(folder){
   const hits=entities.map((e,j)=>({j,n:_folderNorm(e.name)})).filter(x=>x.n&&(f.startsWith(x.n)||x.n.startsWith(f)));
   return hits.length===1?hits[0].j:-1;
 }
+// A file the browser gave no type (e.g. .HEIC on Windows) gets one from its extension, so the
+// typed upload lists accept it (review fix: never shown on the sort screen and then dropped).
+function _withImageType(f){
+  if(!f||String(f.type||'').startsWith('image/'))return f;
+  const ext=String(f.name||'').split('.').pop().toLowerCase();
+  const t='image/'+(ext==='jpg'?'jpeg':ext==='tif'?'tiff':ext||'jpeg');
+  try{if(typeof File!=='undefined')return new File([f],f.name,{type:t});}catch(_){}
+  return Object.assign(Object.create(Object.getPrototypeOf(f)||Object.prototype),f,{type:t,name:f.name,arrayBuffer:f.arrayBuffer});
+}
 function _isImageName(n){return/\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(n||'');}
 // [{file,path}] → the folder each file belongs to. Top folders every file shares (the week
 // folder, sometimes twice when a Drive zip is unpacked) are stepped over, so "Week/Hefner/x.jpg",
@@ -8619,10 +8677,10 @@ async function weekDropClassifyAll(){
   const apiKey=_prefGet('pv26_api_key');
   if(!apiKey&&!_classifyImpl){wd.items.forEach(it=>{if(!it.kind){it.status='unsure';}});wd.note='No Gemini API key: sort the images by hand, or add the key in Settings and drop the folder again.';_renderWeekDrop(true);return;}
   const queue=wd.items.filter(it=>!it.kind);
-  const run=async()=>{while(queue.length){const it=queue.shift();it.status='classifying';_renderWeekDrop(true);const k=await _classifyOne(it,apiKey);if(_weekDrop!==wd)return;if(k){it.kind=k;it.status='done';}else it.status='unsure';_renderWeekDrop(true);}};
+  const run=async()=>{while(queue.length){const it=queue.shift();it.status='classifying';_renderWeekDrop(true);const k=await _classifyOne(it,apiKey);if(_weekDrop!==wd)return;if(it.byHand){it.status='done';}else if(k){it.kind=k;it.status='done';}else it.status='unsure';_renderWeekDrop(true);}};
   await Promise.all([run(),run(),run()]);
 }
-function weekDropSetKind(id,kind){const it=_weekDrop&&_weekDrop.items.find(x=>x.id===id);if(!it)return;it.kind=kind==='EC'?'EC':'TC';it.status='done';_renderWeekDrop(true);}
+function weekDropSetKind(id,kind){const it=_weekDrop&&_weekDrop.items.find(x=>x.id===id);if(!it)return;it.kind=kind==='EC'?'EC':'TC';it.status='done';it.byHand=true;_renderWeekDrop(true);}
 function weekDropSetEntity(id,idx){const it=_weekDrop&&_weekDrop.items.find(x=>x.id===id);if(!it)return;it.entIdx=+idx;_renderWeekDrop(true);}
 function weekDropMapFolder(folder,idx){
   if(!_weekDrop)return;
@@ -8636,6 +8694,7 @@ function weekDropBlockers(){
   const wd=_weekDrop;if(!wd)return['Nothing dropped'];
   const b=[];
   const live=wd.items.filter(it=>it.entIdx!==-2);
+  if(_actionRunning())b.push('An OCR run is still going');
   if(live.some(it=>it.status==='classifying'||it.status==='pending'))b.push('Still looking at the images');
   if(live.some(it=>it.entIdx<0))b.push('Choose an entity for every folder');
   if(live.some(it=>!it.kind))b.push('Sort the unsure images');
@@ -8646,7 +8705,7 @@ async function weekDropStartOcr(){
   const wd=_weekDrop;if(!wd)return false;
   if(weekDropBlockers().length){_renderWeekDrop(true);return false;}
   const byEnt=new Map();
-  wd.items.filter(it=>it.entIdx>=0).forEach(it=>{if(!byEnt.has(it.entIdx))byEnt.set(it.entIdx,{tc:[],ec:[]});byEnt.get(it.entIdx)[it.kind==='EC'?'ec':'tc'].push(it.file);});
+  wd.items.filter(it=>it.entIdx>=0).forEach(it=>{if(!byEnt.has(it.entIdx))byEnt.set(it.entIdx,{tc:[],ec:[]});byEnt.get(it.entIdx)[it.kind==='EC'?'ec':'tc'].push(_withImageType(it.file));});
   _weekDrop=null;_renderWeekDrop(false);
   const order=[...byEnt.keys()].sort((a,b)=>a-b);
   order.forEach(i=>{const g=byEnt.get(i);if(g.tc.length)addIntakeFiles(i,'tc',g.tc);if(g.ec.length)addIntakeFiles(i,'ec',g.ec);});

@@ -174,3 +174,32 @@ test('test_pay_identical', () => {
   api.renderReviewTableHtml(api.entities[0], 0);
   assert.equal(pay(), before);
 });
+
+// Review fix: a night shift split at midnight (on one row or two) is one shift.
+test('test_overnight_split_at_midnight_not_flagged', () => {
+  const { api, e, add } = setup();
+  const r1 = add('BRAM', D(1), '15:15', '23:30');
+  const r2 = add('BRAM', D(1), '00:00', '01:15');
+  e.intake.reviewRows = e.intake.reviewRows.filter(r => r === r1 || r === r2 || r.empName !== 'BRAM');
+  assert.deepEqual(texts(api.punctualityFlags(r1, e)), []);
+  assert.deepEqual(texts(api.punctualityFlags(r2, e)), []);
+  const one = api.processReviewRow({ empName: 'BRAM', date: D(1), clockIn1: '15:15', clockOut1: '23:30', clockIn2: '00:00', clockOut2: '01:15', confidence: 0.95, source: 'TC', originalName: 'b2.jpg' }, e);
+  e.intake.reviewRows = e.intake.reviewRows.filter(r => r.empName !== 'BRAM').concat([one]);
+  api.approveReviewRow(one.id);
+  api.syncActualsFromReview();
+  assert.deepEqual(texts(api.punctualityFlags(one, e)), []);
+  const bram = api.entityStats(0).people.find(p => p.name === 'BRAM');
+  assert.equal(bram.lateDays, 0);
+  assert.equal(bram.earlyMin, 0, 'no phantom early minutes');
+});
+
+test('test_other_hours_than_scheduled_not_counted_as_early', () => {
+  const { api, e, add } = setup();
+  const r = add('AVERY', D(5), '05:45', '14:15'); // scheduled 9-5 Friday, worked an early shift instead
+  assert.deepEqual(texts(api.punctualityFlags(r, e)), ['yellow:Other hours than scheduled']);
+  api.syncActualsFromReview();
+  const avery = api.entityStats(0).people.find(p => p.name === 'AVERY');
+  assert.equal(avery.otherDays, 1);
+  assert.equal(avery.earlyMin, 20, 'only Wednesday counts as early');
+  assert.equal(avery.missedDays, 0);
+});

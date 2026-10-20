@@ -75,7 +75,9 @@ Fully reversible via one revert commit. In the tool, changing the type or the ti
   - `semiPaid` (id → the owner's tick).
 
   The rest of the wiring:
-  - **Rule.** `semiRunInfo(ent)` is the rule: run = the Monday after the pay week's Saturday, and the week checked is Sat+1 … Sat+7.
+  - **Rule.** `semiRunInfo(ent)` is the rule: run = the Monday after the pay week's Saturday, and the week checked is Sat+1 … Sat+7. An entity without schedule dates uses the session's pay week.
+  - **Hand choice.** The owner's tick is stored with its run date (`{runIso, paid}`) and counts only for that run. An independent review caught a choice carrying into next week through the snapshot.
+  - **Status.** The Downloads status names a semi-monthly pay set by hand, or one that has no run date.
   - **Pay.** `_applySemi` sets the pay (the amount or $0) wherever a flat row is built.
   - **Screen.** Payroll Calculation has a Semi-monthly type button, the amount per half-month, the "Paid this run" tick and the reason.
   - **Settings file.** Type "Semi-monthly" with the amount in the Flat column, round-tripped.

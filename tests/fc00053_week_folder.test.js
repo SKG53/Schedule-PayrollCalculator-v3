@@ -8,7 +8,7 @@ const { webcrypto } = require('node:crypto');
 const { loadApp, resetToSingleEntity } = require('./load-app');
 
 const WEEK = ['Aug 9 2026', 'Aug 10 2026', 'Aug 11 2026', 'Aug 12 2026', 'Aug 13 2026', 'Aug 14 2026', 'Aug 15 2026'];
-const img = (name, bytes, type) => ({ name, type: type || (/\.png$/i.test(name) ? 'image/png' : 'image/jpeg'), arrayBuffer: async () => new TextEncoder().encode(bytes || name).buffer });
+const img = (name, bytes, type) => ({ name, type: type !== undefined ? type : (/\.png$/i.test(name) ? 'image/png' : 'image/jpeg'), arrayBuffer: async () => new TextEncoder().encode(bytes || name).buffer });
 
 function setup() {
   const api = loadApp();
@@ -143,4 +143,25 @@ test('test_copy_last_week_asks_before_replacing', () => {
   assert.equal(api.copyLastWeekSchedule(0), false);
   assert.equal(asked, 1);
   assert.deepEqual(api.entities[0].employees.map(x => x.name), ['BRAM'], 'declined: nothing replaced');
+});
+
+// Review fixes.
+test('test_image_without_type_is_still_queued', async () => {
+  const api = setup();
+  await api.weekDropAddFiles([{ file: img('a.jpg'), path: 'W/BETA/a.jpg' }, { file: img('b.HEIC', 'heic', ''), path: 'W/BETA/b.HEIC' }]);
+  await api.weekDropStartOcr();
+  assert.deepEqual(api.entities[1].intake.timecardFiles.map(f => [f.name, f.type]), [['a.jpg', 'image/jpeg'], ['b.HEIC', 'image/heic']]);
+});
+
+test('test_hand_choice_wins_over_a_late_classifier_answer', async () => {
+  const api = setup();
+  let release;
+  api._setClassifierForTests(() => new Promise(r => { release = () => r('TC'); }));
+  const p = api.weekDropAddFiles([{ file: img('a.jpg'), path: 'W/BETA/a.jpg' }]);
+  await new Promise(r => setTimeout(r, 20));
+  const it = api.getWeekDrop().items[0];
+  api.weekDropSetKind(it.id, 'EC');
+  release();
+  await p;
+  assert.equal(api.getWeekDrop().items[0].kind, 'EC');
 });
