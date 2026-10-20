@@ -33,6 +33,8 @@ test('test_folder_tree_maps_subfolders_to_entities', async () => {
   assert.deepEqual(wd.items.map(i => [i.name, i.folder, i.entIdx]), [['a.jpg', 'Alpha One', 0], ['b.png', 'Alpha One', 0], ['c.jpg', 'Beta Distribution', 1]]);
   assert.equal(api.folderEntityIdx('Beta Distribution'), 1, 'one name starting with the other');
   assert.deepEqual(api._entityFolderOf(['Alpha One/a.jpg', 'Beta/c.jpg']), ['Alpha One', 'Beta'], 'entity folders dropped directly');
+  assert.deepEqual(api._entityFolderOf(['W 10/W 10/Alpha One/a.jpg', 'W 10/W 10/Beta/c.jpg']), ['Alpha One', 'Beta'], 'a week folder nested twice (unpacked Drive zip)');
+  assert.deepEqual(api._entityFolderOf(['Beta/a.jpg', 'Beta/b.jpg']), ['Beta', 'Beta'], 'one entity folder on its own');
 });
 
 test('test_zip_maps_like_folder', async () => {

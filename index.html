@@ -4058,7 +4058,7 @@ function renderInfoBar(idx){
     const chip=document.createElement('div');
     chip.className='info-chip'+(totalH>40?' overtime':'');
     const hrsColor=totalH>40?'color:#C2410C':'color:'+col.hex;
-    chip.innerHTML=`<div class="top-row"><span class="dot" style="background:${col.hex}"></span><span class="name" style="color:${col.hex}">${escHtml(emp.name||'(unnamed)')}</span></div><div class="hrs" style="${hrsColor}">${hoursFormat()==='dec'?totalH.toFixed(2)+'h':fmtHmm(totalH)}${hoursFormat()==='both'?'<span style="font-size:11px;font-weight:400"> ('+totalH.toFixed(2)+')</span>':''}</div><div class="days">${daysWorked} days</div>`;
+    chip.innerHTML=`<div class="top-row"><span class="dot" style="background:${col.hex}"></span><span class="name" style="color:${col.hex}">${escHtml(emp.name||'(unnamed)')}</span></div><div class="hrs" style="${hrsColor}">${_chipHours(totalH)}</div><div class="days">${daysWorked} days</div>`;
     chip.dataset.name=emp.name;
     chip.addEventListener('click',()=>{
       if(activeEmp===emp.name){activeEmp=null;document.querySelectorAll('.info-chip').forEach(c=>c.classList.remove('dimmed'));document.querySelectorAll('.shift-block').forEach(b=>b.style.opacity='');}
@@ -5343,13 +5343,13 @@ function renderPayrollInfoChips(rows,hasActuals,noSchedule){
       let hrsColor=col.hex;
       if(r.isOrphan&&!orphanIsNoise)hrsColor='var(--red)';
       else if(absDiff>=0.1)hrsColor=diff>0?'var(--red)':'var(--green)';
-      inner+=`<div class="hrs" style="color:${hrsColor}">${r.actualHours.toFixed(1)}h</div>`;
+      inner+=`<div class="hrs" style="color:${hrsColor}">${_chipHours(r.actualHours)}</div>`;
       if(orphanIsNoise)inner+=`<span class="actuals-only-pill" style="display:inline-block;margin-top:2px;padding:1px 7px;border-radius:10px;background:var(--surface2,#f0efe9);color:var(--text3);font-size:10px;font-weight:600;letter-spacing:0.3px">actuals-only</span>`;
       else if(r.isOrphan)inner+=`<div class="days" style="color:var(--red);font-weight:500">not in schedule</div>`;
       else if(absDiff<0.1)inner+=`<div class="days" style="color:var(--text3);font-weight:500">as expected</div>`;
-      else inner+=`<div class="days" style="color:${diffColor};font-weight:500">${absDiff.toFixed(1)}h ${diff>0?'More':'Less'}</div>`;
+      else inner+=`<div class="days" style="color:${diffColor};font-weight:500">${fmtHrs(absDiff)} ${diff>0?'More':'Less'}</div>`;
     }else{
-      inner+=`<div class="hrs" style="color:${col.hex}">${r.expectedH.toFixed(1)}h</div><div class="days">expected</div>`;
+      inner+=`<div class="hrs" style="color:${col.hex}">${_chipHours(r.expectedH)}</div><div class="days">expected</div>`;
     }
     chip.innerHTML=inner;bar.appendChild(chip);
   });
@@ -6008,7 +6008,7 @@ function renderIntake(){
       <div class="ocr-results ${ent.intake.reviewRows.length>0||ent.intake.ocrDone?'active':''}" id="ocrResults_${idx}">
         ${renderReviewSummary(ent)}
         <div class="review-legend"><strong>Legend</strong><span><span class="legend-abbr">TC</span> = Timecard photo</span><span><span class="legend-abbr">EC</span> = EasyClocking</span><span><span class="legend-abbr">MN</span> = Manual</span></div>
-        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><button class="btn" onclick="addManualRowEntity(${idx})" title="Add a row for an employee not already in the table" style="font-size:12px;padding:5px 12px">✚ Add employee row</button><button class="btn" onclick="scrollToIntakeUpload(${idx})" title="Upload additional timecards for this entity without losing any approved or edited rows — new rows join the queue marked as new" style="font-size:12px;padding:5px 12px">📎 Add more timecards</button><span style="font-size:11px;color:var(--text3)">Use when an entire employee is missing</span><span style="flex:1"></span><button class="btn" onclick="document.getElementById('actualsIntakeImportInput').click()" title="Re-import a previously exported Actuals Intake .xlsx — restores approved rows so payroll can be calculated without redoing OCR" style="font-size:12px;padding:5px 12px">⤴ Import Actuals (.xlsx)</button><button class="btn btn-green" onclick="exportActualsIntakeExcel()" title="Export reviewed actuals across all entities — re-importable, includes both approved and unapproved rows (unapproved rows are clearly marked)" style="font-size:12px;padding:5px 14px">📥 Export Actuals (.xlsx)</button><button class="btn" onclick="exportActualsIntakePdf()" title="Export reviewed actuals as a human-readable PDF — record only, not re-importable" style="font-size:12px;padding:5px 14px">📄 Export Actuals (.pdf)</button></div>
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><button class="btn" onclick="addManualRowEntity(${idx})" title="Add a row for an employee not already in the table" style="font-size:12px;padding:5px 12px">✚ Add employee row</button><button class="btn" onclick="scrollToIntakeUpload(${idx})" title="Upload additional timecards for this entity without losing any approved or edited rows — new rows join the queue marked as new" style="font-size:12px;padding:5px 12px">📎 Add more timecards</button><span style="font-size:11px;color:var(--text3)">Use when an entire employee is missing</span><span style="flex:1"></span><button class="btn" onclick="document.getElementById('actualsIntakeImportInput').click()" title="Re-import a previously exported Actuals Intake .xlsx — restores approved rows so payroll can be calculated without redoing OCR" style="font-size:12px;padding:5px 12px">⤴ Import Actuals (.xlsx)</button><button class="btn btn-green" onclick="exportActualsIntakeExcel()" title="Export reviewed actuals across all entities — re-importable, includes both approved and unapproved rows (unapproved rows are clearly marked)" style="font-size:12px;padding:5px 14px">📥 Export Actuals (.xlsx)</button></div>
         <div id="reviewTable_${idx}">${renderReviewTableHtml(ent,idx)}</div>
       </div>
     </div>`;
@@ -8184,6 +8184,12 @@ function fmtHmm(h){
   const m=Math.round(h*60),a=Math.abs(m);
   return(m<0?'-':'')+Math.floor(a/60)+':'+String(a%60).padStart(2,'0');
 }
+// Big chip number: h:mm large with the decimal small beside it (FC-00049).
+function _chipHours(h){
+  const f=hoursFormat();
+  if(f==='dec')return(h||0).toFixed(2)+'h';
+  return fmtHmm(h||0)+(f==='both'?'<span style="font-size:11px;font-weight:400"> ('+(h||0).toFixed(2)+')</span>':'');
+}
 // Hours as the owner chose to read them. The decimal is the value pay uses.
 function fmtHrs(h,digits){
   if(h==null||isNaN(h))return'';
@@ -8561,13 +8567,17 @@ function folderEntityIdx(folder){
   return hits.length===1?hits[0].j:-1;
 }
 function _isImageName(n){return/\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(n||'');}
-// [{file,path}] → the folder each file belongs to. A single top folder (the week folder) is
-// stepped over, so both "Week/Hefner/x.jpg" and "Hefner/x.jpg" give "Hefner".
+// [{file,path}] → the folder each file belongs to. Top folders every file shares (the week
+// folder, sometimes twice when a Drive zip is unpacked) are stepped over, so "Week/Hefner/x.jpg",
+// "Week/Week/Hefner/x.jpg" and "Hefner/x.jpg" all give "Hefner".
 function _entityFolderOf(paths){
-  const segs=paths.map(p=>String(p||'').split('/').filter(Boolean).slice(0,-1));
-  const firsts=new Set(segs.map(s=>s[0]||''));
-  const stepOver=firsts.size===1&&segs.some(s=>s.length>=2);
-  return segs.map(s=>(stepOver?s[1]:s[0])||'');
+  let segs=paths.map(p=>String(p||'').split('/').filter(Boolean).slice(0,-1));
+  for(let guard=0;guard<10;guard++){
+    const firsts=new Set(segs.map(s=>s[0]||''));
+    if(firsts.size!==1||[...firsts][0]===''||!segs.some(s=>s.length>=2))break;
+    segs=segs.map(s=>s.slice(1));
+  }
+  return segs.map(s=>s[0]||'');
 }
 async function weekDropAddFiles(list){
   list=(list||[]).filter(x=>x&&x.file);
@@ -9571,7 +9581,7 @@ async function _exportPdf(kind){
       let n=1;
       if(row.length===1&&row[0]&&row[0].colSpan)n=lines(cellText(row[0]),avail);
       else row.forEach((c,i)=>{n=Math.max(n,lines(cellText(c),colW[i]||avail));});
-      return n*LH+2*PAD+0.5;
+      return n*LH+2*PAD;
     };
     const headH=rowH(spec.headers);
     const pages=[];let cur=[],y=startY+headH;

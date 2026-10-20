@@ -105,6 +105,7 @@ test('test_removed_reports_absent_from_downloads_and_payroll_tab', () => {
   assert.ok(!/Export Manager Report/.test(html));
   assert.ok(!/Cash-Only Report<\/div>/.test(html));
   assert.ok(/Export Employee Schedule/.test(html), 'the employee schedule export stays');
+  assert.ok(!/Export Actuals \(\.pdf\)/.test(html), 'the Timecards PDF button on Actuals Intake is gone too');
 });
 
 test('test_kept_exports_unchanged', async () => {

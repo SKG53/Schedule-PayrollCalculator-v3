@@ -558,7 +558,7 @@ function loadApp(opts) {
       _openFileEntities, _closeOpenedEntities, renderSettingsFirstBar, skipSettingsFirst, _settingsLoadedThisSession, _learnSpelling, _archivedMatch, updateReviewField, matchEmployeeName,
       reviewBucketKey, _personNameOnEntity, _schedNameForPerson, _empIdText, _isIdPending, _dropBlankRecords, _fileMatchFor,
       unpaidReviewRows, leftOutRowsFor, setRowLeftOut, payGateApprove, payGateLeaveOut, payGateApproveAll, payGateCancel, payGateGoToRow, payGateIsOpen, _payGateHtml, _leftOutNoteText,
-      hoursFormat, setHoursFormat, fmtHrs, fmtHmm, dayBreakLine, renderPayDayCell, _isoDayLabel, _rowWorkedMinutes,
+      hoursFormat, setHoursFormat, _chipHours, fmtHrs, fmtHmm, dayBreakLine, renderPayDayCell, _isoDayLabel, _rowWorkedMinutes,
       punctualityFlags, _punctGroups, scheduledNoPunchDays, entityStats, renderStatsTable, _statsCells, _writeStatsSheet, setPayrollSubTab, STATS_HEADERS,
       semiRunInfo, isSemiMonthly, semiPaidThisRun, semiWeeklyCost, semiDailyCost, setSemiPaidForRow, setRowType, entityLaborCost, renderLaborCostPanel, _allocCents, semiMonthly, semiPaid, _flatRowsForTest: () => _flatRows,
       weekDropAddFiles, weekDropFromInput, folderEntityIdx, _entityFolderOf, weekDropSetKind, weekDropSetEntity, weekDropMapFolder, weekDropRemove, weekDropCancel, weekDropBlockers, weekDropStartOcr, _weekDropHtml, _setClassifierForTests, getWeekDrop: () => _weekDrop,

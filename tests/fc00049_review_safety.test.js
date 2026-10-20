@@ -276,3 +276,12 @@ test('test_no_function_declared_twice', () => {
   const dup = names.filter((n, i) => names.indexOf(n) !== i);
   assert.deepEqual(dup, []);
 });
+
+test('test_info_chips_use_hmm', () => {
+  const { api } = setup();
+  assert.equal(api._chipHours(7.3), '7:18<span style="font-size:11px;font-weight:400"> (7.30)</span>');
+  api.setHoursFormat('dec');
+  assert.equal(api._chipHours(7.3), '7.30h');
+  api.setHoursFormat('hmm');
+  assert.equal(api._chipHours(7.3), '7:18');
+});
