@@ -117,6 +117,9 @@ None.
 - `test_semi_monthly_in_settings_file_round_trip`
 - `test_labor_cost_sheet_in_combined_excel`
 - `test_pay_identical_except_semi_monthly`
+- `test_semi_monthly_type_button`
+- `test_paid_this_run_choice_never_carries_to_next_week`
+- `test_semi_monthly_without_dates_uses_session_week_and_is_named`
 
 ## Slice
 L

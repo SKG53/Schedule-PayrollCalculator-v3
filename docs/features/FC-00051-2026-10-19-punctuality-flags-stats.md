@@ -132,6 +132,8 @@ None.
 - `test_entity_rollup`
 - `test_stats_sheet_in_combined_excel_payroll_sheet_unchanged`
 - `test_pay_identical`
+- `test_overnight_split_at_midnight_not_flagged`
+- `test_other_hours_than_scheduled_not_counted_as_early`
 
 ## Slice
 L

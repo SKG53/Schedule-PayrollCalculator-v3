@@ -124,6 +124,8 @@ None.
 - `test_duplicate_image_skipped`
 - `test_copy_last_week_dates_plus_7_archived_left_out`
 - `test_copy_last_week_asks_before_replacing`
+- `test_image_without_type_is_still_queued`
+- `test_hand_choice_wins_over_a_late_classifier_answer`
 
 Real browser: the Oct 4–10 week folder dropped in Chromium, with the classifier stubbed by the images' known types; no console errors.
 

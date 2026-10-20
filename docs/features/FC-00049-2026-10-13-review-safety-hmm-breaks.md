@@ -134,10 +134,21 @@ None.
 - `test_ignored_and_out_of_week_rows_never_stop`
 - `test_timecards_settings_snapshot_exports_never_stop`
 - `test_left_out_note_on_combined_excel`
+- `test_downloads_ask_once_then_write`
 - `test_hmm_display_both_hmm_decimal`
 - `test_hmm_rounds_minutes_pay_value_unchanged`
 - `test_break_line_gap_minimum_override`
+- `test_break_line_in_payroll_grid`
 - `test_pay_identical_with_display_switch`
+- `test_rename_saves_old_spelling`
+- `test_settings_file_without_id_column_counts_as_loaded`
+- `test_unconfirmed_off_schedule_person_named_in_status`
+- `test_red_rate_cell_matches_export_status`
+- `test_row_without_punches_never_stops`
+- `test_no_function_declared_twice`
+- `test_info_chips_use_hmm`
+- `test_gate_skips_inactive_and_names_unrecognized`
+- `test_editing_a_left_out_row_asks_again`
 
 Real-week check: five weeks plus Oct 4–10, pay and export cells identical; undo and snapshot round-trips exact.
 
