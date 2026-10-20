@@ -151,7 +151,7 @@ test('test_stats_sheet_in_combined_excel_payroll_sheet_unchanged', async () => {
   const { api } = setup();
   await api.exportCombinedExcel();
   const wb = api.__lastExcelWorkbook;
-  assert.deepEqual(wb.worksheets.map(w => w.name), ['Report', 'Stats']);
+  assert.deepEqual(wb.worksheets.map(w => w.name), ['Report', 'Stats', 'Labor Cost']); // Labor Cost: FC-00052
   const st = wb.worksheets[1];
   const vals = st.rows.slice(1).map(r => (r || []).slice(1).map(c => c && c.value));
   const hdr = vals.find(r => r[0] === 'Employee');

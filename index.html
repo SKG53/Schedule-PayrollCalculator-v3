@@ -889,7 +889,7 @@ function setTestMode(v){_testMode=!!v}
 let _simulating=false,_importing=false;
 // FC-00040: while set, export writers hand their files to this list instead of the browser.
 let _dlCapture=null;
-function _isUserIntentStore(name){return['wageRates','wageBlank','payMethod','splitAmounts','flatWages','breakOverrides','rosterActive','rosterAliases','payrollSortMode','entityPalettes'].includes(name)}
+function _isUserIntentStore(name){return['wageRates','wageBlank','payMethod','splitAmounts','flatWages','breakOverrides','rosterActive','rosterAliases','payrollSortMode','entityPalettes','semiMonthly','semiPaid'].includes(name)}
 function _guardedStore(name){
   const obj={};
   return new Proxy(obj,{
@@ -923,6 +923,8 @@ function createSession(){
     rosterActive:_guardedStore('rosterActive'),
     rosterAliases:_guardedStore('rosterAliases'),
     flatWages:_guardedStore('flatWages'),
+    semiMonthly:_guardedStore('semiMonthly'), // FC-00052: id -> true when the flat amount is per half-month
+    semiPaid:_guardedStore('semiPaid'),       // FC-00052: id -> the owner's "Paid this run" choice (absent = the rule)
     flatWagesDisplayNames:{},
     pendingSettings:[], // FC-00038: settings rows waiting for an entity that is not loaded yet
     toolSettings:{}, // FC-00041: owner-level settings (thresholds, labels); defaults in TOOL_SETTING_DEFAULTS
@@ -977,6 +979,8 @@ let rosterActive=session.rosterActive;
 // resolves to the canonical schedule name silently, with no flag.
 let rosterAliases=session.rosterAliases;
 let flatWages=session.flatWages;
+let semiMonthly=session.semiMonthly; // FC-00052
+let semiPaid=session.semiPaid;       // FC-00052
 let flatWagesDisplayNames=session.flatWagesDisplayNames; // name -> name (case preserved)
 
 function _rosterKey(entId,name){return entId+'|'+_aliasNorm(name)}
@@ -1016,7 +1020,7 @@ function _renumberProvisionalIds(entId){
   prov.forEach((r,i)=>_rekeyRecord(r,`EMP_${code}_${String(fileMax+1+i).padStart(5,'0')}`));
   session._empIdSeq[code]=fileMax+prov.length;
 }
-const ROSTER_KEYED_STORES=()=>[wageRates,payMethod,splitAmounts,wageBlank,breakOverrides,rosterActive,rosterAliases,flatWages];
+const ROSTER_KEYED_STORES=()=>[wageRates,payMethod,splitAmounts,wageBlank,breakOverrides,rosterActive,rosterAliases,flatWages,semiMonthly,semiPaid];
 function _mintEmployeeId(entId){
   const code=_entityCodeFor(entId);
   session._empIdSeq=session._empIdSeq||{};
@@ -1725,6 +1729,10 @@ function _applyChange(entry,invert){
     }else if(entry.type==='flatWage'){
       if(value==null){delete flatWages[key];if(empName)delete flatWagesDisplayNames[_aliasNorm(empName)];_applyRecordMirror(entId,empName,'flat_amount',null);}
       else{flatWages[key]=parseFloat(value)||0;if(empName)flatWagesDisplayNames[_aliasNorm(empName)]=empName;_applyRecordMirror(entId,empName,'flat_amount',flatWages[key]);}
+    }else if(entry.type==='semiMonthlySet'){
+      if(value)semiMonthly[key]=true;else{delete semiMonthly[key];delete semiPaid[key];}
+    }else if(entry.type==='semiPaidSet'){
+      if(value==null)delete semiPaid[key];else semiPaid[key]=!!value;
     }else if(entry.type==='breakOverride'){
       const bk=key+'|'+target.day;
       if(value==null)delete breakOverrides[bk];else breakOverrides[bk]=Math.round(parseFloat(value)||0);
@@ -1779,7 +1787,7 @@ function _applyChange(entry,invert){
   });
 }
 const _reducers={
-  wage:_applyChange,wageBlank:_applyChange,payMethod:_applyChange,splitDeposit:_applyChange,flatWage:_applyChange,
+  wage:_applyChange,wageBlank:_applyChange,payMethod:_applyChange,splitDeposit:_applyChange,flatWage:_applyChange,semiMonthlySet:_applyChange,semiPaidSet:_applyChange,
   breakOverride:_applyChange,entityBreak:_applyChange,sortMode:_applyChange,entityPaletteSet:_applyChange,rosterAdd:_applyChange,rosterRename:_applyChange,
   rosterAliasAdd:_applyChange,rosterAliasRemove:_applyChange,rosterActiveSet:_applyChange,rosterFieldSet:_applyChange
 };
@@ -1815,7 +1823,7 @@ function revert(id){
 // The last CHECKPOINT_LIMIT live in memory only and are never written to a snapshot.
 // Restores happen IN PLACE so every global that aliases a session object (entities,
 // wageRates, actualDays…) stays the same object.
-const _STORE_NAMES=['wageRates','payMethod','splitAmounts','wageBlank','breakOverrides','payrollSortMode','entityPalettes','rosterActive','rosterAliases','flatWages'];
+const _STORE_NAMES=['wageRates','payMethod','splitAmounts','wageBlank','breakOverrides','payrollSortMode','entityPalettes','rosterActive','rosterAliases','flatWages','semiMonthly','semiPaid'];
 const CHECKPOINT_LIMIT=10;
 let _checkpoints=[];
 let _cpSeq=0;
@@ -2098,7 +2106,7 @@ function revertFromHistory(id){
 
 // ---- History panel ----
 let _historyOpen=false;
-const _HISTORY_KIND={wage:'Wage',wageBlank:'Wage',payMethod:'Pay method',splitDeposit:'Deposit amount',flatWage:'Flat amount',
+const _HISTORY_KIND={wage:'Wage',wageBlank:'Wage',payMethod:'Pay method',splitDeposit:'Deposit amount',flatWage:'Flat amount',semiMonthlySet:'Semi-monthly',semiPaidSet:'Semi-monthly paid this run',
   breakOverride:'Break',entityBreak:'Entity break',sortMode:'Sort order',entityPaletteSet:'Palette',rosterAdd:'Added to roster',
   rosterRename:'Name',rosterAliasAdd:'Alias added',rosterAliasRemove:'Alias removed',rosterActiveSet:'Active',rosterFieldSet:'Roster field',
   reviewEdit:'Punch edit',reviewApprove:'Approval',reviewApproveBulk:'Approval (bulk)',reviewRowAdd:'Row added',reviewRowDelete:'Row deleted',
@@ -2958,7 +2966,7 @@ function _rowsToApply(){
 function _personFields(st,id,includeBreaks){
   const S=st.stores,rec=st.roster.byId[id]||{};
   const sp=S.splitAmounts[id];
-  const f={rate:S.wageBlank[id]?'(blank)':(typeof S.wageRates[id]==='number'?S.wageRates[id]:null),type:typeof S.flatWages[id]==='number'?'Flat':'Hourly',
+  const f={rate:S.wageBlank[id]?'(blank)':(typeof S.wageRates[id]==='number'?S.wageRates[id]:null),type:typeof S.flatWages[id]==='number'?((S.semiMonthly||{})[id]?'Semi-monthly':'Flat'):'Hourly',
     flat:typeof S.flatWages[id]==='number'?S.flatWages[id]:null,method:S.payMethod[id]||'deposit',deposit:sp?sp.deposit:null,typedAs:sp?(sp.isWhole?'whole':'decimal'):null,
     active:S.rosterActive[id]!==false,aliases:(S.rosterAliases[id]||[]).join(', '),notes:rec.notes||'',finalPass:rec.final_pass_method||''};
   if(includeBreaks)for(let d=0;d<7;d++){const v=S.breakOverrides[id+'|'+d];f['break'+d]=v==null?'Actual':v;}
@@ -2974,6 +2982,7 @@ function _handEditedFields(id){
     const t=e.type,f=e.target.field;
     if(t==='wage'||t==='wageBlank')out.add('rate');
     else if(t==='flatWage'){out.add('flat');out.add('type');}
+    else if(t==='semiMonthlySet'){out.add('type');}
     else if(t==='payMethod')out.add('method');
     else if(t==='splitDeposit'){out.add('deposit');out.add('typedAs');}
     else if(t==='rosterActiveSet')out.add('active');
@@ -4438,6 +4447,48 @@ function clearActuals(){
 // ================================================================
 // PAYROLL — COMPUTE (per entity)
 // ================================================================
+// ================================================================
+// FC-00052 — semi-monthly flat pay
+// ================================================================
+// A semi-monthly person is flat-paid an amount per half-month: paid in the run whose week
+// (Sun–Sat around the Monday run date) holds the 1st or the 15th, $0 otherwise. The run date
+// is the Monday after the pay week's Saturday; the computer's clock is never read for this.
+function semiRunInfo(ent){
+  const isos=((ent&&ent.dateLabels)||[]).map(schedLabelToIso);
+  const sat=isos[6];
+  if(!sat)return null;
+  const d=new Date(sat+'T00:00:00');if(isNaN(d))return null;
+  const run=new Date(d);run.setDate(d.getDate()+2);
+  const days=[];for(let i=1;i<=7;i++){const x=new Date(d);x.setDate(d.getDate()+i);days.push(x);}
+  const hit=days.find(x=>x.getDate()===1||x.getDate()===15)||null;
+  const iso=x=>x.getFullYear()+'-'+String(x.getMonth()+1).padStart(2,'0')+'-'+String(x.getDate()).padStart(2,'0');
+  return{runIso:iso(run),paid:!!hit,hitIso:hit?iso(hit):'',weekStartIso:iso(days[0]),weekEndIso:iso(days[6])};
+}
+function isSemiMonthly(entId,empName){return!!semiMonthly[wKey(entId,empName)];}
+function semiPaidThisRun(entId,empName){
+  const k=wKey(entId,empName);
+  if(semiPaid[k]!=null)return!!semiPaid[k];
+  const info=semiRunInfo(entities.find(e=>e.id===entId));
+  return!!(info&&info.paid);
+}
+// Weekly and daily labor cost of a semi-monthly amount: amount × 24 ÷ 52, then ÷ 7.
+function semiWeeklyCost(amount){return Math.round((amount||0)*24/52*100)/100;}
+function semiDailyCost(amount){return Math.round((amount||0)*24/52/7*100)/100;}
+// Applied wherever a flat row is built: the amount is per half-month and pay follows the tick.
+function _applySemi(row,entId,empName){
+  if(!row||!row.isFlat||!isSemiMonthly(entId,empName))return row;
+  row.isSemi=true;row.semiAmount=row.flatAmount;
+  row.semiPaid=semiPaidThisRun(entId,empName);
+  row.flatAmount=row.semiPaid?row.semiAmount:0;row.pay=row.flatAmount;
+  return row;
+}
+function setSemiPaidForRow(rowIdx,on){
+  const item=_flatRows[rowIdx];if(!item)return;
+  const ent=entities[item.entityIdx];const keyName=_rowKey(item);const k=wKey(ent.id,keyName);
+  dispatch({type:'semiPaidSet',screen:'payroll',target:{kind:'employee',entity:ent.id,id:k,field:'semiPaid'},from:semiPaid[k]==null?null:semiPaid[k],to:!!on,meta:{empName:keyName}});
+  renderPayrollEntityContent(item.entityIdx);
+}
+
 function computePayrollForEntity(idx){
   const ent=entities[idx];
   const entNameLower=(ent.name||'').toLowerCase().trim();
@@ -4580,7 +4631,7 @@ function computePayrollForEntity(idx){
     row.pay=Math.round(row.actualHours*row.wage*factor)/factor;
     // Flat-wage override
     const _fk=wKey(ent.id,emp.name);
-    if(flatWages[_fk]!=null){row.isFlat=true;row.flatAmount=flatWages[_fk];row.pay=flatWages[_fk]}
+    if(flatWages[_fk]!=null){row.isFlat=true;row.flatAmount=flatWages[_fk];row.pay=flatWages[_fk];_applySemi(row,ent.id,emp.name);}
     row.avgInDiff=row.inDiffs.length?Math.round(row.inDiffs.reduce((a,b)=>a+b,0)/row.inDiffs.length):null;
     row.avgOutDiff=row.outDiffs.length?Math.round(row.outDiffs.reduce((a,b)=>a+b,0)/row.outDiffs.length):null;
     return row;
@@ -4625,7 +4676,7 @@ function computePayrollForEntity(idx){
     const factor=Math.pow(10,Math.max(0,Math.min(6,row.rounding)));
     row.pay=Math.round(row.actualHours*row.wage*factor)/factor;
     const _ofk=wKey(ent.id,o.name);
-    if(flatWages[_ofk]!=null){row.isFlat=true;row.flatAmount=flatWages[_ofk];row.pay=flatWages[_ofk]}
+    if(flatWages[_ofk]!=null){row.isFlat=true;row.flatAmount=flatWages[_ofk];row.pay=flatWages[_ofk];_applySemi(row,ent.id,o.name);}
     return row;
   });
 
@@ -4790,11 +4841,13 @@ function renderPayrollEntityContent(idx){
       <button class="payroll-subtab${activeSub==='timecard'?' active':''}" onclick="setPayrollSubTab(${idx},'timecard')">Time Card Data</button>
       <button class="payroll-subtab${activeSub==='payroll'?' active':''}" onclick="setPayrollSubTab(${idx},'payroll')">Payroll Calculation</button>
       <button class="payroll-subtab${activeSub==='stats'?' active':''}" onclick="setPayrollSubTab(${idx},'stats')">Stats</button>
+      <button class="payroll-subtab${activeSub==='labor'?' active':''}" onclick="setPayrollSubTab(${idx},'labor')">Labor Cost</button>
     </div>
     <div class="payroll-subtab-content">
       <div id="timecardDataWrap" style="display:${activeSub==='timecard'?'block':'none'}"><div class="sched-table-wrap" style="display:block"><table class="sched" id="timecardDataTable"></table></div></div>
       <div id="payrollCalcWrap" style="display:${activeSub==='payroll'?'block':'none'}"><div class="sched-table-wrap" style="display:block"><table class="sched" id="payrollCalcTable"></table></div></div>
       <div id="statsWrap" style="display:${activeSub==='stats'?'block':'none'}"><div style="font-size:12px;color:var(--text3);margin:0 0 6px">Against the loaded schedule. Late: 1–5 min yellow, over 5 red. Early clock-ins are counted, never flagged. Counts show next to every percent.</div><div class="sched-table-wrap" style="display:block"><table class="sched stats-table" id="statsTable"></table></div></div>
+      <div id="laborCostWrap" style="display:${activeSub==='labor'?'block':'none'}"><div id="laborCostHost"></div></div>
     </div>`;
 
   const noSchedule=ent.employees.length===0; // FC-00017: signal for "no schedule loaded for this entity"
@@ -4803,6 +4856,7 @@ function renderPayrollEntityContent(idx){
   renderTimeCardData(allRows,hasActuals,ent,noSchedule);
   renderPayrollCalc(allRows,hasActuals,ent,noSchedule);
   if(activeSub==='stats')renderStatsTable(idx); // FC-00051
+  if(activeSub==='labor')renderLaborCostPanel(idx); // FC-00052
   renderAllEntityPreview();
   renderFc00013PreviewPanel();
 }
@@ -5470,9 +5524,23 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
     html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrs(r.actualBreakH)}</td>`;
     html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrs(r.actualHours)}</td>`;
 
-    const typeToggleHtml=`<div class="type-toggle"><button class="${r.isFlat?'':'selected'}" onclick="setRowType(${i},'hourly')" title="Compute pay as wage × hours">Hourly</button><button class="${r.isFlat?'selected':''}" onclick="setRowType(${i},'flat')" title="Use a flat dollar amount">Flat</button></div>`;
+    const typeToggleHtml=`<div class="type-toggle"><button class="${r.isFlat?'':'selected'}" onclick="setRowType(${i},'hourly')" title="Compute pay as wage × hours">Hourly</button><button class="${r.isFlat&&!r.isSemi?'selected':''}" onclick="setRowType(${i},'flat')" title="Use a flat dollar amount">Flat</button><button class="${r.isSemi?'selected':''}" onclick="setRowType(${i},'semi')" title="A flat amount per half-month, paid in the run whose week holds the 1st or the 15th (FC-00052)">Semi-monthly</button></div>`;
 
-    if(r.isFlat){
+    if(r.isSemi){
+      // FC-00052: the amount is per half-month; "Paid this run" is pre-set by the 1st/15th rule.
+      const info=semiRunInfo(ent);
+      const why=info?(info.paid?`Run week ${_isoDayLabel(info.weekStartIso)}–${_isoDayLabel(info.weekEndIso)} holds the ${new Date(info.hitIso+'T00:00:00').getDate()===1?'1st':'15th'}`:`Run week ${_isoDayLabel(info.weekStartIso)}–${_isoDayLabel(info.weekEndIso)} holds no 1st or 15th`):'No schedule dates: tick by hand';
+      html+=`<td colspan="2" style="padding:8px 10px;text-align:center;background:#F5F3FF">
+        <div style="display:inline-flex;align-items:center;gap:8px;font-weight:600;flex-wrap:wrap;justify-content:center">
+          <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px">Per half-month</span>
+          <span style="font-size:13px;color:var(--text3)">$</span>
+          <input type="number" class="flat-input semi-input" value="${(r.semiAmount||0).toFixed(2)}" step="0.01" min="0" onchange="setFlatAmount(${i},this.value)" style="width:100px;text-align:right">
+          <label style="font-weight:500;font-size:12px;display:inline-flex;align-items:center;gap:4px" title="${escHtml(why)}"><input type="checkbox" class="semi-paid" ${r.semiPaid?'checked':''} onchange="setSemiPaidForRow(${i},this.checked)" style="width:auto;margin:0"> Paid this run</label>
+          <span style="font-size:10px;color:var(--text3);font-weight:400">${escHtml(why)}</span>
+        </div>
+      </td>`;
+      html+=`<td style="padding:6px;text-align:center">${typeToggleHtml}</td>`;
+    }else if(r.isFlat){
       html+=`<td colspan="2" style="padding:8px 10px;text-align:center;background:#FAF9F4">
         <div style="display:inline-flex;align-items:center;gap:8px;font-weight:600">
           <span style="font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.6px">Flat</span>
@@ -5626,9 +5694,14 @@ function toggleFlat(rowIdx){
 function setRowType(rowIdx,type){
   const item=_flatRows[rowIdx];if(!item)return;
   const ent=entities[item.entityIdx];
-  const isFlatNow=flatWages[wKey(ent.id,_rowKey(item))]!=null;
-  const wantFlat=type==='flat';
+  const keyName=_rowKey(item),k=wKey(ent.id,keyName);
+  const isFlatNow=flatWages[k]!=null;
+  const wantFlat=type==='flat'||type==='semi';
+  // FC-00052: Semi-monthly is a flat amount per half-month.
+  const wantSemi=type==='semi';
+  if(!!semiMonthly[k]!==wantSemi)dispatch({type:'semiMonthlySet',screen:'payroll',target:{kind:'employee',entity:ent.id,id:k,field:'semiMonthly'},from:!!semiMonthly[k]||null,to:wantSemi||null,meta:{empName:keyName}});
   if(wantFlat!==isFlatNow)toggleFlat(rowIdx);
+  else renderPayrollEntityContent(item.entityIdx);
 }
 function setFlatAmount(rowIdx,val){
   const item=_flatRows[rowIdx];if(!item)return;
@@ -8300,6 +8373,158 @@ function _writeStatsSheet(ewb,data){
   return ws;
 }
 
+// ================================================================
+// FC-00052 — labor cost by day and by hour of day (read-only)
+// ================================================================
+// Each person's paid Actual (the payroll figure before cash rounding) is spread over their
+// days by billable minutes, in whole cents (largest remainder), so the week ties to the payroll
+// Actual to the cent. A shift belongs to the day it starts, as pay does. Within a day the cost
+// follows the clock: minutes after midnight land in the next day's early hours.
+const LC_DAYS=7;
+function _allocCents(totalCents,weights){
+  const sum=weights.reduce((a,b)=>a+b,0);
+  if(!(sum>0))return weights.map(()=>0);
+  const raw=weights.map(w=>totalCents*w/sum);
+  const out=raw.map(Math.floor);
+  let left=totalCents-out.reduce((a,b)=>a+b,0);
+  raw.map((v,i)=>({i,f:v-Math.floor(v)})).sort((a,b)=>b.f-a.f||a.i-b.i).forEach(x=>{if(left>0&&weights[x.i]>0){out[x.i]++;left--;}});
+  return out;
+}
+function entityLaborCost(idx){
+  const ent=entities[idx];if(!ent)return null;
+  const data=_collectExportData().find(d=>d.entityId===ent.id);
+  const days=[...Array(LC_DAYS)].map(()=>({hours:0,people:0,cost:0,hourlyCost:0,hourlyHours:0,sched:0}));
+  const grid=Array.from({length:24},()=>Array.from({length:LC_DAYS+1},()=>({cost:0,people:new Set()})));
+  const fixed=[],semis=[];
+  let spreadTotal=0,fixedTotal=0;
+  ((data&&data.rows)||[]).forEach(r=>{
+    const name=r._empName;
+    if(r.isSemi){semis.push({name,amount:r.semiAmount||0,weekly:semiWeeklyCost(r.semiAmount),daily:semiDailyCost(r.semiAmount),paid:!!r.semiPaid,pay:r._breakdown.actualFinal||0});return;}
+    const cents=Math.round((r._breakdown.actualFinal||0)*100);
+    const ds=r.days||[];
+    const mins=[...Array(LC_DAYS)].map((_,d)=>Math.round(((ds[d]&&ds[d].billableH)||0)*60));
+    const hourly=!r.isFlat&&r.wage>0;
+    if(hourly)ds.forEach((d,i)=>{if(d&&d.shift&&i<LC_DAYS)days[i].sched+=Math.round((d.expectedH||0)*r.wage*100)/100;});
+    if(!mins.some(m=>m>0)){if(cents){fixed.push({name,amount:cents/100,flat:!!r.isFlat});fixedTotal+=cents;}return;}
+    const alloc=_allocCents(cents,mins);
+    spreadTotal+=cents;
+    alloc.forEach((c,d)=>{
+      if(!mins[d])return;
+      const day=days[d];
+      const bh=ds[d].billableH||0;
+      day.cost+=c/100;day.hours+=bh;day.people++;
+      if(hourly){day.hourlyCost+=c/100;day.hourlyHours+=bh;}
+      // Clock-hour placement of that day's cost, in proportion to the minutes punched.
+      const pairs=((ds[d].actual&&ds[d].actual.pairs)||[]).filter(p=>p&&p.outAdj>p.in);
+      const pm=pairs.reduce((a,p)=>a+(p.outAdj-p.in)*60,0);
+      if(!(pm>0))return;
+      pairs.forEach(p=>{
+        let t=p.in;
+        while(t<p.outAdj-1e-9){
+          const next=Math.min(p.outAdj,Math.floor(t+1e-9)+1);
+          const seg=(next-t)*60;
+          const col=Math.min(LC_DAYS,d+Math.floor(t/24));
+          const cell=grid[Math.floor(t)%24][col];
+          cell.cost+=c/100*seg/pm;cell.people.add(name);
+          t=next;
+        }
+      });
+    });
+  });
+  days.forEach(d=>{d.cost=Math.round(d.cost*100)/100;d.hours=Math.round(d.hours*100)/100;d.hourlyCost=Math.round(d.hourlyCost*100)/100;d.sched=Math.round(d.sched*100)/100;
+    d.perHour=d.hourlyHours>0?Math.round(d.hourlyCost/d.hourlyHours*100)/100:null;d.variance=Math.round((d.hourlyCost-d.sched)*100)/100;});
+  const week={hours:Math.round(days.reduce((a,d)=>a+d.hours,0)*100)/100,cost:spreadTotal/100,hourlyCost:Math.round(days.reduce((a,d)=>a+d.hourlyCost,0)*100)/100,
+    hourlyHours:days.reduce((a,d)=>a+d.hourlyHours,0),sched:Math.round(days.reduce((a,d)=>a+d.sched,0)*100)/100};
+  week.perHour=week.hourlyHours>0?Math.round(week.hourlyCost/week.hourlyHours*100)/100:null;
+  week.variance=Math.round((week.hourlyCost-week.sched)*100)/100;
+  week.people=new Set(((data&&data.rows)||[]).filter(r=>!r.isSemi&&(r.actualHours||0)>0).map(r=>r._empName)).size;
+  const fixedSum=fixedTotal/100;
+  const semiWeekly=Math.round(semis.reduce((a,x)=>a+x.weekly,0)*100)/100;
+  const payrollActual=Math.round(((data&&data.rows)||[]).filter(r=>!r.isSemi).reduce((a,r)=>a+(r._breakdown.actualFinal||0),0)*100)/100;
+  const hasNextSun=grid.some(row=>row[LC_DAYS].cost>0);
+  return{entity:ent.name||('Entity '+(idx+1)),entityId:ent.id,days,week,grid,hasNextSun,fixed,fixedSum,semis,semiWeekly,
+    payrollActual,total:Math.round((week.cost+fixedSum+semiWeekly)*100)/100,dateLabels:(ent.dateLabels||[]).slice()};
+}
+const _money=v=>v==null?'—':'$'+Number(v).toFixed(2);
+function _lcDayHeaders(lc){return DAY_SHORT.map((d,i)=>d+(lc.dateLabels[i]?' '+lc.dateLabels[i].replace(/^(\w{3}) (\d{1,2}) \d{4}$/,'$1 $2'):''));}
+function _hourLabel(h){return h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p';}
+function renderLaborCostPanel(idx){
+  const host=document.getElementById('laborCostHost');if(!host)return;
+  const lc=entityLaborCost(idx);if(!lc){host.innerHTML='';return;}
+  const hdr=_lcDayHeaders(lc);
+  let h='<div style="font-size:12px;color:var(--text3);margin:0 0 6px">Wages only. Each person\'s paid Actual is spread over their days by minutes worked, so the week ties to the payroll Actual. A shift belongs to the day it starts.</div>';
+  h+='<div class="sched-table-wrap" style="display:block"><table class="sched labor-day-table"><thead><tr><th></th>'+hdr.map(x=>`<th>${escHtml(x)}</th>`).join('')+'<th>Week</th></tr></thead><tbody>';
+  const line=(lbl,f,wk)=>{h+=`<tr><td class="name-cell">${escHtml(lbl)}</td>`+lc.days.map(d=>`<td class="num-cell">${escHtml(f(d))}</td>`).join('')+`<td class="num-cell"><b>${escHtml(wk)}</b></td></tr>`;};
+  line('Hours',d=>d.hours?fmtHrs(d.hours):'—',fmtHrs(lc.week.hours));
+  line('People',d=>d.people?String(d.people):'—',String(lc.week.people));
+  line('Cost',d=>d.cost?_money(d.cost):'—',_money(lc.week.cost));
+  line('$ / hour (hourly)',d=>d.perHour==null?'—':_money(d.perHour),lc.week.perHour==null?'—':_money(lc.week.perHour));
+  line('Scheduled (hourly)',d=>d.sched?_money(d.sched):'—',_money(lc.week.sched));
+  line('Actual (hourly)',d=>d.hourlyCost?_money(d.hourlyCost):'—',_money(lc.week.hourlyCost));
+  line('Variance',d=>(d.variance>0?'+':'')+_money(d.variance),(lc.week.variance>0?'+':'')+_money(lc.week.variance));
+  h+='</tbody></table></div>';
+  if(lc.fixed.length)h+='<div class="labor-fixed" style="font-size:12px;margin:6px 0">'+lc.fixed.map(x=>`Flat, no hours this week: <b>${escHtml(x.name)}</b> ${_money(x.amount)}`).join('<br>')+'</div>';
+  if(lc.semis.length)h+='<div class="labor-semi" style="font-size:12px;margin:6px 0">'+lc.semis.map(x=>`Semi-monthly: <b>${escHtml(x.name)}</b> ${_money(x.amount)} per half-month → cost ${_money(x.weekly)} / week · ${_money(x.daily)} / day (paid this run: ${_money(x.pay)})`).join('<br>')+'</div>';
+  h+=`<div class="labor-total" style="font-size:13px;margin:8px 0;font-weight:600">Hourly and flat: ${_money(lc.week.cost+lc.fixedSum)} (= payroll Actual ${_money(lc.payrollActual)}${lc.semis.length?' without semi-monthly pay':''})${lc.semis.length?` · Semi-monthly cost: ${_money(lc.semiWeekly)}`:''} · Labor cost this week: ${_money(lc.total)}</div>`;
+  const cols=hdr.slice();if(lc.hasNextSun)cols.push('Sun (next week)');
+  h+='<h4 style="margin:12px 0 4px">Cost by hour of day</h4><div class="sched-table-wrap" style="display:block"><table class="sched labor-hour-grid"><thead><tr><th></th>'+cols.map(x=>`<th>${escHtml(x)}</th>`).join('')+'</tr></thead><tbody>';
+  for(let hr=0;hr<24;hr++){
+    h+=`<tr><td class="name-cell">${_hourLabel(hr)}</td>`;
+    for(let c=0;c<cols.length;c++){const cell=lc.grid[hr][c];h+=`<td class="num-cell">${cell.cost>0.004?escHtml(_money(cell.cost)+' · '+cell.people.size):''}</td>`;}
+    h+='</tr>';
+  }
+  h+='</tbody></table></div>';
+  host.innerHTML=h;
+}
+// FC-00052: the Labor Cost sheet of the Combined Excel mirrors the screen, entity by entity.
+function _writeLaborCostSheet(ewb,data){
+  const ws=ewb.addWorksheet('Labor Cost');
+  const per=_exportPeriodStr();
+  const t=ws.addRow(['LABOR COST — wages by day and hour'+(per?' — '+per:'')]);t.getCell(1).font={name:'Arial',bold:true,size:13};
+  const money=(row,ci,v)=>{const c=row.getCell(ci);c.value=Math.round((v||0)*100)/100;c.numFmt=XL_FMT_MONEY;};
+  data.forEach(({entityId})=>{
+    const idx=entities.findIndex(e=>e.id===entityId);if(idx<0)return;
+    const lc=entityLaborCost(idx);if(!lc)return;
+    const pal=_paletteForEntity(entities[idx]);
+    const hdr=_lcDayHeaders(lc);
+    ws.addRow([]);
+    const er=ws.addRow([lc.entity]);er.getCell(1).font={name:'Arial',bold:true,size:11};
+    const hr=ws.addRow(['',...hdr,'Week']);hr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};c.fill=_fc12Fill('FFE8E8E4');});
+    const put=(lbl,f,wk,fmt)=>{
+      const row=ws.addRow([lbl]);
+      lc.days.forEach((d,i)=>{const v=f(d);const c=row.getCell(i+2);if(fmt==='money')money(row,i+2,v);else if(fmt==='hours'){c.value=Math.round((v||0)*100)/100/24;c.numFmt=XL_FMT_HMM;}else c.value=v;});
+      const c=row.getCell(LC_DAYS+2);if(fmt==='money')money(row,LC_DAYS+2,wk);else if(fmt==='hours'){c.value=Math.round((wk||0)*100)/100/24;c.numFmt=XL_FMT_HMM;}else c.value=wk;
+      row.eachCell(c=>{c.font={name:'Arial',size:10};});
+      _applyEntityPalette(row,pal,'body',null);
+    };
+    put('Hours',d=>d.hours,lc.week.hours,'hours');
+    put('People',d=>d.people,lc.week.people);
+    put('Cost',d=>d.cost,lc.week.cost,'money');
+    put('$ / hour (hourly)',d=>d.perHour,lc.week.perHour,'money');
+    put('Scheduled (hourly)',d=>d.sched,lc.week.sched,'money');
+    put('Actual (hourly)',d=>d.hourlyCost,lc.week.hourlyCost,'money');
+    put('Variance',d=>d.variance,lc.week.variance,'money');
+    lc.fixed.forEach(x=>{const r=ws.addRow(['Flat, no hours: '+x.name]);money(r,LC_DAYS+2,x.amount);});
+    lc.semis.forEach(x=>{const r=ws.addRow(['Semi-monthly: '+x.name+' (per half-month '+_money(x.amount)+'; per day '+_money(x.daily)+'; paid this run '+_money(x.pay)+')']);money(r,LC_DAYS+2,x.weekly);});
+    const tr=ws.addRow(['Labor cost this week']);money(tr,LC_DAYS+2,lc.total);tr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};});
+    _applyEntityPalette(tr,pal,'subtotal',null);
+    ws.addRow([]);
+    const cols=hdr.slice();if(lc.hasNextSun)cols.push('Sun (next week)');
+    const gh=ws.addRow(['Cost by hour',...cols]);gh.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};c.fill=_fc12Fill('FFE8E8E4');});
+    for(let h=0;h<24;h++){
+      const row=ws.addRow([_hourLabel(h)]);
+      for(let c=0;c<cols.length;c++){const cell=lc.grid[h][c];if(cell.cost>0.004)money(row,c+2,cell.cost);}
+    }
+    const hh=ws.addRow(['People by hour',...cols]);hh.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};c.fill=_fc12Fill('FFE8E8E4');});
+    for(let h=0;h<24;h++){
+      const row=ws.addRow([_hourLabel(h)]);
+      for(let c=0;c<cols.length;c++){const n=lc.grid[h][c].people.size;if(n)row.getCell(c+2).value=n;}
+    }
+  });
+  ws.getColumn(1).width=34;for(let i=2;i<=LC_DAYS+3;i++)ws.getColumn(i).width=13;
+  return ws;
+}
+
 function _exportPeriodStr(){
   const firstEntWithDates=entities.find(e=>e.dateLabels&&e.dateLabels.some(d=>d));
   if(!firstEntWithDates)return '';
@@ -8970,7 +9195,7 @@ async function _exportExcel(kind){
   }else{
     await writeSection(kind);
   }
-  if(kind==='combined')_writeStatsSheet(ewb,data); // FC-00051
+  if(kind==='combined'){_writeStatsSheet(ewb,data);_writeLaborCostSheet(ewb,data);} // FC-00051, FC-00052
 
   const fname=_exportFilenameBase(kind)+'.xlsx';
   downloadBlob(await ewb.xlsx.writeBuffer(),fname);
@@ -9561,7 +9786,7 @@ function _gatherPayrollSettingsRows(includeBreaks){
         entity:entityName,
         employee:displayName||empName,
         wage:isFlat?'':(isWageBlank?'':(wageRaw==null||wageRaw===0?'':wageRaw)),
-        type:isFlat?'Flat':'Hourly',
+        type:isFlat?(semiMonthly[k]?'Semi-monthly':'Flat'):'Hourly', // FC-00052
         flat:isFlat?flatWages[k]:'',
         method:methodLabel(method),
         deposit:(method==='both'&&meta.typed)?meta.deposit:'',
@@ -9812,11 +10037,15 @@ function _ingestPayrollSettings(rows,colMap,includeBreaks){
       if(!isNaN(n))dispatch({type:'wage',screen:'settings-import',target:{kind:'employee',entity:ent.id,id:k,field:'wage'},from:wageRates[k],to:n,meta:{empName}});
     }
     // Type / flat amount
-    if(typeRaw==='flat'){
+    // FC-00052: "Semi-monthly" is a flat amount per half-month (the Flat column holds it).
+    const semiType=/^semi[\s-]?monthly$/.test(typeRaw);
+    if(typeRaw==='flat'||semiType){
       const fn=parseFloat(flatRaw);
       dispatch({type:'flatWage',screen:'settings-import',target:{kind:'employee',entity:ent.id,id:k,field:'flatWage'},from:flatWages[k],to:isNaN(fn)?0:fn,meta:{empName,displayName:empName}});
+      if(!!semiMonthly[k]!==semiType)dispatch({type:'semiMonthlySet',screen:'settings-import',target:{kind:'employee',entity:ent.id,id:k,field:'semiMonthly'},from:!!semiMonthly[k]||null,to:semiType||null,meta:{empName}});
     }else if(typeRaw==='hourly'){
       dispatch({type:'flatWage',screen:'settings-import',target:{kind:'employee',entity:ent.id,id:k,field:'flatWage'},from:flatWages[k],to:null,meta:{empName}});
+      if(semiMonthly[k])dispatch({type:'semiMonthlySet',screen:'settings-import',target:{kind:'employee',entity:ent.id,id:k,field:'semiMonthly'},from:true,to:null,meta:{empName}});
     }
     // Pay method
     const m=_normalizePayMethod(methodRaw);
@@ -9932,7 +10161,7 @@ function getFlatWageRows(entityName){
     // Skip if already an orphan (appears in actuals)
     const inActuals=(ent.actualDays||[]).some(d=>_aliasNorm(d.empName)===nmLow);
     if(inActuals)return;
-    out.push({name:flatWagesDisplayNames[nmLow]||nm,isFlat:true,flatAmount:flatWages[k],wage:0,pay:flatWages[k],isOrphan:false,actualHours:0,expectedH:0,days:Array(7).fill({status:'off'})});
+    out.push(_applySemi({name:flatWagesDisplayNames[nmLow]||nm,isFlat:true,flatAmount:flatWages[k],wage:0,pay:flatWages[k],isOrphan:false,actualHours:0,expectedH:0,days:Array(7).fill({status:'off'})},ent.id,nm));
   });
   return out;
 }
