@@ -607,6 +607,15 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
   </div>
 </div>
 
+<!-- ===== WEEK FOLDER SORT (FC-00053) ===== -->
+<div id="weekDropOverlay" class="overlay" style="display:none">
+  <div class="overlay-panel history-panel" style="max-width:1100px">
+    <h2>Week folder — check the sort, then Start OCR</h2>
+    <div id="weekDropBody"></div>
+  </div>
+</div>
+<input type="file" id="lastWeekSchedInput" accept=".json,application/json" style="display:none">
+
 <!-- ===== NOT APPROVED — EXPORT STOP (FC-00049) ===== -->
 <div id="payGateOverlay" class="overlay" style="display:none">
   <div class="overlay-panel history-panel">
@@ -740,7 +749,7 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
 
     <div class="upload-zone" id="dropZone">
       <h2>Drop schedule .xlsx here</h2>
-      <p>or click to browse — or <a href="#" onclick="startBlank();return false" style="color:var(--blue)">start blank</a></p>
+      <p>or click to browse — or <a href="#" onclick="startBlank();return false" style="color:var(--blue)">start blank</a> — or <a href="#" onclick="copyLastWeekSchedule();return false" style="color:var(--blue)" title="Last week's shifts with this week's dates, from last week's snapshot (FC-00053)">copy last week</a></p>
       <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
     </div>
 
@@ -2606,6 +2615,7 @@ function loadLastWeekSnapshot(snap,label){
   if(err){alert(err);return{ok:false,error:err};}
   if(_busyForSnapshot()){showToast('An action is still running. Load last week when it finishes.','err');return{ok:false,error:'busy'};}
   _wowLast=Object.assign(_wowModelFromSnapshot(snap),{label:label||'',savedAt:snap.savedAt||''});
+  _lastWeekSchedules=_schedulesFromSnapshot(snap); // FC-00053: "Copy last week" reads these
   renderWowPanel();
   return{ok:true};
 }
@@ -3725,7 +3735,7 @@ function renderScheduleContent(){
     document.getElementById('subtitle').textContent='Upload last week\'s schedule to get started';
     dz.className='upload-zone';
     dz.querySelector('h2').textContent='Drop schedule .xlsx here';
-    dz.querySelector('p').innerHTML='or click to browse — or <a href="#" onclick="startBlank();return false" style="color:var(--blue)">start blank</a>';
+    dz.querySelector('p').innerHTML='or click to browse — or <a href="#" onclick="startBlank();return false" style="color:var(--blue)">start blank</a> — or <a href="#" onclick="copyLastWeekSchedule();return false" style="color:var(--blue)">copy last week</a>';
     ['weekBar','toolbar','infoBar','viewToggle','schedWrap','calWrapper','calHeading','flagsHeading','flagsBar'].forEach(id=>{
       const el=document.getElementById(id);if(el)el.style.display='none';
     });
@@ -5950,7 +5960,7 @@ function renderIntake(){
     return;
   }
   // Top-level toolbar: import a previously-exported Actuals Intake .xlsx to skip OCR
-  let html=_reattachBannerHtml()+_dupBannerHtml();
+  let html=_reattachBannerHtml()+_dupBannerHtml()+_weekDropZoneHtml(); // FC-00053
   html+='<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><button class="btn" onclick="document.getElementById(\'actualsIntakeImportInput\').click()" title="Re-import a previously exported Actuals Intake .xlsx — restores approved rows so payroll can be calculated without redoing OCR" style="font-size:12px;padding:6px 14px">⤴ Import Actuals Intake (.xlsx)</button></div>';
   entities.forEach((ent,idx)=>{
     ensureIntakeState(ent);
@@ -6008,6 +6018,7 @@ function renderIntake(){
   wrapScrolls.forEach((pos,idx)=>_restoreReviewScroll(idx,pos));
 
   // Wire drop zones + file inputs
+  _wireWeekDrop(); // FC-00053
   entities.forEach((ent,idx)=>{
     wireIntakeDrop('tcDrop_'+idx,'tcInput_'+idx,files=>addIntakeFiles(idx,'tc',files));
     wireIntakeDrop('ecDrop_'+idx,'ecInput_'+idx,files=>addIntakeFiles(idx,'ec',files));
@@ -8523,6 +8534,240 @@ function _writeLaborCostSheet(ewb,data){
   });
   ws.getColumn(1).width=34;for(let i=2;i<=LC_DAYS+3;i++)ws.getColumn(i).width=13;
   return ws;
+}
+
+// ================================================================
+// FC-00053 — drop the whole week folder (or the Drive zip); every image classified by looking
+// ================================================================
+// Files arrive with their path inside the folder. Each top-level subfolder is an entity. Every
+// image is classified as Timecard or EasyClocking by Gemini looking at it (classifyTimecardImage);
+// the file type is never used. The owner checks the sort, then Start OCR queues each image to
+// its entity's typed list, exactly as dropping it in that entity's typed zone does.
+const FOLDER_MAP_PREF='pv26_folder_map';
+let _weekDrop=null;
+let _classifyImpl=null; // tests: (file)=>'TC'|'EC'
+function _setClassifierForTests(fn){_classifyImpl=fn||null;}
+function _folderNorm(s){return String(s||'').toLowerCase().replace(/[^a-z0-9]+/g,'');}
+function _folderMapPrefs(){try{const v=JSON.parse(_prefGet(FOLDER_MAP_PREF)||'{}');return v&&typeof v==='object'?v:{};}catch(_){return{};}}
+function _saveFolderMapPref(folder,entName){const m=_folderMapPrefs();m[_folderNorm(folder)]=_folderNorm(entName);_prefSet(FOLDER_MAP_PREF,JSON.stringify(m));}
+// Entity index for a subfolder name: a remembered choice, then same name, then one name starting
+// with the other (e.g. "Zion Distribution" → ZION) when exactly one entity fits. -1 when unknown.
+function folderEntityIdx(folder){
+  const f=_folderNorm(folder);if(!f)return-1;
+  const remembered=_folderMapPrefs()[f];
+  if(remembered){const i=entities.findIndex(e=>_folderNorm(e.name)===remembered);if(i>=0)return i;}
+  let i=entities.findIndex(e=>_folderNorm(e.name)===f&&f);if(i>=0)return i;
+  const hits=entities.map((e,j)=>({j,n:_folderNorm(e.name)})).filter(x=>x.n&&(f.startsWith(x.n)||x.n.startsWith(f)));
+  return hits.length===1?hits[0].j:-1;
+}
+function _isImageName(n){return/\.(jpe?g|png|gif|webp|heic|heif|bmp|tiff?)$/i.test(n||'');}
+// [{file,path}] → the folder each file belongs to. A single top folder (the week folder) is
+// stepped over, so both "Week/Hefner/x.jpg" and "Hefner/x.jpg" give "Hefner".
+function _entityFolderOf(paths){
+  const segs=paths.map(p=>String(p||'').split('/').filter(Boolean).slice(0,-1));
+  const firsts=new Set(segs.map(s=>s[0]||''));
+  const stepOver=firsts.size===1&&segs.some(s=>s.length>=2);
+  return segs.map(s=>(stepOver?s[1]:s[0])||'');
+}
+async function weekDropAddFiles(list){
+  list=(list||[]).filter(x=>x&&x.file);
+  if(!list.length){showToast('No files found in that folder','err');return null;}
+  const folders=_entityFolderOf(list.map(x=>x.path||x.file.webkitRelativePath||x.file.name));
+  const known=new Set();
+  // Images already in this session (queued or OCR'd) are skipped, so a second drop never doubles punches.
+  for(const ent of entities){
+    const it=ent.intake||{};
+    for(const f of [].concat(it.timecardFiles||[],it.easyclockFiles||[],it.mixedFiles||[],(it._ocrJobs||[]).map(j=>j.file).filter(Boolean))){try{known.add(await _imageFingerprint(f));}catch(_){}}
+    (it._ocrJobs||[]).forEach(j=>{if(j._img&&j._img.sha256)known.add(j._img.sha256);});
+  }
+  const items=[],skipped=[],dups=[];
+  for(let i=0;i<list.length;i++){
+    const {file}=list[i];const name=file.name||'';
+    const isImg=(file.type||'').startsWith('image/')||_isImageName(name);
+    if(!isImg){skipped.push(name);continue;}
+    let sha='';try{sha=await _imageFingerprint(file);}catch(_){}
+    if(sha&&known.has(sha)){dups.push(name);continue;}
+    if(sha)known.add(sha);
+    items.push({id:'wd'+i+'_'+Math.random().toString(36).slice(2,7),file,name,folder:folders[i],entIdx:folderEntityIdx(folders[i]),kind:null,status:'pending',sha});
+  }
+  _weekDrop={items,skipped,dups,folders:[...new Set(items.map(x=>x.folder))]};
+  _renderWeekDrop(true);
+  await weekDropClassifyAll();
+  return _weekDrop;
+}
+async function _classifyOne(it,apiKey){
+  for(let a=1;a<=3;a++){
+    try{
+      const k=_classifyImpl?await _classifyImpl(it.file):await classifyTimecardImage(it.file,apiKey);
+      if(k==='TC'||k==='EC')return k;
+    }catch(_){if(a<3)await new Promise(r=>setTimeout(r,_classifyImpl?0:2000));}
+  }
+  return null;
+}
+async function weekDropClassifyAll(){
+  const wd=_weekDrop;if(!wd)return;
+  const apiKey=_prefGet('pv26_api_key');
+  if(!apiKey&&!_classifyImpl){wd.items.forEach(it=>{if(!it.kind){it.status='unsure';}});wd.note='No Gemini API key: sort the images by hand, or add the key in Settings and drop the folder again.';_renderWeekDrop(true);return;}
+  const queue=wd.items.filter(it=>!it.kind);
+  const run=async()=>{while(queue.length){const it=queue.shift();it.status='classifying';_renderWeekDrop(true);const k=await _classifyOne(it,apiKey);if(_weekDrop!==wd)return;if(k){it.kind=k;it.status='done';}else it.status='unsure';_renderWeekDrop(true);}};
+  await Promise.all([run(),run(),run()]);
+}
+function weekDropSetKind(id,kind){const it=_weekDrop&&_weekDrop.items.find(x=>x.id===id);if(!it)return;it.kind=kind==='EC'?'EC':'TC';it.status='done';_renderWeekDrop(true);}
+function weekDropSetEntity(id,idx){const it=_weekDrop&&_weekDrop.items.find(x=>x.id===id);if(!it)return;it.entIdx=+idx;_renderWeekDrop(true);}
+function weekDropMapFolder(folder,idx){
+  if(!_weekDrop)return;
+  _weekDrop.items.forEach(it=>{if(it.folder===folder)it.entIdx=+idx;});
+  if(+idx>=0&&folder&&entities[+idx])_saveFolderMapPref(folder,entities[+idx].name);
+  _renderWeekDrop(true);
+}
+function weekDropRemove(id){if(!_weekDrop)return;_weekDrop.items=_weekDrop.items.filter(x=>x.id!==id);_renderWeekDrop(true);}
+function weekDropCancel(){_weekDrop=null;_renderWeekDrop(false);}
+function weekDropBlockers(){
+  const wd=_weekDrop;if(!wd)return['Nothing dropped'];
+  const b=[];
+  const live=wd.items.filter(it=>it.entIdx!==-2);
+  if(live.some(it=>it.status==='classifying'||it.status==='pending'))b.push('Still looking at the images');
+  if(live.some(it=>it.entIdx<0))b.push('Choose an entity for every folder');
+  if(live.some(it=>!it.kind))b.push('Sort the unsure images');
+  if(!live.length)b.push('No images to read');
+  return b;
+}
+async function weekDropStartOcr(){
+  const wd=_weekDrop;if(!wd)return false;
+  if(weekDropBlockers().length){_renderWeekDrop(true);return false;}
+  const byEnt=new Map();
+  wd.items.filter(it=>it.entIdx>=0).forEach(it=>{if(!byEnt.has(it.entIdx))byEnt.set(it.entIdx,{tc:[],ec:[]});byEnt.get(it.entIdx)[it.kind==='EC'?'ec':'tc'].push(it.file);});
+  _weekDrop=null;_renderWeekDrop(false);
+  const order=[...byEnt.keys()].sort((a,b)=>a-b);
+  order.forEach(i=>{const g=byEnt.get(i);if(g.tc.length)addIntakeFiles(i,'tc',g.tc);if(g.ec.length)addIntakeFiles(i,'ec',g.ec);});
+  for(const i of order){await runOcrForEntity(i);}
+  return true;
+}
+function _weekDropHtml(){
+  const wd=_weekDrop;if(!wd)return'';
+  let h='';
+  if(wd.note)h+=`<div class="payroll-warning" style="margin-bottom:8px">${escHtml(wd.note)}</div>`;
+  const unmapped=[...new Set(wd.items.filter(it=>it.entIdx===-1).map(it=>it.folder))];
+  if(unmapped.length){
+    h+='<div class="wd-map" style="margin-bottom:10px"><b>Which entity is each folder?</b>';
+    unmapped.forEach(f=>{h+=`<div style="margin:4px 0">${escHtml(f||'(images in the top folder)')} → <select onchange="weekDropMapFolder('${escHtml(escJs(f))}',this.value)"><option value="-1">— choose —</option>${entities.map((e,i)=>`<option value="${i}">${escHtml(e.name||'Entity '+(i+1))}</option>`).join('')}<option value="-2">Skip these</option></select></div>`;});
+    h+='</div>';
+  }
+  const groups=[...new Set(wd.items.filter(it=>it.entIdx>=0).map(it=>it.entIdx))].sort((a,b)=>a-b);
+  const thumb=it=>{let u='';try{if(!it._url&&typeof URL!=='undefined'&&URL.createObjectURL)it._url=URL.createObjectURL(it.file);u=it._url||'';}catch(_){}return u?`<img src="${escHtml(u)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:4px;display:block">`:'';};
+  const card=it=>`<div class="wd-item" data-id="${escHtml(it.id)}" style="display:inline-block;width:150px;margin:4px;padding:4px;border:1px solid var(--border);border-radius:6px;vertical-align:top;font-size:10px">${thumb(it)}<div style="word-break:break-all">${escHtml(it.name)}</div>${it.status==='classifying'?'<div style="color:var(--amber)">looking…</div>':''}<div style="margin-top:3px;display:flex;gap:3px;flex-wrap:wrap"><button class="mini-btn" onclick="weekDropSetKind('${escHtml(escJs(it.id))}','${it.kind==='TC'?'EC':'TC'}')">→ ${it.kind==='TC'?'EasyClocking':'Timecard'}</button><select onchange="weekDropSetEntity('${escHtml(escJs(it.id))}',this.value)" style="font-size:10px">${entities.map((e,i)=>`<option value="${i}" ${i===it.entIdx?'selected':''}>${escHtml(e.name||'Entity '+(i+1))}</option>`).join('')}</select><button class="mini-btn reject" onclick="weekDropRemove('${escHtml(escJs(it.id))}')" title="Leave this image out">✕</button></div></div>`;
+  groups.forEach(gi=>{
+    const its=wd.items.filter(it=>it.entIdx===gi);
+    h+=`<div class="wd-ent" style="margin:10px 0"><h3 style="margin:0 0 4px">${escHtml(entities[gi].name||'Entity '+(gi+1))}</h3>`;
+    [['TC','Timecard photos'],['EC','EasyClocking screenshots'],[null,'Unsure — pick a type']].forEach(([k,lbl])=>{
+      const g=its.filter(it=>k?it.kind===k:!it.kind);
+      if(!g.length&&k===null)return;
+      h+=`<div class="wd-group wd-${k||'unsure'}"><div style="font-weight:600;font-size:12px;margin-top:6px">${escHtml(lbl)} · ${g.length}</div>${g.map(card).join('')}</div>`;
+    });
+    h+='</div>';
+  });
+  if(wd.dups.length)h+=`<div style="font-size:11px;color:var(--text3)">Already in this session, skipped: ${wd.dups.map(escHtml).join(', ')}</div>`;
+  if(wd.skipped.length)h+=`<div style="font-size:11px;color:var(--text3)">Not images, skipped: ${wd.skipped.map(escHtml).join(', ')}</div>`;
+  const bl=weekDropBlockers();
+  h+=`<div class="actions"><span style="font-size:12px;color:var(--amber)">${bl.map(escHtml).join(' · ')}</span><button class="btn" onclick="weekDropCancel()">Cancel</button><button class="btn btn-primary" onclick="weekDropStartOcr()" ${bl.length?'disabled style="opacity:0.45;cursor:not-allowed"':''}>Start OCR</button></div>`;
+  return h;
+}
+function _renderWeekDrop(open){
+  const ov=document.getElementById('weekDropOverlay');if(!ov)return;
+  if(!open||!_weekDrop){ov.style.display='none';return;}
+  document.getElementById('weekDropBody').innerHTML=_weekDropHtml();
+  ov.style.display='flex';
+}
+// Reads a dropped folder tree (DataTransferItem.webkitGetAsEntry) into [{file,path}].
+async function _filesFromEntries(entries){
+  const out=[];
+  const walk=async(entry,prefix)=>{
+    if(!entry)return;
+    if(entry.isFile){const f=await new Promise((res,rej)=>entry.file(res,rej));out.push({file:f,path:prefix+entry.name});return;}
+    if(entry.isDirectory){
+      const reader=entry.createReader();
+      let batch;do{batch=await new Promise((res,rej)=>reader.readEntries(res,rej));for(const e of batch)await walk(e,prefix+entry.name+'/');}while(batch.length);
+    }
+  };
+  for(const e of entries)await walk(e,'');
+  return out;
+}
+async function _filesFromZip(file){
+  if(typeof JSZip==='undefined'){showToast('The zip library did not load. Reload the page, or drop the folder instead.','err');return[];}
+  const zip=await JSZip.loadAsync(file);
+  const out=[];
+  const names=Object.keys(zip.files).filter(n=>!zip.files[n].dir&&!/(^|\/)(__MACOSX|\.)/.test(n));
+  for(const n of names){
+    const blob=await zip.files[n].async('blob');
+    const base=n.split('/').pop();
+    const type=/\.png$/i.test(base)?'image/png':/\.jpe?g$/i.test(base)?'image/jpeg':(/\.(gif|webp|heic|heif|bmp|tiff?)$/i.test(base)?'image/'+base.split('.').pop().toLowerCase():'');
+    out.push({file:new File([blob],base,{type}),path:n});
+  }
+  return out;
+}
+async function weekDropFromDataTransfer(dt){
+  const items=Array.from((dt&&dt.items)||[]);
+  const entries=items.map(i=>i.webkitGetAsEntry?i.webkitGetAsEntry():null).filter(Boolean);
+  let list=[];
+  if(entries.length)list=await _filesFromEntries(entries);
+  else list=Array.from((dt&&dt.files)||[]).map(f=>({file:f,path:f.name}));
+  const zips=list.filter(x=>/\.zip$/i.test(x.file.name));
+  for(const z of zips)list=list.concat(await _filesFromZip(z.file));
+  return weekDropAddFiles(list.filter(x=>!/\.zip$/i.test(x.file.name)));
+}
+async function weekDropFromInput(files){
+  let list=Array.from(files||[]).map(f=>({file:f,path:f.webkitRelativePath||f.name}));
+  const zips=list.filter(x=>/\.zip$/i.test(x.file.name));
+  for(const z of zips)list=list.concat(await _filesFromZip(z.file));
+  return weekDropAddFiles(list.filter(x=>!/\.zip$/i.test(x.file.name)));
+}
+function _weekDropZoneHtml(){
+  return `<div class="intake-drop week-drop" id="weekFolderDrop" style="border-color:var(--blue);background:rgba(37,99,235,0.03);margin-bottom:14px;min-height:70px">
+    <div class="label" style="color:var(--blue)">📁 Drop the week folder or the Drive zip here</div>
+    <div class="hint">One subfolder per entity. Every image is looked at to tell timecards from EasyClocking; you check the sort before OCR.</div>
+    <div style="margin-top:6px;display:flex;gap:8px;justify-content:center"><button class="btn" style="font-size:11px;padding:4px 10px" onclick="event.stopPropagation();document.getElementById('weekFolderInput').click()">Choose folder</button><button class="btn" style="font-size:11px;padding:4px 10px" onclick="event.stopPropagation();document.getElementById('weekZipInput').click()">Choose zip</button></div>
+    <input type="file" id="weekFolderInput" webkitdirectory directory multiple style="display:none">
+    <input type="file" id="weekZipInput" accept=".zip,application/zip" style="display:none">
+  </div>`;
+}
+function _wireWeekDrop(){
+  const dz=document.getElementById('weekFolderDrop');
+  if(dz&&dz.addEventListener){
+    dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
+    dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+    dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');weekDropFromDataTransfer(e.dataTransfer);});
+  }
+  ['weekFolderInput','weekZipInput'].forEach(id=>{const fi=document.getElementById(id);if(fi&&fi.addEventListener)fi.addEventListener('change',e=>{weekDropFromInput(e.target.files);fi.value='';});});
+}
+
+// ================================================================
+// FC-00053 — Copy last week's schedule (from last week's snapshot)
+// ================================================================
+let _lastWeekSchedules=null; // [{name,employees:[{name,shifts}],dateLabels}]
+function _schedulesFromSnapshot(snap){
+  const ents=(snap&&snap.state&&snap.state.entities)||[];
+  return ents.map(e=>({name:e.name||'',employees:(e.employees||[]).map(x=>({name:x.name,shifts:(x.shifts||[]).slice()})),dateLabels:(e.dateLabels||[]).slice()}));
+}
+function _shiftLabel7(lbl){
+  const iso=schedLabelToIso(lbl);if(!iso)return'';
+  const d=new Date(iso+'T00:00:00');d.setDate(d.getDate()+7);
+  return MONTHS[d.getMonth()]+' '+d.getDate()+' '+d.getFullYear();
+}
+function copyLastWeekSchedule(idx){
+  idx=idx==null?activeEntityIdx:idx;
+  const ent=entities[idx];if(!ent)return false;
+  if(!_lastWeekSchedules){
+    const fi=document.getElementById('lastWeekSchedInput');
+    if(fi&&fi.click){fi.onchange=e=>{const f=e.target.files&&e.target.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{let snap;try{snap=JSON.parse(String(r.result));}catch(_){alert('This file is not a session snapshot from this tool.');return;}const err=_validateSnapshot(snap);if(err){alert(err);return;}_lastWeekSchedules=_schedulesFromSnapshot(snap);copyLastWeekSchedule(idx);};r.readAsText(f);fi.value='';};fi.click();}
+    return false;
+  }
+  const src=_lastWeekSchedules.find(s=>_folderNorm(s.name)===_folderNorm(ent.name))||(_lastWeekSchedules.length===1?_lastWeekSchedules[0]:null);
+  if(!src||!src.employees.length){showToast('Last week\'s snapshot has no schedule for '+(ent.name||'this entity'),'err');return false;}
+  if((ent.employees||[]).length&&!confirm('Replace '+(ent.name||'this entity')+'\'s schedule with last week\'s shifts?'))return false;
+  const labels=src.dateLabels.map(_shiftLabel7);
+  const rows=[['Name',...DAYS],['',...labels],...src.employees.map(e=>[e.name,...e.shifts])];
+  parseSchedule(rows,idx); // one undo step; archived people are left out as on any schedule load
+  return true;
 }
 
 function _exportPeriodStr(){
