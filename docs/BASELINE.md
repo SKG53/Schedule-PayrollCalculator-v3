@@ -1,7 +1,7 @@
 # Functionality Baseline
 
 **Status: complete as of 2026-08-03, commit 8dbb955** (branch `tool-v2`); kept current by every
-Feature Card since — last updated FC-00048 (2026-10-12).
+Feature Card since — last updated FC-00053 (2026-10-19).
 **Reconciled against the v2 docs** (`CLAUDE.md`, `docs/DOMAIN.md`) the same day —
 see the note at the head of §10.
 
@@ -113,9 +113,15 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    same preview and Apply as the Payroll tab; info chips (weekly hours per
    employee, >40h highlighted); calendar view with per-hour staffing counts
    (warn threshold: ≥4 before 4:30 PM, ≥5 after — hard-coded, NOT the domain's
-   3-minimum coverage rule); flags panel (see §6). Exports: Employee Schedule,
-   Manager Report.
-2. **Actuals Intake** — per-entity blocks. Three drop zones: Timecard photos,
+   3-minimum coverage rule); flags panel (see §6). Export: Employee Schedule (the
+   Manager Report button was removed, FC-00050). "copy last week" fills the entity's
+   schedule from last week's snapshot with dates +7 days (FC-00053). Hours read h:mm
+   (decimal) by default; Settings → "Hours shown as" switches (FC-00049, screens only).
+2. **Actuals Intake** — at the top, one **week folder / Drive zip** drop zone (Choose
+   folder / Choose zip): subfolders map to entities, every image is classified by
+   Gemini looking at it, the owner checks a sort screen, Start OCR queues each image to
+   its entity's typed list; already-loaded images are skipped (FC-00053). Then
+   per-entity blocks. Three drop zones: Timecard photos,
    EasyClocking screenshots, Mixed/Auto-Classify. Run OCR (Gemini; concurrency 3,
    auto-retry 3 attempts with 12 s delay, per-file retry buttons, optional
    auto-escalate to Pro below 75% confidence). Review table split into per-employee
@@ -130,17 +136,27 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    payroll follow the person (alternate spelling, former name, suggestion), not only the
    exact spelling (FC-00046). Unrecognized lists each OCR name with "Add as new employee",
    or "Matches archived" + Reactivate (FC-00047/48); a confirmed person not on the schedule
-   gets a "(not on schedule)" tab. Import/export of the
-   Actuals Intake .xlsx (round-trip) and PDF (record only).
+   gets a "(not on schedule)" tab. Punctuality pills against the loaded shift (late,
+   clock-out off the end, worked a day off) are information only; each employee tab
+   names scheduled days with no approved punches (FC-00051). A row left out of pay shows
+   "Left out of pay" with Undo (FC-00049). Import/export of the Actuals Intake .xlsx
+   (round-trip; "Left out" in the Approved column). The Actuals PDF button was removed
+   (FC-00050).
 3. **Payroll** — per-entity sub-tabs. Mandatory break bar (minutes + explicit
    Confirm; unconfirmed shows orange and export asks to confirm). Weekly Actuals
-   grid (sched vs punches per day, status coloring, per-day hours). Two sub-tabs:
+   grid (sched vs punches per day, status coloring, per-day hours, and the day's break:
+   gap / "min." / "set", FC-00049). Four sub-tabs:
    *Time Card Data* (expected/actual break + hours, diff, avg in/out lateness,
-   40 h+ flag) and *Payroll Calculation* (Active checkbox, wage input, Hourly/Flat
-   toggle, pay method Deposit/Cash/Deposit+Cash, split deposit input, Actual Total /
+   40 h+ flag), *Stats* (FC-00051: expected vs worked, late days, early and
+   stayed-late minutes and cost, breaks, 40 h+, entity total), *Labor Cost* (FC-00052:
+   cost per day tied to the payroll Actual, scheduled vs actual, 24 × 7 cost/headcount
+   grid, semi-monthly cost line) and *Payroll Calculation* (Active checkbox, wage input,
+   Hourly/Flat/Semi-monthly toggle — Semi-monthly takes an amount per half-month and a
+   "Paid this run" tick pre-set by the 1st/15th rule, FC-00052; pay method Deposit/Cash/Deposit+Cash, split deposit input, Actual Total /
    Rounded Final / Diff, plus a per-day break override row per employee). Sort toggle:
    schedule order vs pay-type grouping (Cash → Deposit+Cash → Deposit). All-entity
-   preview table mirroring the export. 12 export buttons + settings export/import.
+   preview table mirroring the export (decimal hours, like the export). Settings
+   export/import. The per-report export buttons were removed (FC-00050).
    Settings import opens a **preview** first (FC-00038): changes, identity changes, new,
    not in file, unchanged and red rows to decide; nothing applies until Apply. Applied
    late, it matches the session's people to the file's (FC-00046); archived-but-worked
@@ -149,10 +165,12 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    hours is a red cell and a "Rate missing" export status line (FC-00048).
    Below them, **Since last week** (FC-00041): load last week's snapshot to list new /
    missing people, setting changes, hours or pay swings and entity totals (read-only).
-   At the bottom, **Downloads** (FC-00040): every export on one list with format ticks,
-   file names `<labels>_<MMDDtoMMDD>_…`, a ✓ / ⚠ status, Download selected or one zip.
-   "Names on exports" (FC-00045): As saved / FIRST LAST / FIRST, same for all or per
-   export; printing only.
+   At the bottom, **Downloads** (FC-00040): Payroll report (Excel + PDF), Reviewed
+   timecards (Excel), Settings, Snapshot (FC-00050), file names `<labels>_<MMDDtoMMDD>_…`,
+   a ✓ / ⚠ status, Download selected or one zip. A payroll download first lists every
+   unapproved row with punches in the pay week (Approve / Leave out) (FC-00049).
+   "Names on exports" (FC-00045): FIRST LAST (default, FC-00050) / As saved / FIRST;
+   printing only.
    Below it, the read-only *Combined export preview* (FC-00013) has a "Make editable
    copy" button (FC-00024): an independent, in-memory scratch table where every cell
    is editable, exportable as-is to .xlsx/.pdf, refreshable from the preview, and
@@ -290,6 +308,12 @@ prompt on export; `collectAllFlags` (no-show / unsched / orphan / 40 h+ rollup)
 exists but currently has **no caller** — dead code.
 
 ## 7. Exports
+
+**Since FC-00050 (2026-10-19)** the screen offers only: the Payroll report (Combined
+Excel — sheets Report, Stats (FC-00051), Labor Cost (FC-00052) — and a landscape-letter
+PDF one page wide), the Reviewed timecards Excel, the Payroll Settings file, the
+Snapshot and the Employee Schedule. The other writers below still exist in the code
+but have no button. A payroll export stops on unapproved rows first (FC-00049).
 
 **Seventeen buttons, 11 distinct exports** — the "six known" are the six payroll
 report kinds; four more exist beyond the payroll group.
