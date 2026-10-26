@@ -110,9 +110,8 @@ test('test_export_copy_excel_matches_cells', async () => {
   const ann = rowIndex(s, 'data', 'Ann');
   api._fc24EditCell(0, 0, 'EDITED TITLE');
   api._fc24EditCell(ann, 1, 'Ann Edited');
-  const C = api.COMBINED_COLS; // FC-00059: columns by name (H:MM sits after Hours)
+  const C = api.COMBINED_COLS; // columns by name
   api._fc24EditCell(ann, C.hours, '7.5');       // Hours
-  api._fc24EditCell(ann, C.hmm, '7:30');        // H:MM
   api._fc24EditCell(ann, C.rate, '$16.00');     // Rate
   api._fc24EditCell(ann, C.cash, '$1,234.56');  // Cash
   api._fc24EditCell(ann, C.diff, '-$0.40');     // Diff
@@ -128,7 +127,6 @@ test('test_export_copy_excel_matches_cells', async () => {
   const data = ws.rows.find(r => r && r[2] && r[2].value === 'Ann Edited');
   assert.ok(data, 'edited row written');
   assert.equal(data[C.hours + 1].value, 7.5); assert.equal(data[C.hours + 1].numFmt, '0.00');
-  assert.equal(xlNum(data[C.hmm + 1]), 450 / 1440); assert.equal(data[C.hmm + 1].numFmt, '[h]:mm');
   assert.equal(data[C.rate + 1].value, 16); assert.match(data[C.rate + 1].numFmt, /\$/);
   assert.equal(data[C.cash + 1].value, 1234.56); assert.match(data[C.cash + 1].numFmt, /\$/);
   assert.equal(data[C.diff + 1].value, -0.4);
@@ -189,15 +187,16 @@ test('test_cell_parsing_keeps_currency_numeric', () => {
   assert.equal(api._fc24CellFromText('123', 1, numCols), '123', 'non-numeric columns stay text');
 });
 
-// FC-00059 (review fix): an editable copy saved in a snapshot before the H:MM column existed
-// (10 columns) gains that column, so Rate and the money columns land where the writer expects.
-test('test_old_ten_column_copy_from_a_snapshot_is_upgraded', () => {
+// FC-00065: an editable copy saved in a snapshot while the report had an H:MM column (11
+// columns, FC-00059) loses that column, so Rate and the money columns land where the writer expects.
+test('test_copy_with_hmm_column_from_a_snapshot_is_normalized', () => {
   const api = setup();
   api._fc24MakeCopy();
   const now = JSON.parse(JSON.stringify(api._fc24GetScratch()));
   const old = JSON.parse(JSON.stringify(now));
-  old.rows.forEach(r => { if (r.cells.length === 11) { r.cells.splice(4, 1); r.bgs.splice(4, 1); r.tips.splice(4, 1); } });
+  const n = now.rows.find(r => r.kind === 'hdr').cells.length;
+  old.rows.forEach(r => { if (r.cells.length === n) { r.cells.splice(4, 0, r.kind === 'hdr' ? 'H:MM' : '1:00'); r.bgs.splice(4, 0, ''); r.tips.splice(4, 0, ''); } });
   const up = api._fc24Upgrade(old);
   assert.deepEqual(up.rows.map(r => r.cells), now.rows.map(r => r.cells));
-  assert.equal(api._fc24Upgrade(now), now, 'an 11-column copy is left alone');
+  assert.equal(api._fc24Upgrade(now), now, 'a current copy is left alone');
 });

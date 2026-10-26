@@ -2,7 +2,7 @@
 // combined payroll report covers the entities ticked on its card; every entity has its own
 // payroll report with the same columns and formatting; a batch of ticked files downloads as
 // files or one zip. One export preview (the old all-entity preview merged into it) shows the
-// report exactly as written, H:MM beside Hours, every number column totalled.
+// report exactly as written, every number column totalled.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { webcrypto } = require('node:crypto');
@@ -130,9 +130,10 @@ test('test_one_preview_in_export_format', () => {
   assert.deepEqual(m.headers, api.COMBINED_HEADERS);
   const C = api.COMBINED_COLS;
   const cy = m.rows.find(r => r.kind === 'data' && r.cells[1] === 'CY COLE');
-  assert.deepEqual([cy.cells[C.hours], cy.cells[C.hmm]], ['4.25', '4:15'], 'decimal and h:mm side by side');
+  assert.equal(cy.cells[C.hours], '4.25', 'decimal hours');
+  assert.ok(!m.headers.includes('H:MM'), 'no H:MM column (FC-00065)');
   const sub = m.rows.filter(r => r.kind === 'subtotal');
-  assert.ok(sub.every(r => r.cells[C.hours] && r.cells[C.hmm] && r.cells[C.final]), 'hours, h:mm and rounded final are totalled');
+  assert.ok(sub.every(r => r.cells[C.hours] && r.cells[C.final]), 'hours and rounded final are totalled');
   // The preview can show one entity's report instead.
   api.setPreviewKey('payroll:1');
   const m1 = api._fc13PreviewModel();

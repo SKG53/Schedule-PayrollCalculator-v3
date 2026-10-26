@@ -38,9 +38,10 @@ function setup() {
 }
 
 const isTotal = (label) => typeof label === 'string' && (label.endsWith(' subtotal') || label === 'GRAND TOTAL');
-const money = (v) => (v === '' || v == null ? '' : '$' + Number(v).toFixed(2));
+// FC-00065: Excel's $#,##0.00 — thousands commas, sign before the dollar sign.
+const usd = (v) => (v < 0 ? '-' : '') + '$' + Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+const money = (v) => (v === '' || v == null ? '' : usd(Number(v)));
 // Excel shows a formula's result, and a hidden-zero format shows 0 as blank.
-const hmm = (days) => { const m = Math.round(days * 1440); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); };
 // Column-aware display text of an Excel total cell (1-based column `ci`).
 const shownCol = (api, c, ci) => {
   if (!c) return '';
@@ -48,8 +49,7 @@ const shownCol = (api, c, ci) => {
   if (xlHidesZero(c) && v === 0) return '';
   const C = api.COMBINED_COLS;
   if (ci - 1 === C.hours) return Number(v).toFixed(2);
-  if (ci - 1 === C.hmm) return hmm(v);
-  if (ci - 1 === C.diff) return (v > 0 ? '+' : '') + '$' + Number(v).toFixed(2);
+  if (ci - 1 === C.diff) return (v > 0 ? '+' : '') + usd(Number(v));
   return money(v);
 };
 
@@ -58,15 +58,18 @@ test('test_combined_pdf_totals_match_excel_and_preview', async () => {
 
   await api.exportCombinedExcel();
   const ws = api.__lastExcelWorkbook.worksheets[0];
-  // 11 combined columns (FC-00059 adds H:MM); 1-based sheet cells -> 0-based display text.
+  // 10 combined columns (FC-00065: no H:MM); 1-based sheet cells -> 0-based display text.
   const N = api.COMBINED_HEADERS.length;
   const excelTotals = ws.rows.filter(r => r && r[1] && isTotal(r[1].value))
     .map(r => Array.from({ length: N }, (_, i) => (i === 0 ? r[1].value : shownCol(api, r[i + 1], i + 1))));
 
   await api.exportCombinedPdf();
   const call = api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1];
+  // FC-00065: the label cell spans Entity–Method (colSpan); expand it back to one cell per column.
+  const expand = (r) => r.flatMap(c => (c && typeof c === 'object' && c.colSpan > 1 ? [c, ...Array(c.colSpan - 1).fill('')] : [c]));
   const pdfTotals = call.options.body.filter(r => isTotal(r[0].content))
-    .map(r => r.map(c => (c && typeof c === 'object' ? c.content : c)));
+    .map(r => expand(r).map(c => (c && typeof c === 'object' ? c.content : c)));
+  call.options.body.filter(r => isTotal(r[0].content)).forEach(r => assert.equal(r[0].colSpan, api.COMBINED_COLS.hours, 'label spans Entity–Method'));
 
   const previewTotals = api._fc13PreviewModel().rows
     .filter(r => r.kind === 'subtotal' || r.kind === 'grand').map(r => r.cells);
@@ -79,6 +82,6 @@ test('test_combined_pdf_totals_match_excel_and_preview', async () => {
     assert.notEqual(r[C.total], '', 'Actual Total column carries the amount');
     assert.notEqual(r[C.final], '', 'Rounded Final carries its total (FC-00059)');
     assert.notEqual(r[C.hours], '', 'Hours carries its total (FC-00059)');
-    assert.match(r[C.hmm], /^\d+:\d\d$/, 'H:MM total reads h:mm');
+    assert.ok(!('hmm' in C), 'no H:MM column on the report (FC-00065)');
   });
 });

@@ -313,6 +313,44 @@ img.tc-thumb.tc-thumb-small{cursor:default;outline:1px dashed #F59E0B}
 .intake-drop input{display:none}
 .intake-entity-block .progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden;margin-top:10px;display:none}
 .intake-entity-block .progress-bar.active{display:block}
+.ocr-run-host{position:sticky;top:0;z-index:60}
+.ocr-run-host:empty{display:none}
+.ocr-run{background:var(--surface);border:1px solid #93C5FD;border-radius:10px;padding:10px 12px;margin-bottom:12px;box-shadow:0 4px 14px rgba(0,0,0,0.08);font-size:13px}
+.ocr-run.finished{border-color:#86EFAC}.ocr-run.has-err{border-color:#FCA5A5}
+.ocr-run-line{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+.ocr-run-err{color:var(--red);font-weight:600}
+.ocr-run-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px}
+.ocr-run-fill{height:100%;background:#2563EB;transition:width 300ms ease}
+.ocr-run.finished .ocr-run-fill{background:#16A34A}
+.ocr-run-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+.ocr-run-chip{font-size:11px;padding:2px 8px;border-radius:10px;background:var(--surface2,#f5f4f0);color:var(--text2)}
+.ocr-run-chip.running{background:#DBEAFE;color:#1E40AF;font-weight:600}.ocr-run-chip.done{background:#DCFCE7;color:#166534}.ocr-run-chip.skipped{text-decoration:line-through}
+.wd-sum{display:flex;flex-wrap:wrap;gap:8px;margin:4px 0 12px}
+.wd-sum-ent{border:1px solid var(--border);border-radius:8px;padding:6px 10px;font-size:12px;background:var(--surface)}
+.wd-sum-ent.wd-looking{color:var(--amber);border-color:#FCD34D}
+.wd-pill{display:inline-block;padding:1px 8px;border-radius:10px;font-weight:600;margin-left:6px;font-size:11px}
+.wd-pill.tc{background:#DBEAFE;color:#1E40AF}.wd-pill.ec{background:#DCFCE7;color:#166534}.wd-pill.un{background:#FEF3C7;color:#92400E}
+.wd-ent{margin:12px 0 4px}.wd-ent h3{margin:0 0 4px;font-size:15px}
+.wd-group{border-left:4px solid var(--border);padding:4px 0 6px 10px;margin:8px 0;border-radius:2px}
+.wd-group.wd-TC{border-left-color:#3B82F6}.wd-group.wd-EC{border-left-color:#22C55E}
+.wd-group.wd-unsure{border-left-color:#F59E0B;background:#FFFBEB}.wd-group.wd-looking{border-left-color:#CBD5E1}
+.wd-ghead{font-weight:600;font-size:12px;margin-bottom:4px;color:var(--text2)}
+.wd-cards{display:flex;flex-wrap:wrap;gap:8px}
+.wd-item{width:176px;padding:6px;border:1px solid var(--border);border-radius:8px;background:var(--surface);font-size:10px;will-change:transform}
+.wd-thumb{width:164px;height:132px;object-fit:cover;border-radius:4px;display:block;cursor:zoom-in;background:var(--surface2,#f5f4f0)}
+.wd-name{margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.wd-status{color:var(--amber);font-weight:600}
+.wd-seg{display:flex;border:1px solid var(--border);border-radius:6px;overflow:hidden;margin-top:5px}
+.wd-seg button{flex:1;border:0;background:var(--surface);font-size:10px;padding:5px 2px;cursor:pointer;color:var(--text2);font-weight:600;font-family:inherit}
+.wd-seg button+button{border-left:1px solid var(--border)}
+.wd-seg button:hover{background:var(--surface2,#f5f4f0)}
+.wd-seg button.on.tc{background:#2563EB;color:#fff}.wd-seg button.on.ec{background:#16A34A;color:#fff}.wd-seg button.on.un{background:#D97706;color:#fff}
+.wd-row{display:flex;gap:4px;align-items:center;margin-top:5px}
+.overlay-panel .wd-row select{width:auto;flex:1;margin:0;padding:3px 4px;font-size:10px;font-family:inherit}
+@keyframes wdPulse{0%{box-shadow:0 0 0 3px rgba(37,99,235,0.95)}70%{box-shadow:0 0 0 3px rgba(37,99,235,0.6)}100%{box-shadow:0 0 0 3px rgba(37,99,235,0)}}
+.wd-item.wd-changed{animation:wdPulse 1.8s ease-out}
+.wd-actions{position:sticky;bottom:-28px;background:var(--surface);padding:10px 0;border-top:1px solid var(--border);margin-top:10px}
+@media (prefers-reduced-motion: reduce){.wd-item{transition:none!important}}
 .intake-entity-block .progress-fill{height:100%;background:var(--blue);transition:width 0.3s}
 .intake-entity-block .status-line{font-size:12px;color:var(--text2);margin-top:8px;font-family:'IBM Plex Mono',monospace}
 .intake-entity-block .actions-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:12px}
@@ -2192,7 +2230,7 @@ function _historyVal(e,v){
   if(e.type==='reviewEdit'&&/^clock/.test(f||''))return to12h(String(v));
   if(e.type==='reviewApprove')return v?'Approved':'Not approved';
   if(e.type==='reviewLeftOut')return v?'Left out':'Not left out';
-  if(['wage','flatWage'].includes(e.type)&&!isNaN(parseFloat(v)))return'$'+parseFloat(v).toFixed(2);
+  if(['wage','flatWage'].includes(e.type)&&!isNaN(parseFloat(v)))return _fmtUsd(parseFloat(v));
   return String(v);
 }
 function _historyEntityName(e){
@@ -2270,19 +2308,20 @@ const _QUEUE_KIND={timecardFiles:'TC',easyclockFiles:'EC',mixedFiles:'MIX'};
 const _snapshotParts={};
 function _registerSnapshotPart(name,save,load){_snapshotParts[name]={save,load};}
 _registerSnapshotPart('fc24Scratch',()=>_fc24Scratch?_cloneState(_fc24Scratch):null,v=>{_fc24Scratch=v?_fc24Upgrade(_cloneState(v)):null;});
-// FC-00059 (review fix): an editable copy saved in a snapshot before the H:MM column existed has
-// 10 columns; it gains the H:MM column after Hours, so Rate, money and Diff land in their columns.
 function _fc24Upgrade(m){
+  // FC-00065: an editable copy saved while the report had an H:MM column (FC-00059) loses that
+  // column, so its money columns land where the writer expects them (current: 10 columns).
   if(!m||!Array.isArray(m.rows))return m;
   const hdr=m.rows.find(r=>r&&r.kind==='hdr');
-  if(!hdr||hdr.cells.length!==10||hdr.cells.includes('H:MM'))return m;
+  if(!hdr)return m;
+  const at=hdr.cells.indexOf('H:MM');
+  if(at<0||COMBINED_HEADERS.includes('H:MM'))return m;
+  const n=hdr.cells.length;
   m.rows.forEach(r=>{
-    if(!r||!Array.isArray(r.cells)||r.cells.length!==10)return;
-    const h=parseFloat(String(r.cells[3]||'').replace(/[^0-9.\-]/g,''));
-    const v=r.kind==='hdr'?'H:MM':(String(r.cells[3]||'').trim()!==''&&!isNaN(h)?fmtHmm(h):'');
-    r.cells.splice(4,0,v);
-    if(Array.isArray(r.bgs))r.bgs.splice(4,0,r.bgs[3]||'');
-    if(Array.isArray(r.tips))r.tips.splice(4,0,r.tips[3]||'');
+    if(!r||!Array.isArray(r.cells)||r.cells.length!==n)return;
+    r.cells.splice(at,1);
+    if(Array.isArray(r.bgs)&&r.bgs.length===n)r.bgs.splice(at,1);
+    if(Array.isArray(r.tips)&&r.tips.length===n)r.tips.splice(at,1);
   });
   return m;
 }
@@ -2749,7 +2788,7 @@ function weekOverWeek(){
   return out;
 }
 function _wowMoney(v){return v==null?'(none)':'$'+(+v).toFixed(2)}
-function _wowSigned(v,money){const s=v>0?'+':(v<0?'−':'');const a=Math.abs(v);return s+(money?'$'+a.toFixed(2):a.toFixed(2));}
+function _wowSigned(v,money){const s=v>0?'+':(v<0?'−':'');const a=Math.abs(v);return s+(money?_fmtUsd(a):a.toFixed(2));}
 function _wowPanelHtml(){
   let h='<div class="wow-panel"><div class="wow-head"><h3>Since last week</h3>';
   const pick=`<label class="btn" style="font-size:12px;padding:5px 12px">${_wowLast?'Change file…':'Load last week\'s snapshot…'}<input type="file" accept=".json,application/json" style="display:none" onchange="loadLastWeekSnapshotFile(this.files[0]);this.value=''"></label>`;
@@ -3082,7 +3121,7 @@ function _handEditedFields(id){
 }
 function _fmtStageVal(k,v){
   if(v===null||v===undefined||v==='')return'(none)';
-  if(k==='rate'||k==='flat'||k==='deposit')return typeof v==='number'?'$'+v.toFixed(2):String(v);
+  if(k==='rate'||k==='flat'||k==='deposit')return typeof v==='number'?_fmtUsd(v):String(v);
   if(k==='method')return _WOW_METHOD[v]||v;
   if(k==='active')return v?'Yes':'No';
   if(/^break\d$/.test(k))return typeof v==='number'?v+' min':String(v);
@@ -4221,7 +4260,7 @@ function renderTable(idx){
     html+='</tr>';
     if(currentView==='manager'){
       html+=`<tr class="hours-row"><td class="hours-cell" style="border-right:2px solid #999;font-style:italic;color:var(--text3);font-size:10px">Hours</td><td class="hours-cell" style="border-right:2px solid #999"></td>`;
-      for(let d=0;d<7;d++){const h=calcHours(parseShift(emp.shifts[d]));html+=`<td class="hours-cell">${h>0?fmtHrs(h):''}</td>`}
+      for(let d=0;d<7;d++){const h=calcHours(parseShift(emp.shifts[d]));html+=`<td class="hours-cell">${h>0?fmtHrsCell(h):''}</td>`}
       html+='</tr>';
     }
   });
@@ -4898,7 +4937,7 @@ function _weekFilterBannerHtml(ent,calc){
   if(ex.length){
     const hrs=Math.round(ex.reduce((a,x)=>a+x.hours,0)*100)/100;
     const list=ex.slice().sort((a,b)=>(a.date+a.empName).localeCompare(b.date+b.empName))
-      .map(x=>`<li>${escHtml(x.empName)} — ${_fmtIsoShort(x.date)} (${fmtHrs(x.hours)} worked)</li>`).join('');
+      .map(x=>`<li>${escHtml(x.empName)} — ${_fmtIsoShort(x.date)} (${escHtml(fmtHrsLong(x.hours))} worked)</li>`).join('');
     html+=`<div class="week-filter-banner" style="background:#FFF7ED;color:#9A3412;border:1px solid #FB923C;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px">`+
       `<strong>⚠ ${ex.length} approved punch day${ex.length===1?' is':'s are'} outside this schedule's week (${_fmtIsoShort(wi.start)} – ${_fmtIsoShort(wi.end)}) and NOT counted</strong> — ${hrs.toFixed(2)} h total. `+
       `Only the loaded schedule's week is paid. If a date below is wrong, fix it in Actuals Intake (rows flagged "Outside week").`+
@@ -4948,7 +4987,7 @@ function _inactiveExclusionSummary(){
     });
   });
   const withPay=list.filter(x=>x.hours>0||x.pay>0);
-  const fmt=x=>`${x.empName} (${x.entityName}${x.hours>0||x.pay>0?`: ${x.hours.toFixed(2)} h, $${x.pay.toFixed(2)}`:''})`;
+  const fmt=x=>`${x.empName} (${x.entityName}${x.hours>0||x.pay>0?`: ${x.hours.toFixed(2)} h, ${_fmtUsd(x.pay)}`:''})`;
   return{list,withPay,text:list.map(fmt).join(', '),payText:withPay.map(fmt).join(', ')};
 }
 
@@ -5275,7 +5314,7 @@ function _fc24CellFromText(text,ci,numCols){
   const t=(text||'').trim();
   if(numCols.indexOf(ci)<0)return t;
   // FC-00059: H:MM cells read "h:mm" back into an Excel duration.
-  if(ci===COMBINED_COLS.hmm){const m=/^(-?)(\d+):(\d{2})$/.exec(t);if(!m)return t;const mins=(+m[2])*60+(+m[3]);return _numCell((m[1]?-1:1)*mins/1440,'[h]:mm',t);}
+  if(COMBINED_COLS.hmm!=null&&ci===COMBINED_COLS.hmm){const m=/^(-?)(\d+):(\d{2})$/.exec(t);if(!m)return t;const mins=(+m[2])*60+(+m[3]);return _numCell((m[1]?-1:1)*mins/1440,'[h]:mm',t);}
   const raw=t.replace(/[$,\s]/g,'');
   if(!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(raw))return t;
   const v=parseFloat(raw);
@@ -5327,7 +5366,7 @@ async function _fc24ExportScratchExcel(){
           if(!_isNumCell(v))return;
           const L=_xlCol(ci);
           let f;
-          if(ci===COMBINED_COLS.hmm)f='ROUND('+_xlCol(COMBINED_COLS.hours)+r.number+'*60,0)/1440';
+          if(COMBINED_COLS.hmm!=null&&ci===COMBINED_COLS.hmm)f='ROUND('+_xlCol(COMBINED_COLS.hours)+r.number+'*60,0)/1440';
           else if(row.kind==='subtotal'&&blockStart)f='SUM('+L+blockStart+':'+L+blockEnd+')';
           else if(row.kind==='grand'&&subNums.length)f='SUM('+subNums.map(n=>L+n).join(',')+')';
           if(f)r.getCell(ci+1).value={formula:f,result:v.v};
@@ -5435,7 +5474,7 @@ function _allEntityPreviewHtml(){
       const empName=r.schedName||r.name;
       const hrs=r.isFlat?null:(hasActuals?r.actualHours:r.expectedH);
       const wageBlankFlag=!r.isFlat&&wageBlank[wKey(ent.id,empName)];
-      const rate=r.isFlat?'flat':(wageBlankFlag?'—':(r.wage>0?'$'+r.wage.toFixed(2):'—'));
+      const rate=r.isFlat?'flat':(wageBlankFlag?'—':(r.wage>0?_fmtUsd(r.wage):'—'));
       const totalN=r.isFlat?r.flatAmount:(wageBlankFlag?null:(r.wage>0?r.pay:null));
       const method=getPayMethod(ent.id,empName);
       let dep=0,cash=0,finalPay=0,actualTotal=null,diff=0;
@@ -5455,18 +5494,18 @@ function _allEntityPreviewHtml(){
       const methodLbl=methodLabel(method);
       const rowCls=r.isOrphan?' class="orphan"':'';
       const entityCell=(i===0)?`<td class="entity-col" rowspan="${spanCount}">${escHtml(entityName)}</td>`:'';
-      const diffStr=(actualTotal!=null&&Math.abs(diff)>=0.005)?(diff>0?'+':'')+'$'+diff.toFixed(2):'—';
-      html+=`<tr${rowCls}>${entityCell}<td class="name-col">${escHtml((exportNameMode('payroll')==='saved'?r.name:_prevNm(ent.id,r.schedName||r.name))||'(unnamed)')}${r.isOrphan?' <span style="font-size:10px;color:var(--red)">(orphan)</span>':''}${r.isFlat?' <span style="font-size:10px;color:var(--text3)">(flat)</span>':''}</td><td class="num">${hrs!=null?hrs.toFixed(2):'—'}</td><td class="num">${rate}</td><td class="num">${actualTotal!=null?'$'+actualTotal.toFixed(2):'—'}</td><td>${methodLbl}</td><td class="num">${dep>0?'$'+dep.toFixed(2):'—'}</td><td class="num">${cash>0?'$'+cash.toFixed(2):'—'}</td><td class="num">${finalPay>0?'$'+finalPay.toFixed(2):'—'}</td><td class="num" style="color:var(--text3);font-size:11px">${diffStr}</td></tr>`;
+      const diffStr=(actualTotal!=null&&Math.abs(diff)>=0.005)?(diff>0?'+':'')+_fmtUsd(diff):'—';
+      html+=`<tr${rowCls}>${entityCell}<td class="name-col">${escHtml((exportNameMode('payroll')==='saved'?r.name:_prevNm(ent.id,r.schedName||r.name))||'(unnamed)')}${r.isOrphan?' <span style="font-size:10px;color:var(--red)">(orphan)</span>':''}${r.isFlat?' <span style="font-size:10px;color:var(--text3)">(flat)</span>':''}</td><td class="num">${hrs!=null?hrs.toFixed(2):'—'}</td><td class="num">${rate}</td><td class="num">${actualTotal!=null?_fmtUsd(actualTotal):'—'}</td><td>${methodLbl}</td><td class="num">${dep>0?_fmtUsd(dep):'—'}</td><td class="num">${cash>0?_fmtUsd(cash):'—'}</td><td class="num">${finalPay>0?_fmtUsd(finalPay):'—'}</td><td class="num" style="color:var(--text3);font-size:11px">${diffStr}</td></tr>`;
     });
     const subDiff=roundDeposit(entFinal-entPay);
-    const subDiffStr=Math.abs(subDiff)>=0.005?(subDiff>0?'+':'')+'$'+subDiff.toFixed(2):'—';
-    html+=`<tr class="entity-subtotal"><td class="name-col">Subtotal</td><td class="num">${entH.toFixed(2)}</td><td></td><td class="num">$${entPay.toFixed(2)}</td><td></td><td class="num">$${entDep.toFixed(2)}</td><td class="num">$${entCash.toFixed(2)}</td><td class="num">$${entFinal.toFixed(2)}</td><td class="num" style="font-size:11px">${subDiffStr}</td></tr>`;
+    const subDiffStr=Math.abs(subDiff)>=0.005?(subDiff>0?'+':'')+_fmtUsd(subDiff):'—';
+    html+=`<tr class="entity-subtotal"><td class="name-col">Subtotal</td><td class="num">${entH.toFixed(2)}</td><td></td><td class="num">${_fmtUsd(entPay)}</td><td></td><td class="num">${_fmtUsd(entDep)}</td><td class="num">${_fmtUsd(entCash)}</td><td class="num">${_fmtUsd(entFinal)}</td><td class="num" style="font-size:11px">${subDiffStr}</td></tr>`;
     grandH+=entH;grandPay+=entPay;grandDep+=entDep;grandCash+=entCash;
   });
   const grandFinal=grandDep+grandCash;
   const grandDiff=roundDeposit(grandFinal-grandPay);
-  const grandDiffStr=Math.abs(grandDiff)>=0.005?(grandDiff>0?'+':'')+'$'+grandDiff.toFixed(2):'—';
-  html+=`<tr class="grand-total"><td colspan="2">GRAND TOTAL</td><td class="num">${grandH.toFixed(2)}</td><td></td><td class="num">$${grandPay.toFixed(2)}</td><td></td><td class="num">$${grandDep.toFixed(2)}</td><td class="num">$${grandCash.toFixed(2)}</td><td class="num">$${grandFinal.toFixed(2)}</td><td class="num" style="font-size:11px">${grandDiffStr}</td></tr>`;
+  const grandDiffStr=Math.abs(grandDiff)>=0.005?(grandDiff>0?'+':'')+_fmtUsd(grandDiff):'—';
+  html+=`<tr class="grand-total"><td colspan="2">GRAND TOTAL</td><td class="num">${grandH.toFixed(2)}</td><td></td><td class="num">${_fmtUsd(grandPay)}</td><td></td><td class="num">${_fmtUsd(grandDep)}</td><td class="num">${_fmtUsd(grandCash)}</td><td class="num">${_fmtUsd(grandFinal)}</td><td class="num" style="font-size:11px">${grandDiffStr}</td></tr>`;
   html+='</tbody></table></div>';
   host.innerHTML=html;
 }
@@ -5577,7 +5616,7 @@ function renderPayrollInfoChips(rows,hasActuals,noSchedule){
       if(orphanIsNoise)inner+=`<span class="actuals-only-pill" style="display:inline-block;margin-top:2px;padding:1px 7px;border-radius:10px;background:var(--surface2,#f0efe9);color:var(--text3);font-size:10px;font-weight:600;letter-spacing:0.3px">actuals-only</span>`;
       else if(r.isOrphan)inner+=`<div class="days" style="color:var(--red);font-weight:500">not in schedule</div>`;
       else if(absDiff<0.1)inner+=`<div class="days" style="color:var(--text3);font-weight:500">as expected</div>`;
-      else inner+=`<div class="days" style="color:${diffColor};font-weight:500">${fmtHrs(absDiff)} ${diff>0?'More':'Less'}</div>`;
+      else inner+=`<div class="days" style="color:${diffColor};font-weight:500">${fmtHrsCell(absDiff)} ${diff>0?'More':'Less'}</div>`;
     }else{
       inner+=`<div class="hrs" style="color:${col.hex}">${_chipHours(r.expectedH)}</div><div class="days">expected</div>`;
     }
@@ -5597,16 +5636,16 @@ function renderPayDayCell(day,isOrphan,hasActuals){
   if(day.status==='off')return `<td class="pay-day status-off">${schedLine}</td>`;
   // NO SHOW: employee missed the shift — pay less than expected → green (per user's pay-centric rule)
   if(day.status==='ignored')return `<td class="pay-day" style="opacity:0.5">${schedLine}<span class="pay-times-line pay-times" style="color:var(--text3)">IGNORED</span><div class="pay-hours-line" style="color:var(--text3)">no actuals tracked</div></td>`;
-  if(day.status==='noshow')return `<td class="pay-day status-noshow">${schedLine}<span class="pay-times-line pay-times hours-good">NO SHOW</span><div class="pay-hours-line hours-good">missed ${fmtHrs(day.expectedH)}</div></td>`;
+  if(day.status==='noshow')return `<td class="pay-day status-noshow">${schedLine}<span class="pay-times-line pay-times hours-good">NO SHOW</span><div class="pay-hours-line hours-good">missed ${fmtHrsCell(day.expectedH)}</div></td>`;
   // UNSCHED: unscheduled clock-ins — pay for unexpected work → red
   if(day.status==='unsched'){
     let h=`<td class="pay-day status-unsched">${schedLine}`;
     day.actual.pairs.forEach(p=>{h+=`<span class="pay-times-line pay-times">${compactH(p.in)} – ${compactH(p.out)}</span>`;});
-    h+=`<div class="pay-hours-line hours-bad">${fmtHrs(day.billableH)} · unsched</div>`;
+    h+=`<div class="pay-hours-line hours-bad">${fmtHrsCell(day.billableH)} · unsched</div>`;
     const _bl=dayBreakLine(day);if(_bl)h+=`<div class="pay-break-line">${_bl}</div>`; // FC-00049
     h+='</td>';return h;
   }
-  if(!hasActuals)return `<td class="pay-day">${schedLine}<div class="pay-hours-line hours-neutral">${fmtHrs(day.expectedH)} expected</div></td>`;
+  if(!hasActuals)return `<td class="pay-day">${schedLine}<div class="pay-hours-line hours-neutral">${fmtHrsCell(day.expectedH)} expected</div></td>`;
   const stCls=day.status==='ok'?'':'status-'+day.status;
   let h=`<td class="pay-day ${stCls}">${schedLine}`;
   day.actual.pairs.forEach(p=>{h+=`<span class="pay-times-line pay-times">${compactH(p.in)} – ${compactH(p.out)}</span>`;});
@@ -5617,7 +5656,7 @@ function renderPayDayCell(day,isOrphan,hasActuals){
   else if(hDiff>0)hClass='hours-bad';
   else hClass='hours-good';
   const diffInline=absM<1?'':`<span class="pay-diff-inline">(${absM}m ${hDiff>0?'more':'less'})</span>`;
-  h+=`<div class="pay-hours-line ${hClass}">${fmtHrs(day.billableH)}${diffInline}</div>`;
+  h+=`<div class="pay-hours-line ${hClass}">${fmtHrsCell(day.billableH)}${diffInline}</div>`;
   const _bl=dayBreakLine(day);if(_bl)h+=`<div class="pay-break-line">${_bl}</div>`; // FC-00049
   h+='</td>';
   return h;
@@ -5666,7 +5705,7 @@ function entityCostGrid(idx){
 function _costDiffHtml(actual,sched){
   const d=Math.round((actual-sched)*100)/100;
   if(Math.abs(d)<0.005)return'<span class="wk-diff">as scheduled</span>';
-  return`<span class="wk-diff" style="color:${d>0?'var(--red)':'var(--green)'}">${d>0?'+':'−'}$${Math.abs(d).toFixed(2)} ${d>0?'over':'under'}</span>`;
+  return`<span class="wk-diff" style="color:${d>0?'var(--red)':'var(--green)'}">${d>0?'+':'−'}${_fmtUsd(Math.abs(d))} ${d>0?'over':'under'}</span>`;
 }
 function renderPayrollCostGrid(rows,ent){
   const table=document.getElementById('payrollGrid');if(!table)return;
@@ -5681,16 +5720,16 @@ function renderPayrollCostGrid(rows,ent){
   html+='<th class="date-row" style="background:#DAD8D2"></th></tr></thead><tbody>';
   const seen=new Set();
   const line=(label,p)=>{
-    const rateTxt=p?(p.kind==='hourly'?'$'+p.rate.toFixed(2)+'/h':p.kind==='semi'?'semi-monthly':p.kind==='flat'?'flat':'no rate'):'left out';
+    const rateTxt=p?(p.kind==='hourly'?_fmtUsd(p.rate)+'/h':p.kind==='semi'?'semi-monthly':p.kind==='flat'?'flat':'no rate'):'left out';
     let h=`<tr class="cost-row"><td class="name-cell">${escHtml(label)}</td><td class="name-cell" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${escHtml(rateTxt)}</td>`;
     for(let d=0;d<7;d++){
       if(!p){h+='<td class="pay-day"></td>';continue;}
       const a=p.actual[d],sc=p.sched[d];
       if(!(a>0.004)&&!(sc>0.004)){h+='<td class="pay-day" style="text-align:center;color:var(--text3)">—</td>';continue;}
-      h+=`<td class="pay-day" style="text-align:center"><div style="font-weight:600;font-family:'IBM Plex Mono',monospace">$${a.toFixed(2)}</div>${p.kind==='hourly'?`<div style="font-size:10px;color:var(--text3)">sched $${sc.toFixed(2)}</div>${_costDiffHtml(a,sc)}`:''}</td>`;
+      h+=`<td class="pay-day" style="text-align:center"><div style="font-weight:600;font-family:'IBM Plex Mono',monospace">${_fmtUsd(a)}</div>${p.kind==='hourly'?`<div style="font-size:10px;color:var(--text3)">sched ${_fmtUsd(sc)}</div>${_costDiffHtml(a,sc)}`:''}</td>`;
     }
     if(!p)h+='<td class="pay-weekly"><span class="wk-diff">not in this week\'s payroll</span></td></tr>';
-    else h+=`<td class="pay-weekly"><span class="wk-actual">$${p.actualWeek.toFixed(2)}</span>${p.weekOnly?'<span class="wk-diff">flat, no hours</span>':''}${p.kind==='hourly'?`<span class="wk-diff">sched $${p.schedWeek.toFixed(2)}</span>${_costDiffHtml(p.actualWeek,p.schedWeek)}`:''}</td></tr>`;
+    else h+=`<td class="pay-weekly"><span class="wk-actual">${_fmtUsd(p.actualWeek)}</span>${p.weekOnly?'<span class="wk-diff">flat, no hours</span>':''}${p.kind==='hourly'?`<span class="wk-diff">sched ${_fmtUsd(p.schedWeek)}</span>${_costDiffHtml(p.actualWeek,p.schedWeek)}`:''}</td></tr>`;
     return h;
   };
   rows.forEach(r=>{
@@ -5700,8 +5739,8 @@ function renderPayrollCostGrid(rows,ent){
   });
   cg.people.filter(p=>!seen.has(p)).forEach(p=>{html+=line(p.displayName||p.name,p);});
   html+=`<tr class="total-row cost-total"><td class="name-cell"><b>Total</b></td><td class="name-cell"></td>`;
-  for(let d=0;d<7;d++){const t=cg.dayTot[d]||{actual:0,sched:0};html+=`<td class="pay-day" style="text-align:center"><div style="font-weight:700;font-family:'IBM Plex Mono',monospace">$${t.actual.toFixed(2)}</div><div style="font-size:10px;color:var(--text3)">sched $${t.sched.toFixed(2)}</div></td>`;}
-  html+=`<td class="pay-weekly"><span class="wk-actual">$${cg.week.actual.toFixed(2)}</span><span class="wk-diff">sched $${cg.week.sched.toFixed(2)} (hourly)</span></td></tr></tbody>`;
+  for(let d=0;d<7;d++){const t=cg.dayTot[d]||{actual:0,sched:0};html+=`<td class="pay-day" style="text-align:center"><div style="font-weight:700;font-family:'IBM Plex Mono',monospace">${_fmtUsd(t.actual)}</div><div style="font-size:10px;color:var(--text3)">sched ${_fmtUsd(t.sched)}</div></td>`;}
+  html+=`<td class="pay-weekly"><span class="wk-actual">${_fmtUsd(cg.week.actual)}</span><span class="wk-diff">sched ${_fmtUsd(cg.week.sched)} (hourly)</span></td></tr></tbody>`;
   table.innerHTML=html;
   document.getElementById('payrollGridHeading').style.display='block';
   document.getElementById('payrollGridWrap').style.display='block';
@@ -5737,11 +5776,11 @@ function renderPayrollGrid(rows,ent,hasActuals,noSchedule){
     if(r.isOrphan)diffHtml=`<span class="wk-diff">no schedule</span>`;
     else if(hasActuals){
       if(absDiff<0.01)diffHtml=`<span class="wk-diff">as expected</span>`;
-      else diffHtml=`<span class="wk-diff">${fmtHrs(absDiff)} ${diff>0?'More':'Less'}</span>`;
+      else diffHtml=`<span class="wk-diff">${fmtHrsCell(absDiff)} ${diff>0?'More':'Less'}</span>`;
     }else{
       diffHtml=`<span class="wk-diff">expected</span>`;
     }
-    const wkVal=hasActuals?fmtHrs(r.actualHours):fmtHrs(r.expectedH);
+    const wkVal=hasActuals?fmtHrsCell(r.actualHours):fmtHrsCell(r.expectedH);
     html+=`<td class="pay-weekly ${wkCls}"><span class="wk-actual">${wkVal}</span>${diffHtml}</td></tr>`;
   });
   html+='</tbody>';
@@ -5769,37 +5808,37 @@ function renderTimeCardData(rows,hasActuals,ent,noSchedule){
     if(!r.isOrphan&&hasActuals){
       const diff=r.actualHours-r.expectedH,abs=Math.abs(diff);
       if(abs<0.01){diffStr='as expected';diffCls='diff-zero';}
-      else if(diff>0){diffStr=`${fmtHrs(abs)} More`;diffCls='diff-pos';}
-      else{diffStr=`${fmtHrs(abs)} Less`;diffCls='diff-neg';}
+      else if(diff>0){diffStr=`${fmtHrsCell(abs)} More`;diffCls='diff-pos';}
+      else{diffStr=`${fmtHrsCell(abs)} Less`;diffCls='diff-neg';}
     }
     const keyName=r.schedName||r.name;
     const empId=keyName?_empIdText(ent.id,keyName):'';
     const rowCls=r.isOrphan?(noSchedule?' class="orphan-row-quiet"':' class="orphan-row"'):'';
     html+=`<tr${rowCls}><td class="name-cell" style="padding:8px 6px">${inlineEditableNameHtml(ent.id,keyName,'payroll',()=>renderPayroll())}${_dupFlagHtml(ent.id,keyName)}</td>`;
     html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrs(r.expectedBreakH)}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrs(r.expectedH)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrsCell(r.expectedBreakH)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrsCell(r.expectedH)}</td>`;
     if(hasActuals){
-      html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrs(r.actualBreakH)}</td>`;
+      html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrsCell(r.actualBreakH)}</td>`;
       let actCls='diff-zero';
       if(r.isOrphan)actCls='diff-pos';
       else{const d=r.actualHours-r.expectedH;if(Math.abs(d)<0.01)actCls='diff-zero';else if(d>0)actCls='diff-pos';else actCls='diff-neg';}
-      html+=`<td class="num-cell ${actCls}">${fmtHrs(r.actualHours)}</td>`;
+      html+=`<td class="num-cell ${actCls}">${fmtHrsCell(r.actualHours)}</td>`;
       html+=`<td class="num-cell ${diffCls}">${diffStr}</td>`;
       html+=`<td class="metric-cell ${metricClsStr(r.avgInDiff,'in')}">${metricStr(r.avgInDiff)}</td>`;
       html+=`<td class="metric-cell ${metricClsStr(r.avgOutDiff,'out')}">${metricStr(r.avgOutDiff)}</td>`;
-      const otFlag=r.actualHours>40?`<span class="ot-flag-inline">⚠ ${fmtHrs(r.otH)} over</span>`:'<span style="color:var(--text3)">—</span>';
+      const otFlag=r.actualHours>40?`<span class="ot-flag-inline">⚠ ${fmtHrsCell(r.otH)} over</span>`:'<span style="color:var(--text3)">—</span>';
       html+=`<td class="num-cell">${otFlag}</td>`;
     }
     html+='</tr>';
   });
   html+='<tr class="total-row"><td class="name-cell" style="padding:8px 6px">TOTAL</td><td class="name-cell"></td>';
-  html+=`<td class="num-cell">${fmtHrs(totExpBreak)}</td><td class="num-cell">${fmtHrs(totExp)}</td>`;
+  html+=`<td class="num-cell">${fmtHrsCell(totExpBreak)}</td><td class="num-cell">${fmtHrsCell(totExp)}</td>`;
   if(hasActuals){
     const tDiff=totAct-totExp,absT=Math.abs(tDiff);
     let tStr='as expected',tCls='diff-zero';
-    if(absT>=0.01){if(tDiff>0){tStr=`${fmtHrs(absT)} More`;tCls='diff-pos';}else{tStr=`${fmtHrs(absT)} Less`;tCls='diff-neg';}}
-    html+=`<td class="num-cell">${fmtHrs(totActBreak)}</td><td class="num-cell ${tCls}">${fmtHrs(totAct)}</td>`;
+    if(absT>=0.01){if(tDiff>0){tStr=`${fmtHrsCell(absT)} More`;tCls='diff-pos';}else{tStr=`${fmtHrsCell(absT)} Less`;tCls='diff-neg';}}
+    html+=`<td class="num-cell">${fmtHrsCell(totActBreak)}</td><td class="num-cell ${tCls}">${fmtHrsCell(totAct)}</td>`;
     html+=`<td class="num-cell ${tCls}">${tStr}</td><td></td><td></td><td></td>`;
   }
   html+='</tr></tbody>';
@@ -5845,8 +5884,8 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
       <button class="btn btn-small" onclick="openRenameEmployeeModal(${ent.id},'${escJs(keyName)}')" title="Rename Employee" style="margin-left:6px;font-size:10px;padding:2px 6px">Rename Employee</button>${_dupFlagHtml(ent.id,keyName)}</td>`;
     html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
     html+=`<td style="text-align:center;padding:6px"><input type="checkbox" ${rowActive?'checked':''} onchange="setRowActive(${i},this.checked)" title="${rowActive?'Active — in this week\'s export and loads with the next schedule':'Unchecked — left out of this week\'s export and the next schedule'}" style="width:15px;height:15px;cursor:pointer"></td>`;
-    html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrs(r.actualBreakH)}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrs(r.actualHours)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrsCell(r.actualBreakH)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrsCell(r.actualHours)}</td>`;
 
     const typeToggleHtml=`<div class="type-toggle"><button class="${r.isFlat?'':'selected'}" onclick="setRowType(${i},'hourly')" title="Compute pay as wage × hours">Hourly</button><button class="${r.isFlat&&!r.isSemi?'selected':''}" onclick="setRowType(${i},'flat')" title="Use a flat dollar amount">Flat</button><button class="${r.isSemi?'selected':''}" onclick="setRowType(${i},'semi')" title="A flat amount per half-month, paid in the run whose week holds the 1st or the 15th (FC-00052)">Semi-monthly</button></div>`;
 
@@ -5893,7 +5932,7 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
     if(wageBlankFlag){
       html+=`<td class="num-cell" style="color:var(--text3)">—</td>`;
     }else if(method==='deposit'||method==='contract'){
-      html+=`<td class="num-cell">$${breakdown.deposit.toFixed(2)}</td>`;
+      html+=`<td class="num-cell">${_fmtUsd(breakdown.deposit)}</td>`;
     }else if(method==='both'){
       const meta=getSplitMeta(ent.id,keyName);
       const inputVal=meta.typed?(meta.isWhole?String(Math.round(meta.deposit)):meta.deposit.toFixed(2)):'';
@@ -5917,10 +5956,10 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
     if(wageBlankFlag){
       html+=`<td class="num-cell" style="color:var(--text3)">—</td><td class="num-cell" style="color:var(--text3)">—</td><td class="num-cell" style="color:var(--text3)">—</td>`;
     }else{
-      const actStr='$'+breakdown.actualFinal.toFixed(2);
-      const roundStr=method==='cash'?'$'+breakdown.cash:'$'+breakdown.roundedFinal.toFixed(2);
+      const actStr=_fmtUsd(breakdown.actualFinal);
+      const roundStr=method==='cash'?'$'+Number(breakdown.cash).toLocaleString('en-US'):_fmtUsd(breakdown.roundedFinal);
       const diff=breakdown.roundingDiff;
-      const diffStr=Math.abs(diff)>=0.005?(diff>0?'+':'')+'$'+diff.toFixed(2):'—';
+      const diffStr=Math.abs(diff)>=0.005?(diff>0?'+':'')+_fmtUsd(diff):'—';
       const diffColor=Math.abs(diff)>=0.005?'var(--amber)':'var(--text3)';
       html+=`<td class="num-cell" style="color:var(--text2)">${actStr}</td><td class="pay-cell">${roundStr}</td><td class="num-cell" style="color:${diffColor};font-size:11px">${diffStr}</td>`;
     }
@@ -5967,13 +6006,13 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
     html+=breakRow;
   });
   const totDiff=roundDeposit(totFinal-totActual);
-  const totDiffStr=Math.abs(totDiff)>=0.005?(totDiff>0?'+':'')+'$'+totDiff.toFixed(2):'—';
+  const totDiffStr=Math.abs(totDiff)>=0.005?(totDiff>0?'+':'')+_fmtUsd(totDiff):'—';
   html+='<tr class="total-row"><td class="name-cell" style="padding:8px 6px">TOTAL</td><td class="name-cell"></td>';
   html+=`<td></td><td></td><td></td><td></td><td></td><td></td>`;
-  html+=`<td class="pay-cell">$${totDeposit.toFixed(2)}</td>`;
+  html+=`<td class="pay-cell">${_fmtUsd(totDeposit)}</td>`;
   html+=`<td class="pay-cell">$${totCash}</td>`;
-  html+=`<td class="pay-cell">$${totActual.toFixed(2)}</td>`;
-  html+=`<td class="pay-cell">$${totFinal.toFixed(2)}</td>`;
+  html+=`<td class="pay-cell">${_fmtUsd(totActual)}</td>`;
+  html+=`<td class="pay-cell">${_fmtUsd(totFinal)}</td>`;
   html+=`<td class="num-cell" style="font-size:11px">${totDiffStr}</td>`;
   html+='</tr></tbody>';
   table.innerHTML=html;
@@ -6274,7 +6313,7 @@ function renderIntake(){
     return;
   }
   // Top-level toolbar: import a previously-exported Actuals Intake .xlsx to skip OCR
-  let html=_reattachBannerHtml()+_dupBannerHtml()+_weekDropZoneHtml(); // FC-00053
+  let html=`<div id="ocrRunBar" class="ocr-run-host">${_ocrRunHtml()}</div>`+_reattachBannerHtml()+_dupBannerHtml()+_weekDropZoneHtml(); // FC-00053, FC-00063
   html+='<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px"><button class="btn" onclick="document.getElementById(\'actualsIntakeImportInput\').click()" title="Re-import a previously exported Actuals Intake .xlsx — restores approved rows so payroll can be calculated without redoing OCR" style="font-size:12px;padding:6px 14px">⤴ Import Actuals Intake (.xlsx)</button></div>';
   entities.forEach((ent,idx)=>{
     ensureIntakeState(ent);
@@ -6861,6 +6900,66 @@ async function rerunOcrForRow(entIdx,rowId){
   showToast(`Re-read ready · ${row.empName||'row'} ${row.date} — pick Current or Re-read under each box, then Apply`,'ok');
 }
 
+// ================================================================
+// FC-00063 — one progress bar for the whole OCR run, above all entities
+// ================================================================
+// Entities are read one at a time; this bar shows the whole run: images done of all queued, the
+// entity being read now, the ones still waiting in order, and failures. In memory only.
+let _ocrRun=null;
+function _queuedCount(i){const it=(entities[i]&&entities[i].intake)||{};return(it.timecardFiles||[]).length+(it.easyclockFiles||[]).length+(it.mixedFiles||[]).length;}
+function _ocrRunActive(){return!!(_ocrRun&&!_ocrRun.finished);}
+function _ocrRunPlan(list){
+  _ocrRun={finished:false,ents:list.filter(x=>x.total>0).map(x=>({idx:x.idx,total:x.total,done:0,errs:0,state:'waiting'}))};
+  _renderOcrRunBar();
+}
+function _ocrRunEnt(idx){return _ocrRun&&_ocrRun.ents.find(e=>e.idx===idx);}
+function _ocrRunStart(idx,total){
+  if(!_ocrRunActive())_ocrRun={finished:false,ents:[]};
+  let e=_ocrRunEnt(idx);
+  if(!e){e={idx,total,done:0,errs:0,state:'waiting'};_ocrRun.ents.push(e);}
+  e.total=total;e.done=0;e.errs=0;e.state='running';
+  _renderOcrRunBar();
+}
+function _ocrRunProgress(idx,done,errs){const e=_ocrRunEnt(idx);if(!e)return;e.done=done;e.errs=errs;_renderOcrRunBar();}
+function _ocrRunEntityDone(idx,done,errs){
+  const e=_ocrRunEnt(idx);if(!e)return;
+  e.done=done;e.errs=errs;e.state='done';
+  if(!_ocrRun.ents.some(x=>x.state==='waiting'||x.state==='running'))_ocrRun.finished=true;
+  _renderOcrRunBar();
+}
+// A planned entity that never started (no API key, nothing queued after all) is shown as skipped.
+function _ocrRunFinish(){
+  if(!_ocrRun)return;
+  _ocrRun.ents.forEach(e=>{if(e.state==='waiting')e.state='skipped';});
+  if(!_ocrRun.ents.some(x=>x.state==='running'))_ocrRun.finished=true;
+  _renderOcrRunBar();
+}
+function closeOcrRunBar(){if(_ocrRunActive())return;_ocrRun=null;_renderOcrRunBar();}
+function _ocrRunHtml(){
+  const r=_ocrRun;if(!r||!r.ents.length)return'';
+  const nm=i=>escHtml((entities[i]&&entities[i].name)||('Entity '+(i+1)));
+  const total=r.ents.filter(e=>e.state!=='skipped').reduce((a,e)=>a+e.total,0);
+  const done=r.ents.reduce((a,e)=>a+e.done,0),errs=r.ents.reduce((a,e)=>a+e.errs,0);
+  const pct=total?Math.round(done/total*100):0;
+  const cur=r.ents.find(e=>e.state==='running');
+  const next=r.ents.filter(e=>e.state==='waiting');
+  let line;
+  if(!r.finished){
+    line=`<b>Reading images · ${done} of ${total}</b>`+(cur?` · now: <b>${nm(cur.idx)}</b> ${cur.done} of ${cur.total}`:'')+(next.length?` · next: ${next.map(e=>nm(e.idx)+' ('+e.total+')').join(', ')}`:' · last entity');
+  }else{
+    line=total?`<b>OCR finished · ${done-errs} of ${total} image${total===1?'':'s'} read</b>`:'<b>OCR did not run</b>';
+  }
+  if(errs)line+=` · <span class="ocr-run-err">${errs} failed (${r.ents.filter(e=>e.errs).map(e=>nm(e.idx)+' '+e.errs).join(', ')})</span>`;
+  const sk=r.ents.filter(e=>e.state==='skipped');
+  if(sk.length)line+=` · not started: ${sk.map(e=>nm(e.idx)).join(', ')}`;
+  const chips=r.ents.map(e=>`<span class="ocr-run-chip ${e.state}">${e.state==='done'?(e.errs?'⚠':'✓'):e.state==='running'?'●':e.state==='skipped'?'–':'○'} ${nm(e.idx)} ${e.done}/${e.total}</span>`).join('');
+  return`<div class="ocr-run${r.finished?' finished':''}${errs?' has-err':''}"><div class="ocr-run-line">${line}${r.finished?'<button class="mini-btn" onclick="closeOcrRunBar()" title="Close" style="margin-left:auto">✕</button>':''}</div><div class="ocr-run-track"><div class="ocr-run-fill" style="width:${pct}%"></div></div><div class="ocr-run-chips">${chips}</div></div>`;
+}
+function _renderOcrRunBar(){
+  if(typeof document==='undefined')return;
+  const el=document.getElementById('ocrRunBar');if(el)el.innerHTML=_ocrRunHtml();
+}
+
 function runOcrForEntity(idx){
   return _withCheckpoint('Run OCR · '+(_entLabel(idx)||'entity'),()=>_runOcrForEntityImpl(idx));
 }
@@ -6876,6 +6975,7 @@ async function _runOcrForEntityImpl(idx){
 
   ent.intake.ocrInProgress=true;
   ent.intake.lastOcrError='';
+  _ocrRunStart(idx,tcFiles.length+ecFiles.length+mixFiles.length); // FC-00063
   // FC-00011: append, don't replace. Newly-queued files (tcFiles/ecFiles/mixFiles) are always
   // the ones added since the last Run OCR — addIntakeFiles() only ever concats, and files are
   // cleared from the queue below once processed, so this list never contains already-OCR'd
@@ -6901,6 +7001,7 @@ async function _runOcrForEntityImpl(idx){
   const total=jobs.length;
   let done=0,errCount=0;
   const updateBar=()=>{
+    _ocrRunProgress(idx,done,errCount); // FC-00063
     const pct=total>0?Math.round(done/total*100):0;
     const fill=document.getElementById('progressFill_'+idx);if(fill)fill.style.width=pct+'%';
     const line=document.getElementById('statusLine_'+idx);
@@ -6988,6 +7089,7 @@ async function _runOcrForEntityImpl(idx){
 
   ent.intake.ocrInProgress=false;
   ent.intake.ocrDone=true;
+  _ocrRunEntityDone(idx,done,errCount); // FC-00063
   if(errCount===0)showToast(`OCR complete · ${total} image${total===1?'':'s'} processed`,'ok');
   else showToast(`OCR finished with ${errCount} error${errCount===1?'':'s'} · see file list`,'err');
   renderIntake();
@@ -8080,17 +8182,18 @@ function _intakePersonHours(h,ent,key){
 }
 function _weekHoursHtml(ph){
   const pend=_r2(ph.allWeek-ph.paidWeek);
-  return`<span class="emp-week-hrs" title="Hours with the payroll rules: span minus the larger of the break minimum and the actual gap">Week: <b>${escHtml(fmtHrs(ph.paidWeek))}</b> approved${Math.abs(pend)>=0.005?` · <span class="pend">${escHtml(fmtHrs(ph.allWeek))} once every row is approved</span>`:''}</span>`;
+  return`<span class="emp-week-hrs" title="Hours with the payroll rules: span minus the larger of the break minimum and the actual gap">Week: <b>${escHtml(fmtHrsLong(ph.paidWeek))}</b> approved${Math.abs(pend)>=0.005?` · <span class="pend">${escHtml(fmtHrsLong(ph.allWeek))} once every row is approved</span>`:''}</span>`;
 }
 function _dayHeadHtml(iso,dh,shift,ncols,ignored){
   let h=`<tr class="day-head"><td colspan="${ncols}"><b>${escHtml(_isoDayLabel(iso))}</b>`;
   if(ignored)h+='<span class="dh-hrs">time cards ignored</span>';
   else if(dh){
-    h+=`<span class="dh-hrs">${escHtml(fmtHrs(dh.paid))} approved</span>`;
+    h+=`<span class="dh-hrs">${escHtml(fmtHrsLong(dh.paid))} approved</span>`;
     const pend=_r2(dh.all-dh.paid);
-    if(Math.abs(pend)>=0.005)h+=`<span class="dh-pend">${escHtml(fmtHrs(dh.all))} once approved</span>`;
+    if(Math.abs(pend)>=0.005)h+=`<span class="dh-pend">${escHtml(fmtHrsLong(dh.all))} once approved</span>`;
   }
-  if(shift!=null)h+=`<span class="dh-sched">Scheduled: ${escHtml(String(shift).trim()||'OFF')}</span>`;
+  // FC-00064: the scheduled shift with its length (start to end, no break taken out).
+  if(shift!=null){const ps=parseShift(shift);h+=`<span class="dh-sched">Scheduled: ${escHtml(String(shift).trim()||'OFF')}${ps?' · '+escHtml(fmtHrsLong(calcHours(ps))):''}</span>`;}
   return h+'</td></tr>';
 }
 // People added this week (FC-00048/56) who are not on the schedule: they get a tab before their
@@ -8824,6 +8927,28 @@ function fmtHmm(h){
   const m=Math.round(h*60),a=Math.abs(m);
   return(m<0?'-':'')+Math.floor(a/60)+':'+String(a%60).padStart(2,'0');
 }
+// FC-00064: hours in words where there is room: "12 Hours 34 Minutes", "8 Hours 0 Minutes",
+// "1 Hour 1 Minute". Rounded to the minute, like h:mm.
+function fmtHrsWords(h){
+  if(h==null||isNaN(h))return'';
+  const m=Math.round(h*60),a=Math.abs(m),H=Math.floor(a/60),M=a%60;
+  return(m<0?'minus ':'')+H+' Hour'+(H===1?'':'s')+' '+M+' Minute'+(M===1?'':'s');
+}
+// Words plus the decimal pay uses, following the "Hours shown as" setting (decimal only → the
+// decimal; h:mm only → the words).
+function fmtHrsLong(h,digits){
+  if(h==null||isNaN(h))return'';
+  const d=h.toFixed(digits==null?2:digits);
+  const f=hoursFormat();
+  if(f==='dec')return d;
+  if(f==='hmm')return fmtHrsWords(h);
+  return fmtHrsWords(h)+' ('+d+')';
+}
+// A tight table cell: the short form, with the words on hover.
+function fmtHrsCell(h,digits){
+  if(h==null||isNaN(h))return'';
+  return`<span title="${escHtml(fmtHrsWords(h))}">${escHtml(fmtHrs(h,digits))}</span>`;
+}
 // Big chip number: h:mm large with the decimal small beside it (FC-00049).
 function _chipHours(h){
   const f=hoursFormat();
@@ -8994,7 +9119,7 @@ function _nOfPct(n,m){return m>0?`${n}/${m} · ${Math.round(n/m*100)}%`:'—';}
 const STATS_HEADERS=['Employee','Expected','Worked','Worked %','Late days','Late >5 min','Avg late','Early days','Early min (total · avg · max)','Early cost','Stayed late (days · min)','Stayed-late cost','Break expected','Break actual','40 h+','Other hours days','Missed days'];
 function _statsCells(p,isTotal){
   const m=v=>v==null?'—':fmtHmm(v/60);
-  const money=v=>v==null?'—':'$'+v.toFixed(2);
+  const money=v=>v==null?'—':_fmtUsd(v);
   return[
     p.display,
     fmtHrs(p.expected),fmtHrs(p.worked),
@@ -9165,7 +9290,7 @@ function entityLaborCost(idx){
   return{entity:ent.name||('Entity '+(idx+1)),entityId:ent.id,days,week,grid,hasNextSun,fixed,fixedSum,semis,semiWeekly,
     payrollActual,total:Math.round((week.cost+fixedSum+semiWeekly)*100)/100,dateLabels:(ent.dateLabels||[]).slice()};
 }
-const _money=v=>v==null?'—':'$'+Number(v).toFixed(2);
+const _money=v=>v==null?'—':_fmtUsd(Number(v));
 function _lcDayHeaders(lc){return DAY_SHORT.map((d,i)=>d+(lc.dateLabels[i]?' '+lc.dateLabels[i].replace(/^(\w{3}) (\d{1,2}) \d{4}$/,'$1 $2'):''));}
 function _hourLabel(h){return h===0?'12a':h<12?h+'a':h===12?'12p':(h-12)+'p';}
 function renderLaborCostPanel(idx){
@@ -9351,10 +9476,16 @@ async function weekDropClassifyAll(){
   const apiKey=_prefGet('pv26_api_key');
   if(!apiKey&&!_classifyImpl){wd.items.forEach(it=>{if(!it.kind){it.status='unsure';}});wd.note='No Gemini API key: sort the images by hand, or add the key in Settings and drop the folder again.';_renderWeekDrop(true);return;}
   const queue=wd.items.filter(it=>!it.kind);
-  const run=async()=>{while(queue.length){const it=queue.shift();it.status='classifying';_renderWeekDrop(true);const k=await _classifyOne(it,apiKey);if(_weekDrop!==wd)return;if(it.byHand){it.status='done';}else if(k){it.kind=k;it.status='done';}else it.status='unsure';_renderWeekDrop(true);}};
+  const run=async()=>{while(queue.length){const it=queue.shift();it.status='classifying';_renderWeekDrop(true);const k=await _classifyOne(it,apiKey);if(_weekDrop!==wd)return;if(it.byHand){if(it.status==='classifying')it.status=it.kind?'done':'unsure';}else if(k){it.kind=k;it.status='done';}else it.status='unsure';_renderWeekDrop(true);}};
   await Promise.all([run(),run(),run()]);
 }
-function weekDropSetKind(id,kind){const it=_weekDrop&&_weekDrop.items.find(x=>x.id===id);if(!it)return;it.kind=kind==='EC'?'EC':'TC';it.status='done';it.byHand=true;_renderWeekDrop(true);}
+// FC-00062: 'TC', 'EC' or 'UNSURE' (the owner wants to look again: Start OCR waits for it).
+function weekDropSetKind(id,kind){
+  const it=_weekDrop&&_weekDrop.items.find(x=>x.id===id);if(!it)return;
+  if(kind==='UNSURE'){it.kind=null;it.status='unsure';}
+  else{it.kind=kind==='EC'?'EC':'TC';it.status='done';}
+  it.byHand=true;_wdLastChanged=id;_renderWeekDrop(true);
+}
 function weekDropSetEntity(id,idx){const it=_weekDrop&&_weekDrop.items.find(x=>x.id===id);if(!it)return;it.entIdx=+idx;_renderWeekDrop(true);}
 function weekDropMapFolder(folder,idx){
   if(!_weekDrop)return;
@@ -9386,8 +9517,32 @@ async function weekDropStartOcr(queueOnly){
   const order=[...byEnt.keys()].sort((a,b)=>a-b);
   order.forEach(i=>{const g=byEnt.get(i);if(g.tc.length)addIntakeFiles(i,'tc',g.tc);if(g.ec.length)addIntakeFiles(i,'ec',g.ec);});
   if(queueOnly===true){showToast('Queued for OCR: '+order.map(i=>{const g=byEnt.get(i);return(entities[i].name||'Entity')+' '+g.tc.length+' timecard'+(g.tc.length===1?'':'s')+', '+g.ec.length+' EasyClocking';}).join(' · '),'ok');return true;}
+  _ocrRunPlan(order.map(i=>({idx:i,total:_queuedCount(i)}))); // FC-00063
   for(const i of order){await runOcrForEntity(i);}
+  _ocrRunFinish();
   return true;
+}
+// FC-00062: the sort screen. A summary per entity at the top; per entity the images still being
+// looked at, then Unsure (needs a decision), then Timecard photos, then EasyClocking screenshots.
+// Every card has three clear toggles. Redraws keep the scroll position, keep the thumbnails (no
+// reload flicker), glide moved cards to where they land and outline the card that changed.
+let _wdLastChanged=null;
+const WD_KINDS=[['TC','Timecard','tc'],['EC','EasyClocking','ec'],['UNSURE','Unsure','un']];
+function _wdState(it){return(it.status==='pending'||it.status==='classifying')&&!it.byHand?'looking':(it.kind||'UNSURE');}
+function _wdToggleHtml(it){
+  const cur=it.kind||(it.status==='unsure'?'UNSURE':'');
+  return`<div class="wd-seg" role="group" aria-label="Image type">${WD_KINDS.map(([k,lbl,c])=>`<button type="button" class="${c}${cur===k?' on':''}" aria-pressed="${cur===k}" onclick="weekDropSetKind('${escHtml(escJs(it.id))}','${k}')">${lbl}</button>`).join('')}</div>`;
+}
+function _weekDropSummaryHtml(wd){
+  const groups=[...new Set(wd.items.filter(it=>it.entIdx>=0).map(it=>it.entIdx))].sort((a,b)=>a-b);
+  const looking=wd.items.filter(it=>it.entIdx!==-2&&_wdState(it)==='looking').length;
+  let h='<div class="wd-sum">';
+  groups.forEach(gi=>{
+    const its=wd.items.filter(it=>it.entIdx===gi),n=k=>its.filter(it=>_wdState(it)===k).length;
+    h+=`<div class="wd-sum-ent"><b>${escHtml(entities[gi].name||'Entity '+(gi+1))}</b><span class="wd-pill tc">${n('TC')} Timecard</span><span class="wd-pill ec">${n('EC')} EasyClocking</span>${n('UNSURE')?`<span class="wd-pill un">${n('UNSURE')} Unsure</span>`:''}</div>`;
+  });
+  if(looking)h+=`<div class="wd-sum-ent wd-looking">Looking at ${looking} image${looking===1?'':'s'}…</div>`;
+  return h+'</div>';
 }
 function _weekDropHtml(){
   const wd=_weekDrop;if(!wd)return'';
@@ -9399,16 +9554,17 @@ function _weekDropHtml(){
     unmapped.forEach(f=>{h+=`<div style="margin:4px 0">${escHtml(f||'(images in the top folder)')} → <select onchange="weekDropMapFolder('${escHtml(escJs(f))}',this.value)"><option value="-1">— choose —</option>${entities.map((e,i)=>`<option value="${i}">${escHtml(e.name||'Entity '+(i+1))}</option>`).join('')}<option value="-2">Skip these</option></select></div>`;});
     h+='</div>';
   }
+  h+=_weekDropSummaryHtml(wd);
   const groups=[...new Set(wd.items.filter(it=>it.entIdx>=0).map(it=>it.entIdx))].sort((a,b)=>a-b);
-  const thumb=it=>{let u='';try{if(!it._url&&typeof URL!=='undefined'&&URL.createObjectURL)it._url=URL.createObjectURL(it.file);u=it._url||'';}catch(_){}return u?`<img src="${escHtml(u)}" alt="" style="width:132px;height:132px;object-fit:cover;border-radius:4px;display:block;cursor:zoom-in" title="Click to see it full size" onclick="openImgModal('${escHtml(u)}')">`:'';};
-  const card=it=>`<div class="wd-item" data-id="${escHtml(it.id)}" style="display:inline-block;width:150px;margin:4px;padding:4px;border:1px solid var(--border);border-radius:6px;vertical-align:top;font-size:10px">${thumb(it)}<div style="word-break:break-all">${escHtml(it.name)}</div>${it.status==='classifying'?'<div style="color:var(--amber)">looking…</div>':''}<div style="margin-top:3px;display:flex;gap:3px;flex-wrap:wrap"><button class="mini-btn" onclick="weekDropSetKind('${escHtml(escJs(it.id))}','${it.kind==='TC'?'EC':'TC'}')">→ ${it.kind==='TC'?'EasyClocking':'Timecard'}</button><select onchange="weekDropSetEntity('${escHtml(escJs(it.id))}',this.value)" style="font-size:10px">${entities.map((e,i)=>`<option value="${i}" ${i===it.entIdx?'selected':''}>${escHtml(e.name||'Entity '+(i+1))}</option>`).join('')}</select><button class="mini-btn reject" onclick="weekDropRemove('${escHtml(escJs(it.id))}')" title="Leave this image out">✕</button></div></div>`;
+  const thumb=it=>{let u='';try{if(!it._url&&typeof URL!=='undefined'&&URL.createObjectURL)it._url=URL.createObjectURL(it.file);u=it._url||'';}catch(_){}return u?`<img class="wd-thumb" data-for="${escHtml(it.id)}" src="${escHtml(u)}" alt="" title="Click to see it full size" onclick="openImgModal('${escHtml(u)}')">`:'<div class="wd-thumb"></div>';};
+  const card=it=>`<div class="wd-item" data-id="${escHtml(it.id)}">${thumb(it)}<div class="wd-name" title="${escHtml(it.name)}">${escHtml(it.name)}</div>${_wdState(it)==='looking'?'<div class="wd-status">looking…</div>':''}${_wdToggleHtml(it)}<div class="wd-row"><select onchange="weekDropSetEntity('${escHtml(escJs(it.id))}',this.value)" title="Entity">${entities.map((e,i)=>`<option value="${i}" ${i===it.entIdx?'selected':''}>${escHtml(e.name||'Entity '+(i+1))}</option>`).join('')}</select><button class="mini-btn reject" onclick="weekDropRemove('${escHtml(escJs(it.id))}')" title="Leave this image out">✕</button></div></div>`;
   groups.forEach(gi=>{
     const its=wd.items.filter(it=>it.entIdx===gi);
-    h+=`<div class="wd-ent" style="margin:10px 0"><h3 style="margin:0 0 4px">${escHtml(entities[gi].name||'Entity '+(gi+1))}</h3>`;
-    [['TC','Timecard photos'],['EC','EasyClocking screenshots'],[null,'Unsure — pick a type']].forEach(([k,lbl])=>{
-      const g=its.filter(it=>k?it.kind===k:!it.kind);
-      if(!g.length&&k===null)return;
-      h+=`<div class="wd-group wd-${k||'unsure'}"><div style="font-weight:600;font-size:12px;margin-top:6px">${escHtml(lbl)} · ${g.length}</div>${g.map(card).join('')}</div>`;
+    h+=`<div class="wd-ent"><h3>${escHtml(entities[gi].name||'Entity '+(gi+1))}</h3>`;
+    [['looking','Being looked at'],['UNSURE','Unsure — pick a type'],['TC','Timecard photos'],['EC','EasyClocking screenshots']].forEach(([k,lbl])=>{
+      const g=its.filter(it=>_wdState(it)===k);
+      if(!g.length&&(k==='looking'||k==='UNSURE'))return;
+      h+=`<div class="wd-group wd-${k==='UNSURE'?'unsure':k}"><div class="wd-ghead">${escHtml(lbl)} · ${g.length}</div><div class="wd-cards">${g.map(card).join('')}</div></div>`;
     });
     h+='</div>';
   });
@@ -9416,16 +9572,50 @@ function _weekDropHtml(){
   if(wd.skipped.length)h+=`<div style="font-size:11px;color:var(--text3)">Not images, skipped: ${wd.skipped.map(escHtml).join(', ')}</div>`;
   const bl=weekDropBlockers();
   const dis=bl.length?'disabled style="opacity:0.45;cursor:not-allowed"':'';
-  h+=`<div class="actions"><span style="font-size:12px;color:var(--amber)">${bl.map(escHtml).join(' · ')}</span><button class="btn" onclick="weekDropCancel()">Cancel</button>${wd.scope!=null?`<button class="btn" onclick="weekDropStartOcr(true)" ${dis} title="Put the images on the Timecard and EasyClocking lists; press Run OCR when ready">Add to the lists</button>`:''}<button class="btn btn-primary" onclick="weekDropStartOcr()" ${dis}>Start OCR</button></div>`;
+  h+=`<div class="actions wd-actions"><span style="font-size:12px;color:var(--amber)">${bl.map(escHtml).join(' · ')}</span><button class="btn" onclick="weekDropCancel()">Cancel</button>${wd.scope!=null?`<button class="btn" onclick="weekDropStartOcr(true)" ${dis} title="Put the images on the Timecard and EasyClocking lists; press Run OCR when ready">Add to the lists</button>`:''}<button class="btn btn-primary" onclick="weekDropStartOcr()" ${dis}>Start OCR</button></div>`;
   return h;
+}
+function _wdSnap(body){
+  const pos=new Map(),imgs=new Map();
+  if(!body||!body.querySelectorAll)return{pos,imgs};
+  try{
+    body.querySelectorAll('.wd-item').forEach(el=>{const r=el.getBoundingClientRect?el.getBoundingClientRect():null;if(r)pos.set(el.getAttribute('data-id'),r);});
+    body.querySelectorAll('img.wd-thumb').forEach(el=>imgs.set(el.getAttribute('data-for'),el));
+  }catch(_){}
+  return{pos,imgs};
+}
+function _wdFlip(body,snap){
+  const changed=_wdLastChanged;_wdLastChanged=null;
+  if(!body||!body.querySelectorAll)return;
+  let reduce=false;try{reduce=!!(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches);}catch(_){}
+  const raf=(typeof requestAnimationFrame==='function')?requestAnimationFrame:(f=>setTimeout(f,16));
+  try{
+    // Keep the already-loaded thumbnails: no reload flicker.
+    body.querySelectorAll('img.wd-thumb').forEach(el=>{const old=snap.imgs.get(el.getAttribute('data-for'));if(old&&old!==el&&old.src===el.src&&el.parentNode)el.parentNode.replaceChild(old,el);});
+    body.querySelectorAll('.wd-item').forEach(el=>{
+      const id=el.getAttribute('data-id');
+      if(id===changed){el.classList.add('wd-changed');setTimeout(()=>{try{el.classList.remove('wd-changed');}catch(_){}},1800);}
+      if(reduce)return;
+      const a=snap.pos.get(id);if(!a||!el.getBoundingClientRect)return;
+      const b=el.getBoundingClientRect(),dx=a.left-b.left,dy=a.top-b.top;
+      if(Math.abs(dx)<1&&Math.abs(dy)<1)return;
+      el.style.transition='none';el.style.transform=`translate(${dx}px,${dy}px)`;
+      raf(()=>{void el.offsetWidth;el.style.transition='transform 260ms ease';el.style.transform='';});
+    });
+  }catch(_){}
 }
 function _renderWeekDrop(open){
   const ov=document.getElementById('weekDropOverlay');if(!ov)return;
   if(!open||!_weekDrop){ov.style.display='none';return;}
   const h2=ov.querySelector?ov.querySelector('h2'):null;
   if(h2)h2.textContent=_weekDrop.scope!=null?((entities[_weekDrop.scope]&&entities[_weekDrop.scope].name)||'Entity')+' — what each image is, before OCR':'Week folder — check the sort, then Start OCR';
-  document.getElementById('weekDropBody').innerHTML=_weekDropHtml();
+  const body=document.getElementById('weekDropBody');
+  const panel=body&&body.parentElement;
+  const snap=_wdSnap(body),top=panel?panel.scrollTop:0;
+  body.innerHTML=_weekDropHtml();
   ov.style.display='flex';
+  if(panel&&top)panel.scrollTop=top;
+  _wdFlip(body,snap);
 }
 // Reads a dropped folder tree (DataTransferItem.webkitGetAsEntry) into [{file,path}].
 async function _filesFromEntries(entries){
@@ -9628,10 +9818,13 @@ const XL_FMT_MONEY='$#,##0.00';
 const XL_FMT_MONEY_SIGNED='+$#,##0.00;-$#,##0.00';
 const XL_FMT_HOURS='0.00';
 function _numCell(v,fmt,text){return {_num:true,v,fmt,text}}
-function xlMoney(n){const v=Math.round((n||0)*100)/100;return _numCell(v,XL_FMT_MONEY,'$'+v.toFixed(2))}
+// FC-00065: money text (PDF, preview) reads like Excel's $#,##0.00: thousands commas, and the
+// sign before the dollar sign (-$0.17, +$0.13).
+function _fmtUsd(v){const a=Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',');return(v<0&&+a.replace(/,/g,'')!==0?'-':'')+'$'+a;}
+function xlMoney(n){const v=Math.round((n||0)*100)/100;return _numCell(v,XL_FMT_MONEY,_fmtUsd(v))}
 function xlHours(n){const v=Math.round((n||0)*100)/100;return _numCell(v,XL_FMT_HOURS,v.toFixed(2))}
 // Signed money keeps the leading '+' the plain export has always shown on positive drift.
-function xlMoneySigned(n){const v=Math.round((n||0)*100)/100;return _numCell(v,XL_FMT_MONEY_SIGNED,(v>0?'+':'')+'$'+v.toFixed(2))}
+function xlMoneySigned(n){const v=Math.round((n||0)*100)/100;return _numCell(v,XL_FMT_MONEY_SIGNED,(v>0?'+':'')+_fmtUsd(v))}
 function _isNumCell(c){return !!(c&&c._num)}
 // Display text for a cell — used by the PDF writer and anywhere a string is required.
 function _cellText(c){return _isNumCell(c)?c.text:(c==null?'':c)}
@@ -9712,6 +9905,20 @@ function _xlApplyFx(row,fx){
     if(spec.fmt)cell.numFmt=spec.fmt;
   });
 }
+// FC-00065 (PDF): the same for a jsPDF-autotable row — the label cell spans the columns before
+// the first total (one cell with colSpan), so it never wraps onto a second line.
+function _spanTotalLabel(row,totals){
+  const first=Math.min(...(totals||[]).map(t=>t.col));
+  if(!isFinite(first)||first<2)return row;
+  return[Object.assign({},row[0],{colSpan:first})].concat(row.slice(first));
+}
+// FC-00065: a subtotal / grand-total label spans the columns before the first total, so
+// "<ENTITY> subtotal" prints in full instead of being cut at the Entity column's edge.
+function _mergeTotalLabel(ws,rowNum,totals){
+  const first=Math.min(...(totals||[]).map(t=>t.col));
+  if(!isFinite(first)||first<1)return;
+  try{ws.mergeCells(rowNum,1,rowNum,first);}catch(_){}
+}
 // Shared subtotal math for the Excel and PDF writers: spec.totals lists the summed columns.
 // FC-00059: a {hmmOf:col} total is that hours total shown as h:mm.
 function _sectionTotals(spec,rows){
@@ -9726,10 +9933,11 @@ function _totalCellText(t,v){
   return _cellText(t.hours?xlHours(v):(t.signed?xlMoneySigned(v):xlMoney(v)));
 }
 function _totalFmt(t){if(t.hmmOf!=null)return XL_FMT_HMM_BLANK0;if(t.signed)return XL_FMT_SIGNED_BLANK0;return t.hours?(t.blankZero?XL_FMT_HOURS_BLANK0:XL_FMT_HOURS):(t.blankZero?XL_FMT_MONEY_BLANK0:XL_FMT_MONEY)}
-// FC-00059: the payroll report's columns, by name.
-const COMBINED_HEADERS=['Entity','Employee','Method','Hours','H:MM','Rate','Actual Total','Deposit','Cash','Rounded Final','Diff'];
-const COMBINED_COLS={entity:0,employee:1,method:2,hours:3,hmm:4,rate:5,total:6,deposit:7,cash:8,final:9,diff:10};
-const COMBINED_XL_WIDTHS=[17,22,15,10,9,9,13,13.41796875,13.05078125,15,10];
+// FC-00059: the payroll report's columns, by name. FC-00065: no H:MM column on the report (the
+// owner hid it on every report); h:mm stays on screen and on the Hours sheet.
+const COMBINED_HEADERS=['Entity','Employee','Method','Hours','Rate','Actual Total','Deposit','Cash','Rounded Final','Diff'];
+const COMBINED_COLS={entity:0,employee:1,method:2,hours:3,rate:4,total:5,deposit:6,cash:7,final:8,diff:9};
+const COMBINED_XL_WIDTHS=[17,22,15,10,9,13,13.41796875,13.05078125,15,10];
 // Hours as an Excel duration (h:mm). The value is the decimal hours to the nearest minute, so it
 // reads exactly like the screen's h:mm.
 const XL_FMT_HMM_BLANK0='[h]:mm;-[h]:mm;""';
@@ -9777,12 +9985,12 @@ function _columnsFor(kind,nameKey){
     };
   }
   if(kind==='combined'){
-    // FC-00059: H:MM sits next to Hours (the same hours as hours:minutes), and every number
-    // column has subtotals and a grand total. COMBINED_COLS names the positions for every writer.
+    // FC-00059: every number column has subtotals and a grand total. COMBINED_COLS names the
+    // positions for every writer.
     const C=COMBINED_COLS;
     return {
       headers:COMBINED_HEADERS.slice(),
-      widths:[100,130,90,60,55,60,80,70,70,90,60],
+      widths:[100,130,90,60,60,80,70,70,90,60],
       cols:C,
       rowFn:(r)=>{
         const hv=r.isFlat?null:(hasActuals?(r.actualHours||0):(r.expectedH||0));
@@ -9796,7 +10004,6 @@ function _columnsFor(kind,nameKey){
           _nm(r)+(r.isFlat?' (flat)':''),
           methodLbl,
           hrs,
-          hv==null?'':xlHmm(hv),
           rate,
           r._wageBlank?'':(r._totalPay>0?xlMoney(r._breakdown.actualFinal):'—'),
           r._breakdown.deposit>0?xlMoney(r._breakdown.deposit):'—',
@@ -9805,17 +10012,16 @@ function _columnsFor(kind,nameKey){
           diffCell
         ];
       },
-      fx:(r,n)=>Object.assign(_fxHmmCell(n,C,r.isFlat?null:(hasActuals?(r.actualHours||0):(r.expectedH||0))),_fxPayBlock(r,n,{hours:C.hours,rate:C.rate,total:C.total,deposit:C.deposit,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals})),
+      fx:(r,n)=>Object.assign({},_fxPayBlock(r,n,{hours:C.hours,rate:C.rate,total:C.total,deposit:C.deposit,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals})),
       totals:[
         {col:C.hours,val:r=>r.isFlat?0:_r2(hasActuals?(r.actualHours||0):(r.expectedH||0)),hours:true,blankZero:true},
-        {col:C.hmm,hmmOf:C.hours},
         {col:C.total,val:r=>r._breakdown.actualFinal||0},
         {col:C.deposit,val:r=>r._breakdown.deposit||0,blankZero:true},
         {col:C.cash,val:r=>r._breakdown.cash||0,blankZero:true},
         {col:C.final,val:r=>r._breakdown.roundedFinal||0},
         {col:C.diff,val:r=>r._breakdown.roundingDiff||0,signed:true,blankZero:true}
       ],
-      numCols:[C.hours,C.hmm,C.rate,C.total,C.deposit,C.cash,C.final,C.diff],
+      numCols:[C.hours,C.rate,C.total,C.deposit,C.cash,C.final,C.diff],
       sortFn:_paytypeExportSortFn
     };
   }
@@ -10201,6 +10407,7 @@ async function _exportExcel(kind){
         cell.border={top:medB,bottom:medB,left:thinB,right:thinB};
       });
       if(_fc12Colorize)_applyEntityPalette(sub,entPal,'subtotal',null);
+      _mergeTotalLabel(ws,sub.number,totals);
       // FC-00049: rows the owner left out of pay are listed under the entity's totals.
       const _lo=_leftOutNoteText(entities.find(e=>e.id===entityId));
       if(_lo){const nr=ws.addRow([_lo]);nr.getCell(1).font={name:'Arial',italic:true,size:9,color:{argb:'FF555555'}};ws.mergeCells(nr.number,1,nr.number,spec.headers.length);}
@@ -10225,6 +10432,7 @@ async function _exportExcel(kind){
       cell.border={top:medB,bottom:medB,left:medB,right:medB};
     });
     if(_fc12Colorize)_applyEntityPalette(g,FC14_PRESETS.Plain,'grand',null);
+    _mergeTotalLabel(ws,g.number,totals);
 
     // Column widths — combined mode uses the reference report's exact Excel width units;
     // other kinds keep the legacy px/6 conversion.
@@ -10399,7 +10607,7 @@ async function _exportPdf(kind){
         subRow[t.col]={content:_totalCellText(t,entVals[t.col]),styles:{fillColor:[240,239,233],fontStyle:'bold',halign:'right'}};
         grandVals[t.col]+=entVals[t.col];
       });
-      body.push(subRow);
+      body.push(_spanTotalLabel(subRow,totals));
       // FC-00015: keep an entity's subtotal row on the same page as its data rows whenever
       // possible — autoTable's own per-row 'avoid' setting (vs. the table-wide 'avoid',
       // which would force the whole table onto one page) does exactly this.
@@ -10416,7 +10624,7 @@ async function _exportPdf(kind){
       grandRow[t.col]={content:_totalCellText(t,Math.round(grandVals[t.col]*100)/100),styles:{fillColor:[224,222,213],fontStyle:'bold',halign:'right'}};
     });
     blocks.push([body.length,body.length+1]);
-    body.push(grandRow);
+    body.push(_spanTotalLabel(grandRow,totals));
     rowRoles.push({role:'grand',pal:_fc15Colorize?FC14_PRESETS.Plain:null,pageBreak:'avoid'});
 
     // FC-00050: the table fits one landscape letter page width. Column widths keep the

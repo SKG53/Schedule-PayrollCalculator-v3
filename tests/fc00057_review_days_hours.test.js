@@ -48,8 +48,8 @@ test('test_day_and_week_hours_match_payroll', () => {
   assert.equal(h.paidWeek, pay.actualHours, 'week = payroll weekly hours');
   e.intake.activeEmpTab = 'Avery';
   const html = api.renderReviewTableHtml(e, 0);
-  assert.ok(html.includes('Week: <b>' + api.fmtHrs(pay.actualHours) + '</b> approved'), 'the week in h:mm and decimal');
-  assert.ok(html.includes(api.fmtHrs(pay.days[1].billableH) + ' approved'), 'the day in h:mm and decimal');
+  assert.ok(html.includes('Week: <b>' + api.fmtHrsLong(pay.actualHours) + '</b> approved'), 'the week in words and decimal (FC-00064)');
+  assert.ok(html.includes(api.fmtHrsLong(pay.days[1].billableH) + ' approved'), 'the day in words and decimal');
 });
 
 test('test_pending_hours_shown_until_approved', () => {

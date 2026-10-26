@@ -58,7 +58,7 @@ test('test_combined_rows_are_formulas_that_reproduce_tool_values', async () => {
   await api.exportCombinedExcel();
   const wb = api.__lastExcelWorkbook;
   const ws = wb.worksheets[0];
-  // FC-00059/60: H:MM after Hours; Hours is a formula over the Hours sheet. Columns by name (1-based).
+  // FC-00060: Hours is a formula over the Hours sheet. Columns by name (1-based).
   const C = Object.fromEntries(Object.entries(api.COMBINED_COLS).map(([k, v]) => [k, v + 1]));
   const n = assertAllFormulasAgree(ws, 'combined', wb);
   assert.ok(n >= 8 * 4, 'every pay row carries deposit/cash/final/diff formulas');
@@ -67,7 +67,8 @@ test('test_combined_rows_are_formulas_that_reproduce_tool_values', async () => {
   const rowFor = (name) => ws.rows.find(r => r && r[2] && r[2].value === name);
   for (const name of ['Ann', 'Ben', 'Dee', 'Ermine', 'Falcon', 'Gravel', 'Harbor']) {
     const r = rowFor(name), b = data.find(x => x._empName === name)._breakdown;
-    assert.match(r[C.total].value.formula, /^ROUND\(D\d+\*F\d+,2\)$/, name + ' Actual Total = hours x rate');
+    const L = (k) => String.fromCharCode(64 + C[k]);
+    assert.match(r[C.total].value.formula, new RegExp('^ROUND\\(' + L('hours') + '\\d+\\*' + L('rate') + '\\d+,2\\)$'), name + ' Actual Total = hours x rate');
     assert.match(r[C.hours].value.formula, /^ROUND\(SUM\('Hours'!/, name + ' Hours come from the Hours sheet');
     assert.equal(xlNum(r[C.total]), b.actualFinal);
     assert.equal(xlNum(r[C.deposit]), b.deposit, name + ' deposit');
@@ -91,13 +92,14 @@ test('test_subtotals_sum_rows_and_grand_sums_subtotals', async () => {
   const ws = api.__lastExcelWorkbook.worksheets[0];
   const subs = ws.rows.map((r, i) => [r, i]).filter(([r]) => r && r[1] && / subtotal$/.test(r[1].value));
   assert.equal(subs.length, 2);
-  // FC-00059: Actual Total is column G, Deposit H; Hours (D), Rounded Final and Diff are summed too.
-  subs.forEach(([r]) => assert.match(r[7].value.formula, /^SUM\(G\d+:G\d+\)$/));
-  subs.forEach(([r]) => assert.match(r[4].value.formula, /^SUM\(D\d+:D\d+\)$/, 'hours subtotal'));
+  // Columns by name: Actual Total, Deposit, Hours, Rounded Final are summed (FC-00059/65).
+  const C = api.COMBINED_COLS, col = (k) => C[k] + 1, L = (k) => String.fromCharCode(65 + C[k]);
+  subs.forEach(([r]) => assert.equal(r[col('total')].value.formula.replace(/\d+/g, 'n'), 'SUM(' + L('total') + 'n:' + L('total') + 'n)'));
+  subs.forEach(([r]) => assert.equal(r[col('hours')].value.formula.replace(/\d+/g, 'n'), 'SUM(' + L('hours') + 'n:' + L('hours') + 'n)', 'hours subtotal'));
   const grand = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL');
-  assert.equal(grand[7].value.formula, 'SUM(' + subs.map(([, i]) => 'G' + i).join(',') + ')');
-  assert.equal(grand[8].value.formula, 'SUM(' + subs.map(([, i]) => 'H' + i).join(',') + ')');
-  assert.equal(grand[10].value.formula, 'SUM(' + subs.map(([, i]) => 'J' + i).join(',') + ')', 'rounded final grand total');
+  assert.equal(grand[col('total')].value.formula, 'SUM(' + subs.map(([, i]) => L('total') + i).join(',') + ')');
+  assert.equal(grand[col('deposit')].value.formula, 'SUM(' + subs.map(([, i]) => L('deposit') + i).join(',') + ')');
+  assert.equal(grand[col('final')].value.formula, 'SUM(' + subs.map(([, i]) => L('final') + i).join(',') + ')', 'rounded final grand total');
 });
 
 test('test_editing_an_input_moves_the_totals', async () => {
@@ -108,15 +110,16 @@ test('test_editing_an_input_moves_the_totals', async () => {
   const ws = wb.worksheets[0];
   const hs = wb.worksheets.find(w => w.name === 'Hours');
   const grand = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL');
-  const before = evaluate(ws, grand[7].value.formula);
+  const C = api.COMBINED_COLS, col = (k) => C[k] + 1;
+  const before = evaluate(ws, grand[col('total')].value.formula);
   // FC-00060: change Ann's clock-out on the Hours sheet by one hour: hours, pay and totals follow.
   const hdr = hs.rows.find(r => r && r[1] && r[1].value === 'Entity');
   const outCol = hdr.findIndex(c => c && c.value === 'Out 1');
   const annDay = hs.rows.find(r => r && r[2] && r[2].value === 'Ann');
   annDay[outCol].value += 1 / 24; // one more hour at $15.37
-  assert.equal(Math.round((evaluate(ws, grand[7].value.formula) - before) * 100) / 100, 15.37);
+  assert.equal(Math.round((evaluate(ws, grand[col('total')].value.formula) - before) * 100) / 100, 15.37);
   const ann = ws.rows.find(r => r && r[2] && r[2].value === 'Ann');
-  assert.equal(evaluate(ws, ann[9].value.formula), Math.round(evaluate(ws, ann[7].value.formula)), 'cash re-rounds');
+  assert.equal(evaluate(ws, ann[col('cash')].value.formula), Math.round(evaluate(ws, ann[col('total')].value.formula)), 'cash re-rounds');
 });
 
 test('test_every_report_kind_formulas_agree_and_payroll_calc_totals_not_under_diff', async () => {

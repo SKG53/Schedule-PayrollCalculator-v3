@@ -82,7 +82,7 @@ test('test_pdf_export_applies_palette_via_didparse', async () => {
   assert.ok(nirvanaRow0Col0, 'expected a parsed cell at row 0 col 0');
   assert.deepEqual(nirvanaRow0Col0.fillColor, nirvanaBodyFill, 'Nirvana body fill via didParseCell');
 
-  // Combined mode's Cash column (FC-00059: index 8, 0-based, after H:MM) -> cash tint, not plain body.
+  // Combined mode's Cash column (named in api.COMBINED_COLS) -> cash tint, not plain body.
   const nirvanaRow0Col7 = bodyCells.find(c => c.rowIndex === 0 && c.colIndex === api.COMBINED_COLS.cash);
   assert.ok(nirvanaRow0Col7, 'expected a parsed cell at row 0 col 7 (Cash column)');
   assert.deepEqual(nirvanaRow0Col7.fillColor, nirvanaCashFill, 'Nirvana Cash column fill via didParseCell');
@@ -212,6 +212,5 @@ test('test_pdf_flat_employee_row_shape_preserved', async () => {
   assert.ok(flatRow, 'expected to find the flat employee row in the PDF body');
   assert.equal(flatRow[1], 'Emery (flat)');
   assert.equal(flatRow[3], '', 'Hours must be blank for a flat-amount employee');
-  assert.equal(flatRow[api.COMBINED_COLS.hmm], '', 'H:MM must be blank for a flat-amount employee');
   assert.equal(flatRow[api.COMBINED_COLS.rate], 'flat', 'Rate must read the text "flat"');
 });

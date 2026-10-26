@@ -115,7 +115,7 @@ test('test_export_applies_entity_palette', async () => {
 
   // Locate each entity's first data row by its Entity-column (col 1) text and assert the
   // palette's body fill landed there, and that the Cash column got the cash tint
-  // (FC-00059: col 9 now that H:MM sits next to Hours — named in api.COMBINED_COLS).
+  // (named in api.COMBINED_COLS).
   const CASH = api.COMBINED_COLS.cash + 1;
   const nirvanaRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Nirvana 11th');
   const zionRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Zion');
@@ -189,10 +189,8 @@ test('test_export_flat_employee_row_shape', async () => {
   assert.equal(row[2].value, 'Emery (flat)');
   // Hours cell (col 4) is blank for a flat employee.
   assert.equal(row[4].value, '', 'Hours must be blank for a flat-amount employee');
-  // Rate cell reads the literal text "flat" (FC-00059: col 6, after H:MM).
+  // Rate cell reads the literal text "flat" (named in api.COMBINED_COLS).
   assert.equal(row[api.COMBINED_COLS.rate + 1].value, 'flat', 'Rate must read the text "flat"');
-  // H:MM is blank too for a flat-amount employee.
-  assert.equal(row[api.COMBINED_COLS.hmm + 1].value, '', 'H:MM must be blank for a flat-amount employee');
   // Still gets Hefner's palette body fill like every other Hefner row.
   assert.equal(row[1].fill.fgColor.argb, api.FC12_PALETTES.HEF.body, 'flat row still gets its entity palette');
 });
