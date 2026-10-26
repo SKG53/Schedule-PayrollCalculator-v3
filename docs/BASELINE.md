@@ -1,7 +1,7 @@
 # Functionality Baseline
 
 **Status: complete as of 2026-08-03, commit 8dbb955** (branch `tool-v2`); kept current by every
-Feature Card since — last updated FC-00061 (2026-10-26).
+Feature Card since — last updated FC-00065 (2026-10-26).
 **Reconciled against the v2 docs** (`CLAUDE.md`, `docs/DOMAIN.md`) the same day —
 see the note at the head of §10.
 
@@ -125,7 +125,12 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    EasyClocking screenshots, Mixed/Auto-Classify — the Mixed box also takes a folder or
    zip (Folder / "Images or zip" buttons) and shows the same thumbnail sort screen as the
    week drop, scoped to that entity, before anything is OCR'd; thumbnails open full size
-   on click (FC-00055). Run OCR (Gemini; concurrency 3,
+   on click (FC-00055). The sort screen (FC-00062): a summary per entity on top; per entity
+   images being looked at, Unsure, Timecard photos, EasyClocking screenshots; each image has
+   Timecard / EasyClocking / Unsure toggles; moved images glide and are outlined; scroll
+   position and thumbnails kept on every redraw. While OCR runs, one bar at the top of the
+   page (sticky) shows the whole run: images done of all queued, the entity now, the ones
+   next, failures, then "OCR finished" (FC-00063). Run OCR (Gemini; concurrency 3,
    auto-retry 3 attempts with 12 s delay, per-file retry buttons, optional
    auto-escalate to Pro below 75% confidence). Review table split into per-employee
    sub-tabs plus "Unrecognized"; inline edit of name (dropdown of schedule names, confirmed people not on the
@@ -137,7 +142,8 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    horizontal/vertical scroll position survives every commit re-render); flag pills;
    per-row / per-employee / per-entity approve & unapprove ("Approve all" for an entity asks
    first, FC-00057); each employee tab lists every day of the pay week with that day's
-   hours and the week total in H:MM and decimal, rows from outside the pay week in their own
+   hours and the week total in words and decimal ("12 Hours 34 Minutes (12.57)", FC-00064),
+   each scheduled shift with its length, rows from outside the pay week in their own
    section, and "+ add row" on any day (FC-00057); a tab carries an orange dot until every
    row of that person is approved or left out (FC-00057); a time or date changed by hand
    is blue, with the OCR value on hover (FC-00057); "+ New employee" on the tab bar and in
@@ -192,8 +198,8 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    "Names on exports" (FC-00045): FIRST LAST (default, FC-00050) / As saved / FIRST;
    printing only.
    Below it, the read-only *export preview* (FC-00013, one preview since FC-00059) shows
-   whichever payroll card is selected, in the export's own columns, including the H:MM
-   column and the notes rows; it has a "Make editable
+   whichever payroll card is selected, in the export's own columns (no H:MM column since
+   FC-00065) and the notes rows; it has a "Make editable
    copy" button (FC-00024): an independent, in-memory scratch table where every cell
    is editable, exportable as-is to .xlsx/.pdf, refreshable from the preview, and
    never written back to session data, the roster or the preview.
@@ -336,7 +342,10 @@ Excel — sheets Report, Hours (FC-00060), Stats (FC-00051), Labor Cost (FC-0005
 landscape-letter PDF one page wide), a Payroll report per entity (FC-00059, same writer
 scoped to one entity), the Reviewed timecards Excel, the Payroll Settings file, the
 Snapshot and the Employee Schedule. The combined report's columns are Entity, Employee,
-Method, Hours, H:MM, Rate, Actual Total, Deposit, Cash, Rounded Final, Diff (FC-00059).
+Method, Hours, Rate, Actual Total, Deposit, Cash, Rounded Final, Diff (FC-00059; the H:MM
+column was removed by FC-00065). Subtotal and grand-total labels span Entity–Method in the
+Excel and the PDF. Money text in the PDF, the preview and on screens reads `$1,234.56`,
+`-$0.17`, `+$0.13` (FC-00065).
 **FC-00060:** the Hours sheet has one row per person-day with real dates and times
 (punch pairs, break, hours as formulas); the report's Hours cell is
 `ROUND(SUM('Hours'!…),2)`, so editing a punch in Excel recalculates pay. Stats and Labor

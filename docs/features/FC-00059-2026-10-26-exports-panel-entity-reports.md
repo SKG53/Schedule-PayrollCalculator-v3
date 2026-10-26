@@ -88,3 +88,6 @@ All
 - An editable copy saved in a snapshot before the H:MM column existed is upgraded on load, so Rate and the money columns land where they belong.
 - "Include per-day breaks" is beside Import again as well as on the Settings file card. Both boxes are one setting.
 - Not changed, by design: the H:MM column shows the decimal Hours that pay uses. Three rows of 7.33 h show 7:20 each and total 21:59, which matches the 21.99 h paid.
+
+## Changed later
+- FC-00065 (2026-10-26): the H:MM column is removed from the payroll report (combined and per entity, Excel, PDF, preview); the owner hid it on every report. Money text reads `$1,234.56` / `-$0.17`, and total labels span Entity–Method.
