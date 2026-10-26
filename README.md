@@ -4,7 +4,9 @@ A lightweight, single-file payroll app that turns weekly schedules and clock-in/
 
 ## Live app
 
-https://skg53.github.io/Schedule-PayrollCalculator-v2/
+https://skg53.github.io/Schedule-PayrollCalculator-v3/
+
+(v3 is its own repository and link. The v2 repository and link stay as they were, at FC-00048.)
 
 Every push to `main` redeploys it (see *Deployment* below).
 

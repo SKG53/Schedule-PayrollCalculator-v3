@@ -3,7 +3,8 @@
 Internal payroll and scheduling tool for The Nirvana Group. Processes weekly timecards
 across three entities and produces payroll reports. Used every week to pay real people.
 
-**Live at:** https://skg53.github.io/Schedule-PayrollCalculator-v2/
+**Live at:** https://skg53.github.io/Schedule-PayrollCalculator-v3/
+**Repository:** `SKG53/Schedule-PayrollCalculator-v3` (v3). The v2 repository is frozen at FC-00048; never push v3 work to it.
 **Owner:** repository owner (head of the organization)
 
 ---
