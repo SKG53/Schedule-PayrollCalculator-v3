@@ -126,3 +126,7 @@ L
 
 ## Affected entities
 All
+
+## Changed later (FC-00058, FC-00060, owner's edits of 2026-10-26)
+- The **Labor Cost sheet** is now formulas: the Week column sums the days, $ / hour = actual ÷ hourly hours (a new "Hours (hourly people)" row), Variance = actual − scheduled, and the week's labor cost adds the flat and semi-monthly lines.
+- The Weekly Actuals table on the Payroll tab can show **Cost** instead of Hours (FC-00058), per person per day, with the same allocation as this card, so it ties to Labor Cost.

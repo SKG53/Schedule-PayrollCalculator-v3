@@ -134,3 +134,6 @@ L
 
 ## Affected entities
 All
+
+## Changed later (FC-00055, owner's edits of 2026-10-26)
+The same sort screen now also opens from each entity's **Mixed / Auto-Classify** box, which takes images, a zip or a folder: every image goes to that entity, is typed by looking at it, and the owner sees the thumbnails as Timecard / EasyClocking / Unsure before anything is read. From that box the screen also offers **Add to the lists** (queue without starting OCR). The week-folder drop at the top is unchanged.

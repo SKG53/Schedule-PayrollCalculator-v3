@@ -7648,8 +7648,10 @@ function newEmployeeFullName(entIdx,first,last){
   if(!f)return'';
   return f+' '+(l||(ent?_entityFileLabel(ent):''));
 }
-function previewNextEmployeeId(entIdx){
+function previewNextEmployeeId(entIdx,name){
   const ent=entities[entIdx];if(!ent)return'';
+  // A name that already has a record this session (read on a card, not yet saved) keeps that ID.
+  if(name){const ex=_resolveRecordNoMint(ent.id,name);if(ex&&ex.id)return ex.id;}
   const code=_entityCodeFor(ent.id);
   let n=Math.max((session._empIdSeq||{})[code]||0,(session._fileIdMax||{})[code]||0,(_idHighWater()[code]||0));
   let id;do{n++;id=`EMP_${code}_${String(n).padStart(5,'0')}`;}while(session.roster.byId[id]);
@@ -7686,7 +7688,7 @@ function _newEmpHtml(){
 function _newEmpPreviewHtml(){
   const d=_newEmp;if(!d)return'';
   const full=newEmployeeFullName(d.entIdx,d.first,d.last);
-  let h=`Saved as: <b>${escHtml(full||'—')}</b> · ID <b class="mono">${escHtml(previewNextEmployeeId(d.entIdx))}</b>`;
+  let h=`Saved as: <b>${escHtml(full||'—')}</b> · ID <b class="mono">${escHtml(previewNextEmployeeId(d.entIdx,full))}</b>`;
   if(d.spelling&&_aliasNorm(d.spelling)!==_aliasNorm(full))h+=`<div style="font-size:11px;color:var(--text3)">The card spelling “${escHtml(d.spelling)}” is kept as an alternate spelling.</div>`;
   if(d.error)h+=`<div style="color:var(--red);font-size:12px;margin-top:4px">${escHtml(d.error)}</div>`;
   return h;

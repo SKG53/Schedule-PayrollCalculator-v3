@@ -140,3 +140,6 @@ L
 
 ## Affected entities
 All
+
+## Changed later (FC-00060, owner's edits of 2026-10-26)
+The **Stats sheet** of the Combined Excel is now a math sheet: one number per column (durations as h:mm, money as $), and every percent, average, cost and total is a formula over the cells beside it. The combined text columns of the screen ("2/3 · 67%", "total · avg · max") are split into separate columns in the sheet. The Stats **tab on screen** is unchanged. Early and stayed-late costs round half-up to the cent, as Excel does.

@@ -122,3 +122,16 @@ test('test_late_settings_import_respects_the_highest_id', () => {
   const oz = Object.values(api.session.roster.byId).find(x => x.canonical_name === 'Ozzie Lark');
   assert.equal(oz.id, 'EMP_' + code + '_00013');
 });
+
+// Review fix: a name already looked up this session (a provisional record) keeps its ID, and the
+// dialog shows that ID, not the next new number.
+test('test_preview_shows_the_id_the_person_will_get', () => {
+  const { api, code } = setup();
+  const prov = api._employeeIdFor(0, 'Zed Quill');
+  api.openNewEmployeeDialog(0, { spelling: 'Zed Quill' });
+  assert.equal(api.previewNextEmployeeId(0, 'Zed Quill'), prov);
+  assert.match(api.__sandbox.document.getElementById('newEmpBody').innerHTML, new RegExp(prov));
+  const rec = api.createNewEmployeeFromDialog();
+  assert.equal(rec.id, prov);
+  assert.equal(api.previewNextEmployeeId(0), 'EMP_' + code + '_' + String(+prov.slice(-5) + 1).padStart(5, '0'));
+});

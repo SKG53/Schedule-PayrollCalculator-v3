@@ -157,3 +157,9 @@ M
 
 ## Affected entities
 All
+
+## Changed later (FC-00057, FC-00059, owner's edits of 2026-10-26)
+- **The all-entity preview is no longer decimal-only.** It was merged into the one export preview (FC-00059), which shows the payroll report as written, now with an **H:MM** column beside Hours.
+- **The export stop** asks only about the entities of the report being exported (FC-00059: one report per entity).
+- **Review rows now show hours** (FC-00057): every day of the pay week with its hours approved and once approved, and the week in the person's bar, h:mm with the decimal.
+- **Rounding:** money now rounds like Excel's ROUND (FC-00061).

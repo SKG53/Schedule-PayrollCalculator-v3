@@ -1,7 +1,7 @@
 # Functionality Baseline
 
 **Status: complete as of 2026-08-03, commit 8dbb955** (branch `tool-v2`); kept current by every
-Feature Card since — last updated FC-00053 (2026-10-19).
+Feature Card since — last updated FC-00061 (2026-10-26).
 **Reconciled against the v2 docs** (`CLAUDE.md`, `docs/DOMAIN.md`) the same day —
 see the note at the head of §10.
 
@@ -122,15 +122,28 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    Gemini looking at it, the owner checks a sort screen, Start OCR queues each image to
    its entity's typed list; already-loaded images are skipped (FC-00053). Then
    per-entity blocks. Three drop zones: Timecard photos,
-   EasyClocking screenshots, Mixed/Auto-Classify. Run OCR (Gemini; concurrency 3,
+   EasyClocking screenshots, Mixed/Auto-Classify — the Mixed box also takes a folder or
+   zip (Folder / "Images or zip" buttons) and shows the same thumbnail sort screen as the
+   week drop, scoped to that entity, before anything is OCR'd; thumbnails open full size
+   on click (FC-00055). Run OCR (Gemini; concurrency 3,
    auto-retry 3 attempts with 12 s delay, per-file retry buttons, optional
    auto-escalate to Pro below 75% confidence). Review table split into per-employee
    sub-tabs plus "Unrecognized"; inline edit of name (dropdown of schedule names, confirmed people not on the
    schedule marked "(not on schedule)", and "+ New employee…"; picking a person saves the
    card's spelling to them, FC-00047),
-   date, up to 3 punch pairs (text inputs, `845` → `8:45 AM` on blur; the table's
+   date (committed on blur or Enter, never mid-typing, FC-00054), up to 3 punch pairs (text
+   inputs, `845` → `8:45 AM` and `500p` → `5:00 PM` on blur; focus moves to the box the
+   user clicked or tabbed to even when the table redraws, FC-00054; the table's
    horizontal/vertical scroll position survives every commit re-render); flag pills;
-   per-row / per-employee / per-entity approve & unapprove; tick boxes with **Merge
+   per-row / per-employee / per-entity approve & unapprove ("Approve all" for an entity asks
+   first, FC-00057); each employee tab lists every day of the pay week with that day's
+   hours and the week total in H:MM and decimal, rows from outside the pay week in their own
+   section, and "+ add row" on any day (FC-00057); a tab carries an orange dot until every
+   row of that person is approved or left out (FC-00057); a time or date changed by hand
+   is blue, with the OCR value on hover (FC-00057); "+ New employee" on the tab bar and in
+   the row dropdown opens the New employee dialog — first and last name (blank last = the
+   entity name), optional wage and method, and the permanent ID shown before Create; IDs
+   continue after the highest ever issued, which the settings file carries (FC-00056); tick boxes with **Merge
    rows…** (preview first) and **⇹ Split** on multi-pair rows (FC-00043); "Ignore Time
    Cards" per employee; manual row add (entity-level and employee-level). Rows, tabs and
    payroll follow the person (alternate spelling, former name, suggestion), not only the
@@ -154,9 +167,11 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    Hourly/Flat/Semi-monthly toggle — Semi-monthly takes an amount per half-month and a
    "Paid this run" tick pre-set by the 1st/15th rule, FC-00052; pay method Deposit/Cash/Deposit+Cash, split deposit input, Actual Total /
    Rounded Final / Diff, plus a per-day break override row per employee). Sort toggle:
-   schedule order vs pay-type grouping (Cash → Deposit+Cash → Deposit). All-entity
-   preview table mirroring the export (decimal hours, like the export). Settings
-   export/import. The per-report export buttons were removed (FC-00050).
+   schedule order vs pay-type grouping (Cash → Deposit+Cash → Deposit). The Weekly Actuals
+   grid has an Hours / Cost toggle: Cost shows each day as hours × rate (flat-paid people
+   in their own line), totals equal the Labor Cost sheet (FC-00058). The old all-entity
+   preview was folded into the export preview (FC-00059). Settings import is on the
+   settings card; the settings export is in the Exports panel (FC-00059).
    Settings import opens a **preview** first (FC-00038): changes, identity changes, new,
    not in file, unchanged and red rows to decide; nothing applies until Apply. Applied
    late, it matches the session's people to the file's (FC-00046); archived-but-worked
@@ -165,13 +180,18 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    hours is a red cell and a "Rate missing" export status line (FC-00048).
    Below them, **Since last week** (FC-00041): load last week's snapshot to list new /
    missing people, setting changes, hours or pay swings and entity totals (read-only).
-   At the bottom, **Downloads** (FC-00040): Payroll report (Excel + PDF), Reviewed
-   timecards (Excel), Settings, Snapshot (FC-00050), file names `<labels>_<MMDDtoMMDD>_…`,
-   a ✓ / ⚠ status, Download selected or one zip. A payroll download first lists every
+   At the bottom, **Exports** (FC-00059, replaces the FC-00040 Downloads list): one card
+   per file with Excel / PDF buttons, a ✓ / ⚠ status and a tick for batch download
+   (Download selected or one zip): the combined Payroll report (with entity tick boxes
+   choosing who is on it), one Payroll report per entity (same headers and formatting,
+   only that entity), Reviewed timecards, Settings (with "include break columns"),
+   Snapshot. File names `<labels>_<MMDDtoMMDD>_…`. A payroll download first lists every
    unapproved row with punches in the pay week (Approve / Leave out) (FC-00049).
    "Names on exports" (FC-00045): FIRST LAST (default, FC-00050) / As saved / FIRST;
    printing only.
-   Below it, the read-only *Combined export preview* (FC-00013) has a "Make editable
+   Below it, the read-only *export preview* (FC-00013, one preview since FC-00059) shows
+   whichever payroll card is selected, in the export's own columns, including the H:MM
+   column and the notes rows; it has a "Make editable
    copy" button (FC-00024): an independent, in-memory scratch table where every cell
    is editable, exportable as-is to .xlsx/.pdf, refreshable from the preview, and
    never written back to session data, the roster or the preview.
@@ -310,9 +330,18 @@ exists but currently has **no caller** — dead code.
 ## 7. Exports
 
 **Since FC-00050 (2026-10-19)** the screen offers only: the Payroll report (Combined
-Excel — sheets Report, Stats (FC-00051), Labor Cost (FC-00052) — and a landscape-letter
-PDF one page wide), the Reviewed timecards Excel, the Payroll Settings file, the
-Snapshot and the Employee Schedule. The other writers below still exist in the code
+Excel — sheets Report, Hours (FC-00060), Stats (FC-00051), Labor Cost (FC-00052) — and a
+landscape-letter PDF one page wide), a Payroll report per entity (FC-00059, same writer
+scoped to one entity), the Reviewed timecards Excel, the Payroll Settings file, the
+Snapshot and the Employee Schedule. The combined report's columns are Entity, Employee,
+Method, Hours, H:MM, Rate, Actual Total, Deposit, Cash, Rounded Final, Diff (FC-00059).
+**FC-00060:** the Hours sheet has one row per person-day with real dates and times
+(punch pairs, break, hours as formulas); the report's Hours cell is
+`ROUND(SUM('Hours'!…),2)`, so editing a punch in Excel recalculates pay. Stats and Labor
+Cost cells are formulas over their inputs. The Timecards Excel writes real dates and times
+plus Punched Hours and OCR Values columns (re-import restores the OCR values, so blue
+boxes survive). **FC-00061:** pay, deposit and cash round half-cents away from zero, like
+Excel's ROUND. The other writers below still exist in the code
 but have no button. A payroll export stops on unapproved rows first (FC-00049).
 
 **Seventeen buttons, 11 distinct exports** — the "six known" are the six payroll

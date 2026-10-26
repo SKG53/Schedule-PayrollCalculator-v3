@@ -122,3 +122,12 @@ M
 
 ## Affected entities
 All
+
+## Changed later (FC-00059, owner's edits of 2026-10-26)
+The owner preferred the per-report **Excel / PDF buttons** to the Downloads checklist: "the buttons for excel or pDF with report heading and name, etc. is way easier than the old looking downloads section". FC-00059 replaces the Downloads list with one **Exports** panel:
+- one card per report with its own Excel and PDF buttons (the trimmed list of this card is kept: Payroll report, Reviewed timecards, Settings file, Snapshot — the removed reports stay removed);
+- the combined payroll report covers the entities ticked on its card, and every entity has its own payroll report card;
+- several files at once: "In batch" ticks on each card, then one zip or separate files;
+- the Settings export button moved from the settings section onto the Settings file card.
+
+The PDF fit, the FIRST LAST default and the removed reports of this card are unchanged. The payroll report gains an **H:MM** column and totals on Hours, H:MM, Rounded Final and Diff (FC-00059); its PDF columns are scaled to the page width as built here.
