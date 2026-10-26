@@ -52,7 +52,7 @@ test('test_payroll_pdf_columns_fit_landscape_letter', async () => {
   calls.forEach(c => {
     const widths = Object.values(c.options.columnStyles).map(s => s.cellWidth);
     const total = widths.reduce((a, b) => a + b, 0);
-    assert.equal(widths.length, 10, 'every column has a width');
+    assert.equal(widths.length, api.COMBINED_HEADERS.length, 'every column has a width (11 with H:MM, FC-00059)');
     assert.ok(total <= 792 - 60 + 0.01, 'fits between the margins: ' + total);
     assert.ok(total >= 792 - 60 - 0.01, 'uses the page width');
     assert.equal(c.options.margin.left, 30);
@@ -112,7 +112,8 @@ test('test_kept_exports_unchanged', async () => {
   const api = setup();
   await api.exportCombinedExcel();
   const ws = api.__lastExcelWorkbook.worksheets[0];
-  assert.deepEqual(ws.rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Rate', 'Actual Total', 'Deposit', 'Cash', 'Rounded Final', 'Diff']);
+  // FC-00059: H:MM sits next to Hours; the other columns keep their order.
+  assert.deepEqual(ws.rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'H:MM', 'Rate', 'Actual Total', 'Deposit', 'Cash', 'Rounded Final', 'Diff']);
   await api.exportActualsIntakeExcel();
   assert.ok(api.__lastExcelWorkbook.worksheets.length >= 1);
 });
@@ -141,5 +142,6 @@ test('test_old_settings_and_snapshot_with_removed_kinds_load', async () => {
   b.__sandbox.confirm = () => true;
   const res = b.openSnapshotData(snap, 'old');
   assert.ok(res === undefined || res === true || (res && res.ok !== false), 'opens');
+  b._syncDownloads();
   assert.deepEqual(b.DOWNLOADS.filter(d => Object.keys(d.formats).some(f => b.downloadFileNames(d.key).length)).map(d => d.key).sort(), ['payroll', 'settings', 'snapshot', 'timecards']);
 });

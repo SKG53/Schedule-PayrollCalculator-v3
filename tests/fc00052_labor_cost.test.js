@@ -165,8 +165,9 @@ test('test_labor_cost_sheet_in_combined_excel', async () => {
   api.syncActualsFromReview();
   await api.exportCombinedExcel();
   const wb = api.__lastExcelWorkbook;
-  assert.deepEqual(wb.worksheets.map(w => w.name), ['Report', 'Stats', 'Labor Cost']);
-  const vals = wb.worksheets[2].rows.slice(1).map(r => (r || []).slice(1).map(c => c && c.value));
+  assert.deepEqual(wb.worksheets.map(w => w.name), ['Report', 'Hours', 'Stats', 'Labor Cost']); // Hours: FC-00060
+  const { xlNum } = require('./xl-helpers');
+  const vals = wb.worksheets.find(w => w.name === 'Labor Cost').rows.slice(1).map(r => (r || []).slice(1).map(c => c && xlNum(c)));
   assert.ok(vals.some(r => r[0] === 'Cost'));
   assert.ok(vals.some(r => String(r[0]).startsWith('Semi-monthly: WREN') && r[8] === 923.08));
   assert.ok(vals.some(r => r[0] === 'Cost by hour'));

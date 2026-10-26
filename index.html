@@ -357,7 +357,32 @@ table.review td.low-conf{background:rgba(217,119,6,0.08)}
 .merge-bar .btn[disabled]{opacity:0.45;cursor:not-allowed;transform:none}
 .merge-bar .merge-why{color:var(--amber)}
 /* FC-00042: per-box edit marker and the re-read comparison line */
-table.review input.box-edited{background:#E0F2FE;border-color:#7DD3FC}
+table.review input.box-edited{background:#BFDBFE;border-color:#2563EB;color:#1E3A8A;font-weight:600}
+/* FC-00059: Exports panel — one card per report */
+.exp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin:10px 0}
+.exp-card{border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface);display:flex;flex-direction:column;gap:4px}
+.exp-card.exp-card-entity{background:#FAFAF7}
+.exp-card .exp-title{font-weight:700;font-size:14px}
+.exp-card .exp-ents{font-size:12px;color:var(--text2)}
+.exp-card .exp-ents label{margin-right:8px;white-space:nowrap}
+.exp-card .exp-btns{display:flex;gap:6px;margin-top:4px}
+.exp-card .exp-btns .btn{min-width:72px}
+.exp-card .exp-batch{font-size:11px;color:var(--text3)}
+.exp-card .dl-ok{font-size:11px;color:var(--green)}
+.exp-card .dl-warn{font-size:11px;color:var(--amber)}
+/* FC-00057: every day of the pay week, with day and week hours */
+table.review tr.day-head td{background:#F4F3EE;border-top:2px solid #D6D3CD;font-size:12px;padding:5px 8px;color:var(--text2)}
+table.review tr.day-head td b{color:var(--text);font-size:13px}
+table.review tr.day-head .dh-hrs{font-family:'IBM Plex Mono',monospace;margin-left:10px}
+table.review tr.day-head .dh-pend{color:var(--amber);font-weight:600;margin-left:8px}
+table.review tr.day-head .dh-sched{color:var(--text3);margin-left:10px}
+table.review tr.day-empty td{font-size:11px;color:var(--text3);padding:4px 8px 6px 34px}
+table.review tr.day-out td{background:#FFF7ED;color:#9A3412}
+.emp-week-hrs{font-family:'IBM Plex Mono',monospace;font-size:12px;margin-left:12px;color:var(--text2)}
+.emp-week-hrs b{color:var(--text)}
+.emp-week-hrs .pend{color:var(--amber);font-weight:600}
+.legend-blue{display:inline-block;padding:0 6px;border:1px solid #2563EB;background:#BFDBFE;color:#1E3A8A;border-radius:3px;font-weight:600}
+.emp-subtab.new-emp-tab{color:var(--blue);border-style:dashed}
 table.review tr.reread-row td{background:#FFFBEB;border-bottom:2px solid #FCD34D;vertical-align:top}
 table.review td.rr-label{font-size:11px;font-weight:600;color:#92400E;text-align:right;padding-right:8px}
 table.review td.rr-label span{font-weight:400;color:var(--text3)}
@@ -607,6 +632,14 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
   </div>
 </div>
 
+<!-- ===== NEW EMPLOYEE (FC-00056) ===== -->
+<div id="newEmpOverlay" class="overlay" style="display:none" onclick="if(event.target===this)closeNewEmployeeDialog()">
+  <div class="overlay-panel" style="max-width:520px">
+    <h2>New employee</h2>
+    <div id="newEmpBody"></div>
+  </div>
+</div>
+
 <!-- ===== WEEK FOLDER SORT (FC-00053) ===== -->
 <div id="weekDropOverlay" class="overlay" style="display:none">
   <div class="overlay-panel history-panel" style="max-width:1100px">
@@ -804,7 +837,7 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
       <ol>
         <li>Each entity with a loaded schedule and approved actuals gets its own tab below.</li>
         <li>Per entity: set the mandatory break deduction, enter an hourly wage for each employee, or switch the employee to <em>Flat</em> and type a flat dollar amount.</li>
-        <li>The all-entity preview at the bottom mirrors what will be exported. Use <em>Export as Excel</em> for the full report or <em>Export as PDF</em> for a one-page week summary.</li>
+        <li>The export preview at the bottom shows the payroll report exactly as it will be written. <em>Exports</em> below it has every file: each report has its own Excel and PDF buttons, the combined report lets you pick entities, and every entity has its own report too.</li>
       </ol>
       <strong>Color rule:</strong> more hours than expected is shown in <span style="color:var(--red);font-weight:600">red</span> (pay more); less hours is shown in <span style="color:var(--green);font-weight:600">green</span> (pay less).
     </div>
@@ -825,18 +858,11 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
       <div class="export-group-section">
         <h4>Wage / Payroll Calculation Settings</h4>
         <div class="export-row" style="flex-wrap:wrap;gap:8px;align-items:center">
-          <div class="export-label">Settings (re-importable)</div>
-          <label style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--text2);cursor:pointer">
-            <input type="checkbox" id="settingsIncludeBreaksToggle" style="width:auto;margin:0">
-            Include per-day breaks
-          </label>
-          <button class="btn btn-green" onclick="exportPayrollSettingsExcel(document.getElementById('settingsIncludeBreaksToggle').checked)" title="Export wages, type, flat amount, pay method, deposit. With checkbox: also exports default break + per-day Override/Actual minutes.">Export Settings (.xlsx)</button>
-          <button class="btn" onclick="document.getElementById('payrollSettingsImportInput').click()" title="Re-import a Wage / Payroll Settings .xlsx. With checkbox: also restores per-day break overrides. Without: leaves break state untouched.">Import Settings (.xlsx)</button>
-          <input type="file" id="payrollSettingsImportInput" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0]){importPayrollSettingsFile(this.files[0],document.getElementById('settingsIncludeBreaksToggle').checked);this.value='';}">
+          <div class="export-label">Load a settings file</div>
+          <button class="btn" onclick="document.getElementById('payrollSettingsImportInput').click()" title="Re-import a Wage / Payroll Settings .xlsx. Per-day breaks are restored when the file has them and 'Include per-day breaks' is ticked on the Settings card below.">Import Settings (.xlsx)</button>
+          <input type="file" id="payrollSettingsImportInput" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0]){importPayrollSettingsFile(this.files[0],_settingsWithBreaks());this.value='';}">
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5">
-          <strong>Without breaks:</strong> imports wages/method only — existing break state untouched. <strong>With breaks:</strong> restores per-day Override/Actual values + entity default break.
-        </div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5">Exporting the settings file is on the <b>Settings file</b> card in Exports below (FC-00059). <strong>Include per-day breaks</strong> there also decides whether an import restores per-day Override/Actual values and the entity default break.</div>
       </div>
     </div>
 
@@ -1667,8 +1693,17 @@ function clearSplitDeposit(entId,empName){
   dispatch({type:'splitDeposit',screen:'payroll',target:{kind:'employee',entity:entId,id:k,field:'splitDeposit'},from:getSplitMeta(entId,empName),to:null,meta:{empName}});
 }
 // Rounding rules: cash = 0dp, deposit = 2dp, both = deposit 2dp + cash 0dp
-function roundCash(n){return Math.round(n||0)}
-function roundDeposit(n){return Math.round((n||0)*100)/100}
+// FC-00061: money rounds the way Excel's ROUND does — half away from zero on the decimal value —
+// so the tool's figures, its PDF and its Excel (whose formulas Excel recalculates on open) always
+// agree. Plain Math.round(x*100)/100 rounds 10.03 × 16.50 = 165.495 down to 165.49 (cash 165),
+// because 165.495 is stored as 165.49499999…; Excel gives 165.50 (cash 166).
+function _xround(x,d){
+  const f=Math.pow(10,d||0),y=Math.abs(x||0)*f;
+  const r=Math.round(+y.toPrecision(15));
+  return (x<0?-r:r)/f;
+}
+function roundCash(n){return _xround(n||0,0)}
+function roundDeposit(n){return _xround(n||0,2)}
 // Single source of truth for split-pay math. Returns {method,total,deposit,cash,final,roundedFinal,actualFinal,roundingDiff}.
 // - "both" + manually typed whole-number deposit: deposit stays whole, cash = round(total - deposit), rounded final may differ from actual total.
 // - "both" + manually typed decimal deposit: cash absorbs whole-dollar floor, deposit absorbs cents so deposit+cash == total.
@@ -1679,12 +1714,12 @@ function _computeBothBreakdown(total,meta){
     // Whole-dollar deposit path: keep deposit exact, round only cash.
     const deposit=roundDeposit(reqDep);
     const cashActual=total-deposit;
-    const cash=Math.max(0,Math.round(cashActual));
+    const cash=Math.max(0,_xround(cashActual,0));
     const roundedFinal=roundDeposit(deposit+cash);
     return{method:'both',total,deposit,cash,final:roundedFinal,roundedFinal,actualFinal:total,roundingDiff:roundDeposit(roundedFinal-total)};
   }
   // Decimal-typed (or no manual entry) path: prior reconciliation invariant — deposit+cash == total exactly.
-  let cash=Math.round(total-reqDep);
+  let cash=_xround(total-reqDep,0);
   if(cash<0)cash=0;
   if(cash>Math.floor(total))cash=Math.floor(total);
   const deposit=roundDeposit(total-cash);
@@ -2257,7 +2292,12 @@ function _weekRangeTag(){
   if(!a||!b)return'';
   return a.slice(5,7)+a.slice(8,10)+'to'+b.slice(5,7)+b.slice(8,10);
 }
-function _fileStem(){
+function _fileStem(ids){
+  if(ids&&ids.length){ // FC-00059: a report for some of the entities is named after those entities
+    const sel=entities.filter(e=>ids.includes(e.id));
+    const wk=_weekRangeTag();
+    return [...new Set(sel.map(_entityFileLabel))].join('_')+(wk?'_'+wk:'');
+  }
   const ents=entities.filter(_entityHasData);
   const labels=[...new Set((ents.length?ents:entities).map(_entityFileLabel))];
   const wk=_weekRangeTag();
@@ -2510,7 +2550,18 @@ function _toolSettingsRows(){
   // FC-00045: name display, written as words a person can read and edit.
   const nk=Object.keys(session.toolSettings||{}).filter(k=>k.startsWith('names:'));
   ['names:scope','names:all',...NAME_EXPORT_KEYS.map(k=>'names:'+k)].filter(k=>nk.includes(k)&&session.toolSettings[k]).forEach(k=>rows.push([_toolSettingLabel(k),_nameSettingValueText(k,session.toolSettings[k])]));
+  // FC-00056: the highest employee ID ever issued per entity, so a number is never handed out
+  // twice even when the person who held it is missing from a later file.
+  const hw=_idHighWater();Object.keys(hw).sort().forEach(code=>rows.push([ID_HIGH_WATER_LABEL+' · '+code,hw[code]]));
   return rows;
+}
+const ID_HIGH_WATER_LABEL='Highest employee ID issued';
+function _idHighWater(){
+  const out={};
+  const raise=(code,n)=>{if(!code||code==='_loaded'||!(n>0))return;if(!(out[code]>=n))out[code]=n;};
+  Object.keys(session._fileIdMax||{}).forEach(c=>raise(c,session._fileIdMax[c]));
+  Object.keys(session.roster.byId||{}).forEach(id=>{const m=/^EMP_([A-Z0-9]{3})_(\d{5})$/.exec(id);if(m)raise(m[1],parseInt(m[2],10));});
+  return out;
 }
 // rows: [[label,value],…] from the settings file's Tool Settings sheet. Unknown labels are ignored.
 function _ingestToolSettings(rows){
@@ -2518,6 +2569,8 @@ function _ingestToolSettings(rows){
   let n=0;
   (rows||[]).forEach(r=>{
     const lab=String((r&&r[0])||'').trim();
+    const hw=lab.match(/^highest employee id issued\s*·\s*([A-Za-z0-9]{3})$/i);
+    if(hw){const n=parseInt(r[1],10);if(n>0){const code=hw[1].toUpperCase();session._fileIdMax=session._fileIdMax||{};if(!(session._fileIdMax[code]>=n))session._fileIdMax[code]=n;session._empIdSeq=session._empIdSeq||{};if(!(session._empIdSeq[code]>=n))session._empIdSeq[code]=n;}return;}
     const fl=lab.match(/^file label\s*·\s*(.+)$/i);
     if(fl){const v=String(r[1]||'').replace(/[^A-Za-z0-9_-]+/g,'');if(v&&setToolSetting('label:'+_aliasNorm(fl[1]),v,'settings'))n++;return;}
     if(/^names on exports\s*·/i.test(lab)){
@@ -2763,6 +2816,8 @@ function _dayHours(chained,ent,empName,dayIdx){
   return Math.max(0,span-brk);
 }
 const _r2=x=>Math.round(x*100)/100;
+// Half-up to the cent without binary noise (7.875 stored as 7.87499… still gives 7.88).
+const _r2half=x=>{const y=Math.abs(x)*100;return Math.sign(x)*Math.round(+y.toFixed(6))/100;};
 function _dayIdxOf(iso){const d=new Date(iso+'T00:00:00');return isNaN(d)?0:d.getDay();}
 // Pure: what a merge of these rows would produce, or why it cannot happen.
 function mergePlan(entIdx,rowIds){
@@ -3018,8 +3073,8 @@ function _computeStagePreview(){
   const sim=_simulate(()=>{
     _importing=true;
     try{
+      _ingestToolSettings(st.toolRows); // FC-00056: first, so the file's highest-ID-issued is known before renumbering
       const rep=_ingestPayrollSettings(rows.map(r=>r.row),st.colMap,st.includeBreaks);
-      _ingestToolSettings(st.toolRows);
       return rep;
     }finally{_importing=false;}
   });
@@ -3150,7 +3205,7 @@ function applyStagedSettings(){
   _withCheckpoint('Settings import · '+st.label,()=>{
     if(rows.length||st.toolRows.length){
       _importing=true;
-      try{_ingestPayrollSettings(rows.map(r=>r.row),st.colMap,st.includeBreaks);_ingestToolSettings(st.toolRows);}
+      try{_ingestToolSettings(st.toolRows);_ingestPayrollSettings(rows.map(r=>r.row),st.colMap,st.includeBreaks);} // FC-00056: tool settings first
       finally{_importing=false;}
     }
     if(!session.pendingSettings)session.pendingSettings=[];
@@ -3229,29 +3284,69 @@ function _mmddRange(labels){
   return a&&b?a.slice(5,7)+a.slice(8,10)+'to'+b.slice(5,7)+b.slice(8,10):'';
 }
 const _PAYROLL_KINDS=['payroll','cashOnly','depositOnly','timecardData','payrollCalc','full'];
+function _isPayrollKey(k){return _PAYROLL_KINDS.includes(k)||/^payroll:/.test(String(k||''));}
 // FC-00050: the payroll-side files the owner uses. The other reports (Cash-only, Deposit-only,
 // Time Card Data, Payroll Calculation, Full, Manager, the Timecards PDF and the accountant
 // placeholder) were removed from the screen; their writers stay in the code, unreachable.
-const DOWNLOADS=[
-  {key:'payroll',label:'Payroll report',desc:'Combined report: every entity, hours, rate, deposit and cash, with totals.',formats:{xlsx:true,pdf:true},suffix:'AllEmployeesPayroll',run:{xlsx:()=>_exportExcel('combined'),pdf:()=>_exportPdf('combined')}},
-  {key:'timecards',label:'Reviewed timecards',desc:'Every punch row with its approval — re-importable on Actuals Intake.',formats:{xlsx:true},suffix:'AllEmployeesTimecards',run:{xlsx:()=>exportActualsIntakeExcel(),pdf:()=>exportActualsIntakePdf()}},
-  {key:'settings',label:'Settings (new master)',desc:'Every employee\'s ID, name, aliases, rate, pay method and Active, plus tool settings and file labels.',formats:{xlsx:true},suffix:'AllEmployeesPayroll_Settings',run:{xlsx:()=>exportPayrollSettingsExcel(false)}},
-  {key:'snapshot',label:'Snapshot',desc:'The whole session in one file, to reopen every screen exactly as it is now.',formats:{json:true},suffix:'Snapshot'},
-];
+// FC-00059: one Exports panel. Every report is a card with its own Excel / PDF buttons. The
+// combined payroll report covers the entities ticked on its card; every entity also has its own
+// payroll report card (same columns and formatting), e.g. a store that is sent separately.
+// DOWNLOADS is rebuilt in place (_syncDownloads) so the per-entity cards follow the entities.
+const DOWNLOADS=[];
+// FC-00059: the entities an export covers. null = every entity (the screens, the combined
+// report with every entity ticked); otherwise the entity ids of the report being written.
+let _exportScope=null;
+let _combinedOff={}; // entity id -> true when unticked on the combined card (UI choice, in the snapshot)
+_registerSnapshotPart('combinedScope',()=>_cloneState(_combinedOff),v=>{_combinedOff=v&&typeof v==='object'?_cloneState(v):{};});
+// Entities a payroll report can cover: every entity with anything loaded (the same rule as the
+// file names), so a card and its warnings stay put while rows are unapproved or people unticked.
+function _payrollEntityIds(){return entities.filter(_entityHasData).map(e=>e.id);}
+function combinedScopeIds(){return _payrollEntityIds().filter(id=>!_combinedOff[id]);}
+function setCombinedEntity(entId,on){
+  if(on)delete _combinedOff[entId];else _combinedOff[entId]=true;
+  if(!_simulating){renderDownloadsPanel();renderFc00013PreviewPanel();}
+  return combinedScopeIds();
+}
+function _scopeOfKey(key){
+  if(key==='payroll')return combinedScopeIds();
+  const m=/^payroll:(.+)$/.exec(String(key||''));
+  if(m){const e=entities.find(x=>String(x.id)===m[1]);return e?[e.id]:[];}
+  return null;
+}
+function _syncDownloads(){
+  const list=[
+    {key:'payroll',label:'Payroll report — combined',desc:'Every ticked entity on one report: hours (decimal and h:mm), rate, deposit and cash, with subtotals and a grand total. The Excel also has the Hours, Stats and Labor Cost sheets.',formats:{xlsx:true,pdf:true},suffix:'AllEmployeesPayroll',run:{xlsx:()=>_exportExcel('combined'),pdf:()=>_exportPdf('combined')}}
+  ];
+  _payrollEntityIds().forEach(id=>{
+    const e=entities.find(x=>x.id===id);if(!e)return;
+    list.push({key:'payroll:'+id,label:'Payroll report — '+(e.name||'Entity'),desc:'This entity on its own: the same columns, colors and totals as the combined report.',formats:{xlsx:false,pdf:false},suffix:'AllEmployeesPayroll',entityId:id,run:{xlsx:()=>_exportExcel('combined'),pdf:()=>_exportPdf('combined')}});
+  });
+  list.push(
+    {key:'timecards',label:'Reviewed timecards',desc:'Every punch row with its approval, times as real Excel times — re-importable on Actuals Intake.',formats:{xlsx:true},suffix:'AllEmployeesTimecards',run:{xlsx:()=>exportActualsIntakeExcel(),pdf:()=>exportActualsIntakePdf()}},
+    {key:'settings',label:'Settings file',desc:'Every employee\'s ID, name, aliases, rate, pay method and Active, plus tool settings and file labels. Load it first next week.',formats:{xlsx:true},suffix:'AllEmployeesPayroll_Settings',run:{xlsx:()=>exportPayrollSettingsExcel(_settingsWithBreaks())}},
+    {key:'snapshot',label:'Snapshot',desc:'The whole session in one file, to reopen every screen exactly as it is now.',formats:{json:true},suffix:'Snapshot'}
+  );
+  DOWNLOADS.length=0;list.forEach(d=>DOWNLOADS.push(d));
+  return DOWNLOADS;
+}
+function _settingsWithBreaks(){return!!_settingsBreaksPref;}
+_syncDownloads();
 const _FMT_LABEL={xlsx:'Excel',pdf:'PDF',json:'Data file'};
 const _FMT_EXT={xlsx:'xlsx',pdf:'pdf',json:'json'};
 let _dlTicks={};
 function _dlTick(key,fmt){const t=_dlTicks[key];if(t&&fmt in t)return!!t[fmt];const d=DOWNLOADS.find(x=>x.key===key);return!!(d&&d.formats[fmt]);}
-function setDownloadTick(key,fmt,on){const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled||!(fmt in d.formats))return;_dlTicks[key]=Object.assign({},_dlTicks[key],{[fmt]:!!on});renderDownloadsPanel();}
+function setDownloadTick(key,fmt,on){_syncDownloads();const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled||!(fmt in d.formats))return;_dlTicks[key]=Object.assign({},_dlTicks[key],{[fmt]:!!on});renderDownloadsPanel();}
 _registerSnapshotPart('downloadTicks',()=>_cloneState(_dlTicks),v=>{_dlTicks=v&&typeof v==='object'?_cloneState(v):{};});
 function _managerEntities(){return entities.map((e,i)=>({e,i})).filter(x=>(x.e.employees||[]).length>0);}
 // Exact file name(s) a line will save.
-function downloadFileNames(key){
+function downloadFileNames(key,allFormats){
+  _syncDownloads();
   const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled)return[];
-  const stem=_fileStem();
+  const sc=_scopeOfKey(key);
+  const stem=_fileStem(sc&&sc.length?sc:null);
   const out=[];
   Object.keys(d.formats).forEach(f=>{
-    if(!_dlTick(key,f))return;
+    if(!allFormats&&!_dlTick(key,f))return;
     if(d.perEntity)_managerEntities().forEach(({e})=>{const r=_mmddRange(e.newDateLabels&&e.newDateLabels.some(Boolean)?e.newDateLabels:e.dateLabels);out.push(_entityFileLabel(e)+(r?'_'+r:'')+'_ManagerReport.'+_FMT_EXT[f]);});
     else out.push(stem+'_'+d.suffix+'.'+_FMT_EXT[f]);
   });
@@ -3260,31 +3355,31 @@ function downloadFileNames(key){
 // FC-00049 (review item): the Downloads panel asks every line for its status; the payroll
 // checks are computed once per panel render instead of once per line.
 let _dlMemo=null;
-function _memo(key,fn){if(!_dlMemo)return fn();if(!(key in _dlMemo))_dlMemo[key]=fn();return _dlMemo[key];}
+function _memo(key,fn){if(!_dlMemo)return fn();key+='|'+(_exportScope?_exportScope.join(','):'*');if(!(key in _dlMemo))_dlMemo[key]=fn();return _dlMemo[key];}
 // FC-00049 (review item): people paid this week who are not on the schedule and whom nobody
 // confirmed (not in a settings file, not added with "Add as new employee"). Exports no longer
 // print "(orphan)", so the status line names them instead.
-function _unconfirmedNames(){
-  return _memo('unconf',()=>{
-    const out=[];
-    _collectExportData().forEach(d=>{
-      const ent=entities.find(e=>e.id===d.entityId);
-      if(!ent||!(ent.employees||[]).length)return; // no schedule: everyone is actuals-only by design
-      d.rows.forEach(r=>{
-        if(!r.isOrphan)return;
-        const rec=_resolveRecordNoMint(ent.id,r._empName);
-        if(rec&&(rec.fromFile||rec.addedNew))return;
-        out.push(r._empName);
-      });
+function _unconfirmedNames(){return _memo('unconf',()=>_unconfirmedNamesRaw().map(x=>x.name));}
+function _unconfirmedNamesRaw(){
+  const out=[];
+  _collectExportData().forEach(d=>{
+    const ent=entities.find(e=>e.id===d.entityId);
+    if(!ent||!(ent.employees||[]).length)return; // no schedule: everyone is actuals-only by design
+    d.rows.forEach(r=>{
+      if(!r.isOrphan)return;
+      const rec=_resolveRecordNoMint(ent.id,r._empName);
+      if(rec&&(rec.fromFile||rec.addedNew))return;
+      out.push({entityId:ent.id,name:r._empName});
     });
-    return out;
   });
+  return out;
 }
 // FC-00048: hourly people with hours this week and no rate (they would be paid $0).
 function _rateMissingNames(){return _memo('rm',_rateMissingNamesRaw);}
 function _rateMissingNamesRaw(){
   const out=[];
   entities.forEach((ent,i)=>{
+    if(_exportScope&&!_exportScope.includes(ent.id))return; // FC-00059
     let res;try{res=computePayrollForEntity(i);}catch(e){return;}
     res.results.concat(res.orphanRows).forEach(r=>{
       if(r.isFlat||!(r.actualHours>0)||r.wage>0)return;
@@ -3297,10 +3392,17 @@ function _rateMissingNamesRaw(){
 }
 // ✓ or the reasons to look before sending. Never blocks a download (FC-00023).
 function downloadStatus(key){
+  // FC-00059: a payroll card's status covers the entities that card exports.
+  const sc=_isPayrollKey(key)?_scopeOfKey(key):null;
+  if(sc&&_exportScope===null){const prev=_exportScope;_exportScope=sc;try{return _downloadStatusInner(key,sc);}finally{_exportScope=prev;}}
+  return _downloadStatusInner(key,null);
+}
+function _downloadStatusInner(key,sc){
   const reasons=[];
-  const withData=entities.filter(_entityHasData);
+  const withData=entities.filter(_entityHasData).filter(e=>!sc||sc.includes(e.id));
   const unapproved=()=>entities.forEach(e=>{const n=e.intake?(e.intake.reviewRows||[]).filter(r=>!r.approved).length:0;if(n)reasons.push((e.name||'Entity')+': '+n+' row'+(n===1?'':'s')+' not approved');});
-  if(_PAYROLL_KINDS.includes(key)){
+  if(_isPayrollKey(key)){
+    if(sc&&!sc.length)reasons.push('No entity ticked');
     if(!_collectExportData().length)reasons.push('No payroll rows yet');
     // FC-00049: name the rows the export will stop on.
     const up=unpaidReviewRows();
@@ -3330,31 +3432,54 @@ function downloadStatus(key){
 }
 // Writes every ticked file into memory: [{name,data,type}].
 async function buildSelectedDownloads(cont){
+  _syncDownloads();
+  const list=[];
+  DOWNLOADS.filter(d=>!d.disabled).forEach(d=>Object.keys(d.formats).forEach(f=>{if(_dlTick(d.key,f))list.push({key:d.key,fmt:f});}));
+  return _buildFiles(list,cont);
+}
+// FC-00059: writes the given [{key,fmt}] files. The unapproved-row stop asks once, about the
+// entities of every payroll report in the list.
+async function _buildFiles(list,cont){
+  _syncDownloads();
   const files=[];
-  const ticked=DOWNLOADS.filter(d=>!d.disabled&&Object.keys(d.formats).some(f=>_dlTick(d.key,f)));
-  if(ticked.some(d=>_PAYROLL_KINDS.includes(d.key))&&!_payrollGateOk(cont))return null; // FC-00049
-  if(ticked.some(d=>_PAYROLL_KINDS.includes(d.key))&&!_confirmBreaksOrBail())return null;
-  const stem=_fileStem();
-  for(const d of ticked){
-    for(const f of Object.keys(d.formats)){
-      if(!_dlTick(d.key,f))continue;
-      if(d.key==='snapshot'){
-        if(_busyForSnapshot()){showToast('Snapshot skipped: an action is still running','err');continue;}
-        files.push({name:stem+'_Snapshot.json',data:JSON.stringify(await buildSnapshot()),type:'application/json',snapshot:true});
-        continue;
-      }
-      if(d.perEntity){
-        for(const {e,i} of _managerEntities()){
-          const cap=await _captureOne(()=>exportManager(i));
-          const r=_mmddRange(e.newDateLabels&&e.newDateLabels.some(Boolean)?e.newDateLabels:e.dateLabels);
-          cap.forEach(c=>files.push({name:_entityFileLabel(e)+(r?'_'+r:'')+'_ManagerReport.'+_FMT_EXT[f],data:c.data,type:c.type}));
-        }
-        continue;
-      }
-      const cap=await _captureOne(d.run[f]);
-      cap.forEach((c,j)=>files.push({name:stem+'_'+d.suffix+(j?'_'+(j+1):'')+'.'+_FMT_EXT[f],data:c.data,type:c.type}));
-    }
+  const pay=list.filter(x=>_isPayrollKey(x.key));
+  if(pay.length){
+    const ids=[...new Set([].concat(...pay.map(x=>_scopeOfKey(x.key)||[])))];
+    const ok=await _withExportScope(ids,()=>_payrollGateOk(cont));
+    if(!ok)return null;
+    if(!_confirmBreaksOrBail())return null;
   }
+  for(const {key,fmt:f} of list){
+    const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled||!(f in d.formats))continue;
+    const sc=_scopeOfKey(key);
+    const stem=_fileStem(sc&&sc.length?sc:null);
+    if(d.key==='snapshot'){
+      if(_busyForSnapshot()){showToast('Snapshot skipped: an action is still running','err');continue;}
+      files.push({name:stem+'_Snapshot.json',data:JSON.stringify(await buildSnapshot()),type:'application/json',snapshot:true});
+      continue;
+    }
+    if(d.perEntity){
+      for(const {e,i} of _managerEntities()){
+        const cap=await _captureOne(()=>exportManager(i));
+        const r=_mmddRange(e.newDateLabels&&e.newDateLabels.some(Boolean)?e.newDateLabels:e.dateLabels);
+        cap.forEach(c=>files.push({name:_entityFileLabel(e)+(r?'_'+r:'')+'_ManagerReport.'+_FMT_EXT[f],data:c.data,type:c.type}));
+      }
+      continue;
+    }
+    if(sc&&!sc.length){showToast(d.label+': no entity ticked','err');continue;}
+    const cap=await _withExportScope(sc,()=>_captureOne(d.run[f]));
+    cap.forEach((c,j)=>files.push({name:stem+'_'+d.suffix+(j?'_'+(j+1):'')+'.'+_FMT_EXT[f],data:c.data,type:c.type}));
+  }
+  return files;
+}
+// FC-00059: one card's Excel / PDF button — that one file, downloaded now.
+async function exportCardNow(key,fmt){
+  const files=await _buildFiles([{key,fmt}],()=>exportCardNow(key,fmt));
+  if(!files)return null;
+  if(!files.length){showToast('Nothing to export yet','err');return files;}
+  files.forEach(_saveBytes);
+  if(files.some(f=>f.snapshot))_lastSavedSig=_snapshotSig();
+  showToast('Downloaded '+files.map(f=>f.name).join(', '),'ok');
   return files;
 }
 function _saveBytes(f){
@@ -3403,19 +3528,30 @@ function _downloadsHtml(){
   try{return _downloadsHtmlInner();}finally{_dlMemo=null;}
 }
 function _downloadsHtmlInner(){
-  let h='<div class="dl-panel"><div class="wow-head"><h3>Downloads</h3><span class="wow-src">Tick what you need, then download each file or one zip. The payroll report first asks about any row that is not approved.</span></div>';
+  _syncDownloads();
+  let h='<div class="dl-panel exp-panel"><div class="wow-head"><h3>Exports</h3><span class="wow-src">Every report downloads on its own with its Excel or PDF button. The payroll reports first ask about any row that is not approved. To get several files at once, tick "in batch" and use the buttons at the bottom.</span></div>';
   h+=_nameControlsHtml();
   h+='<div class="dl-labels">File labels: '+entities.map((e,i)=>`<label>${escHtml(e.name||'Entity '+(i+1))} <input type="text" value="${escHtml(_entityFileLabel(e))}" onchange="setEntityFileLabel(${i},this.value)"></label>`).join(' ')+'</div>';
-  h+='<table class="dl-table"><tbody>';
+  h+='<div class="exp-cards">';
   DOWNLOADS.forEach(d=>{
     const st=d.disabled?null:downloadStatus(d.key);
-    const fmts=Object.keys(d.formats).map(f=>`<label class="dl-fmt"><input type="checkbox" ${_dlTick(d.key,f)?'checked':''} ${d.disabled?'disabled':''} onchange="setDownloadTick('${d.key}','${f}',this.checked)"> ${_FMT_LABEL[f]}</label>`).join('');
-    const names=downloadFileNames(d.key);
-    h+=`<tr class="${d.disabled?'dl-disabled':''}"><td class="dl-name"><b>${escHtml(d.label)}</b><div class="dl-desc">${escHtml(d.desc)}</div>${names.length?'<div class="dl-files">'+names.map(escHtml).join('<br>')+'</div>':''}</td><td class="dl-fmts">${d.disabled?'<span class="dl-soon">coming soon</span>':fmts}${_lineNameSelectHtml(d.key)}</td><td class="dl-status">${d.disabled?'':(st.ok?'<span class="dl-ok">✓ Ready</span>':'<span class="dl-warn">⚠ '+st.reasons.map(escHtml).join('<br>⚠ ')+'</span>')}</td></tr>`;
+    const names=downloadFileNames(d.key,true);
+    let ents='';
+    if(d.key==='payroll'){
+      const ids=_payrollEntityIds();
+      ents='<div class="exp-ents">Entities: '+ids.map(id=>{const e=entities.find(x=>x.id===id);return`<label><input type="checkbox" ${_combinedOff[id]?'':'checked'} onchange="setCombinedEntity(${JSON.stringify(id).replace(/"/g,'&quot;')},this.checked)"> ${escHtml((e&&e.name)||'Entity')}</label>`;}).join(' ')+'</div>';
+    }
+    const btns=Object.keys(d.formats).map(f=>`<button class="btn ${f==='xlsx'?'btn-green':''}" onclick="exportCardNow('${escJs(d.key)}','${f}')" ${d.disabled?'disabled':''}>${f==='json'?'Save snapshot':_FMT_LABEL[f]}</button>`).join('');
+    const ticks=Object.keys(d.formats).map(f=>`<label class="dl-fmt"><input type="checkbox" ${_dlTick(d.key,f)?'checked':''} onchange="setDownloadTick('${escJs(d.key)}','${f}',this.checked)"> ${_FMT_LABEL[f]}</label>`).join(' ');
+    const extra=d.key==='settings'?`<label class="dl-fmt" style="display:block;margin-top:4px"><input type="checkbox" id="settingsIncludeBreaksToggle" ${_settingsBreaksPref?'checked':''} onchange="_settingsBreaksPref=this.checked"> Include per-day breaks</label>`:'';
+    h+=`<div class="exp-card${d.key.startsWith('payroll:')?' exp-card-entity':''}" data-key="${escHtml(d.key)}"><div class="exp-title">${escHtml(d.label)}</div><div class="dl-desc">${escHtml(d.desc)}</div>${ents}${d.key==='payroll'?_lineNameSelectHtml('payroll'):''}${names.length?'<div class="dl-files">'+names.map(escHtml).join('<br>')+'</div>':''}${extra}<div class="exp-btns">${btns}</div><div class="exp-batch">In batch: ${ticks}</div>`;
+    if(st)h+=st.ok?'<div class="dl-ok">✓ Ready</div>':'<div class="dl-warn">⚠ '+st.reasons.map(escHtml).join('<br>⚠ ')+'</div>';
+    h+='</div>';
   });
-  h+='</tbody></table><div class="dl-actions"><button class="btn btn-green" onclick="downloadSelected()">Download selected</button><button class="btn btn-primary" onclick="downloadZip()">Download all (.zip)</button></div></div>';
+  h+='</div><div class="dl-actions"><span style="font-size:12px;color:var(--text3)">Batch: everything ticked "in batch" above</span><button class="btn btn-green" onclick="downloadSelected()">Download batch as files</button><button class="btn btn-primary" onclick="downloadZip()">Download batch as one zip</button></div></div>';
   return h;
 }
+let _settingsBreaksPref=false;
 // ================================================================
 // FC-00045 — how names print on exports (display only; IDs and saved names never change)
 // ================================================================
@@ -3466,6 +3602,7 @@ function _nameSettingLabel(k){
   if(k==='names:scope')return'Names on exports · same or per export';
   if(k==='names:all')return'Names on exports · all exports';
   const key=k.slice(6),d=DOWNLOADS.find(x=>x.key===key);
+  if(key==='payroll')return'Names on exports · Payroll report'; // FC-00059: the label settings files already carry
   return'Names on exports · '+(d?d.label:key);
 }
 function _nameSettingValueText(k,v){if(k==='names:scope')return v==='per'?'Per export':'Same for all';return NAME_MODE_LABEL[v]||v;}
@@ -4656,7 +4793,7 @@ function computePayrollForEntity(idx){
     row.actualBreakH=Math.round(row.actualBreakH*100)/100;
     row.otH=Math.max(0,Math.round((row.actualHours-OT_THRESHOLD)*100)/100);
     const factor=Math.pow(10,Math.max(0,Math.min(6,row.rounding)));
-    row.pay=Math.round(row.actualHours*row.wage*factor)/factor;
+    row.pay=_xround(row.actualHours*row.wage,Math.max(0,Math.min(6,row.rounding))); // FC-00061: rounds like Excel ROUND
     // Flat-wage override
     const _fk=wKey(ent.id,emp.name);
     if(flatWages[_fk]!=null){row.isFlat=true;row.flatAmount=flatWages[_fk];row.pay=flatWages[_fk];_applySemi(row,ent.id,emp.name);}
@@ -4702,7 +4839,7 @@ function computePayrollForEntity(idx){
     row.actualHours=Math.round(row.actualHours*100)/100;row.actualBreakH=Math.round(row.actualBreakH*100)/100;
     row.otH=Math.max(0,Math.round((row.actualHours-OT_THRESHOLD)*100)/100);
     const factor=Math.pow(10,Math.max(0,Math.min(6,row.rounding)));
-    row.pay=Math.round(row.actualHours*row.wage*factor)/factor;
+    row.pay=_xround(row.actualHours*row.wage,Math.max(0,Math.min(6,row.rounding))); // FC-00061: rounds like Excel ROUND
     const _ofk=wKey(ent.id,o.name);
     if(flatWages[_ofk]!=null){row.isFlat=true;row.flatAmount=flatWages[_ofk];row.pay=flatWages[_ofk];_applySemi(row,ent.id,o.name);}
     return row;
@@ -4862,7 +4999,7 @@ function renderPayrollEntityContent(idx){
       <span class="ot-note">Mandatory break is deducted from billable hours every day the employee clocks in. If their actual break (gap between clock-in pairs) is longer, the longer actual break is deducted instead. Hours over 40/wk are flagged informationally — straight-time only, no OT billing.</span>
     </div>
     <div class="info-bar" id="payrollInfoBar" style="display:flex"></div>
-    <h2 id="payrollGridHeading" style="display:none;font-size:18px;font-weight:600;margin-bottom:10px">Weekly Actuals</h2>
+    <h2 id="payrollGridHeading" style="display:none;font-size:18px;font-weight:600;margin-bottom:10px">Weekly Actuals <span class="grid-view-toggle" style="margin-left:12px;font-size:12px;font-weight:400;vertical-align:middle"><button class="btn btn-small${payrollGridView()==='hours'?' btn-primary':''}" onclick="setPayrollGridView('hours')" title="Hours worked per day">Hours</button> <button class="btn btn-small${payrollGridView()==='cost'?' btn-primary':''}" onclick="setPayrollGridView('cost')" title="Wage cost per day: hours × rate, scheduled vs actual (FC-00058)">Cost</button></span></h2>
     <div class="sched-table-wrap" id="payrollGridWrap" style="display:none;margin-bottom:20px"><table class="sched" id="payrollGrid"></table></div>
 
     <div class="payroll-subtab-bar" role="tablist">
@@ -4901,12 +5038,24 @@ function renderPayrollEntityContent(idx){
 // The FC-00024 scratch copy snapshots this same model, so the copy starts out identical to
 // what the preview shows.
 function _fc13PreviewModel(){
+  // FC-00059: the one export preview. It shows the payroll report chosen above it (the combined
+  // report for its ticked entities, or one entity's report), built from the same column spec and
+  // subtotal math as the Excel and PDF writers.
+  const sc=_scopeOfKey(_previewKey())||null;
+  const prevScope=_exportScope;_exportScope=sc;
+  try{return _fc13PreviewModelInner();}finally{_exportScope=prevScope;}
+}
+let _previewKeyV='payroll';
+function _previewKey(){if(_previewKeyV!=='payroll'&&!_scopeOfKey(_previewKeyV).length)_previewKeyV='payroll';return _previewKeyV;}
+function setPreviewKey(k){_previewKeyV=String(k||'payroll');if(!_simulating)renderFc00013PreviewPanel();}
+function _fc13PreviewModelInner(){
   const data=_collectExportData();
   if(data.length===0)return null;
   const spec=_columnsFor('combined');
-  const cashColIdx=8; // 1-based; combined mode's Cash column (matches _exportExcel)
+  const C=COMBINED_COLS;
+  const cashColIdx=C.cash+1; // 1-based, as in _exportExcel
 
-  const titleText='COMBINED PAYROLL REPORT';
+  const titleText=_reportTitle('combined');
   const per=_exportPeriodStr();
   // _exportPeriodStr() returns "PERIOD MM/DD/YY – MM/DD/YY"; the preview title wants just
   // the "MM/DD/YY – MM/DD/YY" range per the brief, so strip the leading "PERIOD " label.
@@ -4926,8 +5075,9 @@ function _fc13PreviewModel(){
   rows.push({kind:'title',entityId:null,cells:[titleFull],bgs:[''],tips:[tdTitle]});
   rows.push({kind:'hdr',entityId:null,cells:spec.headers.slice(),bgs:fill('#E8E8E4'),tips:fill(tdAuto)});
 
-  let grandTotal=0,grandDeposit=0,grandCash=0;
+  const grandVals={};(spec.totals||[]).forEach(t=>{grandVals[t.col]=0;});
   let renderedEntityCount=0;
+  const unconf=new Set(_unconfirmedNamesRaw().map(x=>x.entityId+'|'+_aliasNorm(x.name)));
   data.forEach(({entityName,entityId,rows:entRows})=>{
     let filtered=_filterRowsForKind(entRows,'combined');
     if(filtered.length===0)return;
@@ -4940,41 +5090,36 @@ function _fc13PreviewModel(){
     renderedEntityCount++;
     const previewEnt=entities.find(e=>e.id===entityId);
     const pal=_paletteForEntity(previewEnt);
-    let entTotal=0,entDeposit=0,entCash=0;
     filtered.forEach(r=>{
       const vals=spec.rowFn(r);
+      // FC-00059 (from the all-entity preview): someone paid off the schedule whom nobody has
+      // confirmed is flagged here, on screen only; the files never print it.
+      const flag=unconf.has(entityId+'|'+_aliasNorm(r._empName));
       rows.push({
-        kind:'data',entityId,
+        kind:'data',entityId,flag:flag?'Not on the schedule and not confirmed: add them as a new employee or match them to someone':'',
         cells:vals.map(_cellText),
         bgs:vals.map((c,ci)=>argbToCss((ci+1)===cashColIdx?pal.cash:pal.body)),
         tips:vals.map((c,ci)=>ci===1?tdName:(ci===0?tdEntity:tdEdit))
       });
-      if(r._breakdown.method==='cash'||r._breakdown.method==='deposit'||r._breakdown.method==='both'||r._breakdown.method==='contract'){
-        entTotal+=r._breakdown.actualFinal||0;
-      }
-      entDeposit+=r._breakdown.deposit||0;entCash+=r._breakdown.cash||0;
     });
-    // Entity subtotal row — palette's subtotal fill (BFBFBF for all current palettes),
-    // bold; only Actual Total/Deposit/Cash cols carry values.
+    // Entity subtotal row — the same totals the Excel and PDF write.
+    const entVals=_sectionTotals(spec,filtered);
     const subVals=fill('');
     subVals[0]=entityName+' subtotal';
-    subVals[5]=xlMoney(entTotal).text;
-    subVals[6]=entDeposit>0?xlMoney(entDeposit).text:'';
-    subVals[7]=entCash>0?xlMoney(entCash).text:'';
+    (spec.totals||[]).forEach(t=>{subVals[t.col]=_totalCellText(t,entVals[t.col]);grandVals[t.col]+=entVals[t.col];});
     rows.push({kind:'subtotal',entityId,cells:subVals,bgs:fill(argbToCss(pal.subtotal)),tips:fill(tdAuto)});
-    grandTotal+=entTotal;grandDeposit+=entDeposit;grandCash+=entCash;
+    const lo=_leftOutNoteText(previewEnt);
+    if(lo)rows.push({kind:'note',entityId,cells:[lo],bgs:[''],tips:[tdAuto]});
   });
 
   // Grand total row — uses the shared grand-total fill (A6A6A6, same across all presets),
   // bold, matching _applyEntityPalette(g,FC14_PRESETS.Plain,'grand',null) in _exportExcel.
-  const grandVals=fill('');
-  grandVals[0]='GRAND TOTAL';
-  grandVals[5]=xlMoney(grandTotal).text;
-  grandVals[6]=grandDeposit>0?xlMoney(grandDeposit).text:'';
-  grandVals[7]=grandCash>0?xlMoney(grandCash).text:'';
-  rows.push({kind:'grand',entityId:null,cells:grandVals,bgs:fill(argbToCss(FC14_PRESETS.Plain.grand)),tips:fill(tdAuto)});
+  const grandValsOut=fill('');
+  grandValsOut[0]='GRAND TOTAL';
+  (spec.totals||[]).forEach(t=>{grandValsOut[t.col]=_totalCellText(t,Math.round(grandVals[t.col]*100)/100);});
+  rows.push({kind:'grand',entityId:null,cells:grandValsOut,bgs:fill(argbToCss(FC14_PRESETS.Plain.grand)),tips:fill(tdAuto)});
 
-  return{headers:spec.headers.slice(),numCols:spec.numCols.slice(),colW:[17,22,15,10,9,13,13.42,13.05,15,10],rows};
+  return{headers:spec.headers.slice(),numCols:spec.numCols.slice(),colW:COMBINED_XL_WIDTHS.slice(),rows};
 }
 
 // Renders a preview model as the fc13 table. `editable` (FC-00024 scratch copy) makes every
@@ -4992,10 +5137,13 @@ function _fc13ModelTableHtml(model,editable){
       html+=`<tr class="fc13-hdr-row">${row.cells.map((h,ci)=>`<td style="background:${row.bgs[ci]}" title="${escHtml(row.tips[ci])}"${ed(ri,ci)}>${escHtml(h)}</td>`).join('')}</tr>`;
     }else if(row.kind==='blank'){
       html+=`<tr class="fc13-blank-row"><td colspan="${n}" title="${escHtml(row.tips[0])}">&nbsp;</td></tr>`;
+    }else if(row.kind==='note'){
+      html+=`<tr class="fc13-note-row"><td colspan="${n}" style="font-style:italic;font-size:10px;color:#555">${escHtml(row.cells[0])}</td></tr>`;
     }else{
       html+=`<tr class="fc13-${row.kind==='data'?'data':row.kind}-row">`+row.cells.map((v,ci)=>{
         const isNum=model.numCols.indexOf(ci)>=0;
-        return `<td class="fc13-cell${isNum?' num':''}" style="background:${row.bgs[ci]}" title="${escHtml(row.tips[ci])}"${ed(ri,ci)}>${escHtml(v)}</td>`;
+        const fl=(row.flag&&ci===1&&!editable)?` <span class="fc13-flag" style="color:var(--red);font-size:10px;font-weight:600" title="${escHtml(row.flag)}">not confirmed</span>`:'';
+        return `<td class="fc13-cell${isNum?' num':''}" style="background:${row.bgs[ci]}${row.flag&&ci===1?';color:var(--red)':''}" title="${escHtml(row.flag&&ci===1?row.flag:row.tips[ci])}"${ed(ri,ci)}>${escHtml(v)}${fl}</td>`;
       }).join('')+'</tr>';
     }
   });
@@ -5018,6 +5166,10 @@ function renderFc00013PreviewPanel(){
       toolbar.parentNode.insertBefore(host,toolbar);
     }
   }
+  _syncDownloads();
+  const _pk=_previewKey();
+  const _choices=DOWNLOADS.filter(d=>_isPayrollKey(d.key));
+  const _chooser=_choices.length>2?`<span class="fc13-preview-choose" style="font-size:12px;font-weight:400;margin-left:10px">Show: <select onchange="setPreviewKey(this.value)">${_choices.map(d=>`<option value="${escHtml(d.key)}" ${d.key===_pk?'selected':''}>${escHtml(d.key==='payroll'?'Combined (ticked entities)':d.label.replace(/^Payroll report — /,''))}</option>`).join('')}</select></span>`:'';
   const tableHtml=renderPayrollExportPreviewHtml();
   const copyBtn=_fc24Scratch?'':'<span style="flex:1"></span><button class="btn" onclick="_fc24MakeCopy()" title="Snapshot this preview into a separate table you can hand-edit and export — real data is never changed" style="font-size:12px;padding:5px 12px">✎ Make editable copy</button>';
   const _fc32=_weekExclusionSummary();
@@ -5026,7 +5178,7 @@ function renderFc00013PreviewPanel(){
   const _fc35Note=!_fc35.list.length?'':(_fc35.withPay.length
     ?`<div class="inactive-excluded-banner" style="background:#FEF2F2;color:#991B1B;border:1px solid #F87171;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px">⚠ Left out — Active unchecked but has hours or pay this week: ${escHtml(_fc35.payText)}. Check Active in Payroll Calculation to pay them.${_fc35.list.length>_fc35.withPay.length?` Also left out: ${escHtml(_fc35.list.filter(x=>!(x.hours>0||x.pay>0)).map(x=>x.empName).join(', '))}.`:''}</div>`
     :`<div class="inactive-excluded-banner" style="background:#F4F3EE;color:#57534E;border:1px solid #D6D3CD;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px">Left out (Active unchecked): ${escHtml(_fc35.list.map(x=>x.empName).join(', '))}.</div>`);
-  host.innerHTML=(tableHtml?`<div class="fc13-preview-panel">${_fc32Note}${_fc35Note}<h3>Combined export preview <span class="fc13-readonly-badge">read-only</span>${copyBtn}</h3><div class="fc13-preview-scroll">${tableHtml}</div></div>`:'')+_fc24ScratchPanelHtml();
+  host.innerHTML=(tableHtml?`<div class="fc13-preview-panel">${_fc32Note}${_fc35Note}<h3>Export preview <span class="fc13-readonly-badge">read-only</span>${_chooser}${copyBtn}</h3><div class="fc13-preview-scroll">${tableHtml}</div></div>`:'')+_fc24ScratchPanelHtml();
 }
 
 // ---- FC-00024: editable scratch copy of the combined preview ("god mode") ----
@@ -5077,11 +5229,13 @@ function _fc24ScratchPanelHtml(){
 function _fc24CellFromText(text,ci,numCols){
   const t=(text||'').trim();
   if(numCols.indexOf(ci)<0)return t;
+  // FC-00059: H:MM cells read "h:mm" back into an Excel duration.
+  if(ci===COMBINED_COLS.hmm){const m=/^(-?)(\d+):(\d{2})$/.exec(t);if(!m)return t;const mins=(+m[2])*60+(+m[3]);return _numCell((m[1]?-1:1)*mins/1440,'[h]:mm',t);}
   const raw=t.replace(/[$,\s]/g,'');
   if(!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(raw))return t;
   const v=parseFloat(raw);
-  if(ci===3)return xlHours(v);        // Hours
-  if(ci===9)return xlMoneySigned(v);  // Diff
+  if(ci===COMBINED_COLS.hours)return xlHours(v);        // Hours
+  if(ci===COMBINED_COLS.diff)return xlMoneySigned(v);  // Diff
   return xlMoney(v);
 }
 function _fc24CssToArgb(css){return /^#[0-9a-f]{6}$/i.test(css||'')?'FF'+css.slice(1).toUpperCase():null}
@@ -5117,6 +5271,8 @@ async function _fc24ExportScratchExcel(){
       });
     }else if(row.kind==='blank'){
       ws.addRow([]);
+    }else if(row.kind==='note'){
+      const nr=ws.addRow([row.cells[0]]);nr.getCell(1).font={name:'Arial',italic:true,size:9,color:{argb:'FF555555'}};ws.mergeCells(nr.number,1,nr.number,n);
     }else{
       const vals=row.cells.map((t,ci)=>_fc24CellFromText(t,ci,m.numCols));
       const r=ws.addRow(vals.map(_cellValue));
@@ -5126,7 +5282,8 @@ async function _fc24ExportScratchExcel(){
           if(!_isNumCell(v))return;
           const L=_xlCol(ci);
           let f;
-          if(row.kind==='subtotal'&&blockStart)f='SUM('+L+blockStart+':'+L+blockEnd+')';
+          if(ci===COMBINED_COLS.hmm)f='ROUND('+_xlCol(COMBINED_COLS.hours)+r.number+'*60,0)/1440';
+          else if(row.kind==='subtotal'&&blockStart)f='SUM('+L+blockStart+':'+L+blockEnd+')';
           else if(row.kind==='grand'&&subNums.length)f='SUM('+subNums.map(n=>L+n).join(',')+')';
           if(f)r.getCell(ci+1).value={formula:f,result:v.v};
         });
@@ -5142,7 +5299,7 @@ async function _fc24ExportScratchExcel(){
       });
     }
   });
-  [17,22,15,10,9,13,13.41796875,13.05078125,15,10].forEach((w,i)=>{ws.getColumn(i+1).width=w});
+  COMBINED_XL_WIDTHS.forEach((w,i)=>{ws.getColumn(i+1).width=w});
   const fname=_exportFilenameBase('combined')+'_Edited_Copy.xlsx';
   downloadBlob(await ewb.xlsx.writeBuffer(),fname);
   showToast(`Exported ${fname}`,'ok');
@@ -5160,11 +5317,13 @@ async function _fc24ExportScratchPdf(){
   const n=hdr?hdr.cells.length:m.headers.length;
   doc.setFont('helvetica','bold');doc.setFontSize(14);
   doc.text(titleRow?titleRow.cells[0]:'',pageW/2,36,{align:'center'});
-  const bodyRows=m.rows.filter(r=>r.kind==='data'||r.kind==='subtotal'||r.kind==='blank'||r.kind==='grand');
-  const body=bodyRows.map(r=>r.kind==='blank'?new Array(n).fill(''):r.cells.slice());
+  const bodyRows=m.rows.filter(r=>r.kind==='data'||r.kind==='subtotal'||r.kind==='blank'||r.kind==='grand'||r.kind==='note');
+  const body=bodyRows.map(r=>r.kind==='blank'?new Array(n).fill(''):(r.kind==='note'?[{content:r.cells[0],colSpan:n,styles:{fontStyle:'italic',fontSize:7,textColor:[85,85,85]}}]:r.cells.slice()));
   const columnStyles={};
   m.numCols.forEach(ci=>{columnStyles[ci]={halign:'right'}});
-  _columnsFor('combined').widths.forEach((w,i)=>{columnStyles[i]=Object.assign({},columnStyles[i]||{},{cellWidth:(w/6)*7})});
+  // FC-00059: scaled to the page width like the payroll PDF (FC-00050), so the copy fits too.
+  const _w=_columnsFor('combined').widths,_sum=_w.reduce((a,b)=>a+b,0)||1,_avail=pageW-60;
+  _w.forEach((w,i)=>{columnStyles[i]=Object.assign({},columnStyles[i]||{},{cellWidth:w*_avail/_sum,overflow:'linebreak'})});
   doc.autoTable({
     head:[hdr?hdr.cells.slice():m.headers.slice()],
     body,
@@ -5190,7 +5349,13 @@ async function _fc24ExportScratchPdf(){
 }
 
 // Render the all-entity preview table + grand total just above the Export button.
+// FC-00059: the all-entity preview is merged into the one export preview (same rows, same totals,
+// the not-confirmed flag kept). The host is cleared; the old builder stays as _allEntityPreviewHtml.
 function renderAllEntityPreview(){
+  const host=document.getElementById('allEntityPreviewHost');
+  if(host)host.innerHTML='';
+}
+function _allEntityPreviewHtml(){
   const _prevNm=_makeNameFormatter('payroll'); // FC-00045: the preview prints names like the payroll report
   let host=document.getElementById('allEntityPreviewHost');
   if(!host){
@@ -5413,8 +5578,92 @@ function renderPayDayCell(day,isOrphan,hasActuals){
   return h;
 }
 
+// ================================================================
+// FC-00058 — Weekly Actuals: Hours or Cost
+// ================================================================
+// Cost view: each day cell shows what that day cost in wages and what the schedule said it would
+// cost, using the rates on the Payroll Calculation table below. A person's actual cost is their
+// paid Actual spread over their days by minutes worked, in whole cents (the same allocation as
+// the Labor Cost tab), so a row adds up to the person's Actual and the table to Labor Cost.
+// Scheduled cost = (shift hours − the entity's break) × rate, hourly people only. Read-only.
+const GRID_VIEW_PREF='pv26_grid_view';
+function payrollGridView(){const v=_prefGet(GRID_VIEW_PREF);return v==='cost'?'cost':'hours';}
+function setPayrollGridView(v){_prefSet(GRID_VIEW_PREF,v==='cost'?'cost':'hours');renderPayroll();}
+function entityCostGrid(idx){
+  const ent=entities[idx];if(!ent)return null;
+  const data=_collectExportData().find(d=>d.entityId===ent.id);
+  const people=[];
+  ((data&&data.rows)||[]).forEach(r=>{
+    const ds=r.days||[];
+    const hourly=!r.isFlat&&r.wage>0&&!r._wageBlank;
+    const p={name:r._empName,displayName:r.name,rate:hourly?r.wage:null,kind:r.isSemi?'semi':(r.isFlat?'flat':(r._wageBlank||!(r.wage>0)?'norate':'hourly')),
+      flatAmount:r.isFlat?(r.isSemi?r.semiAmount:r.flatAmount):null,
+      actual:[0,0,0,0,0,0,0],sched:[0,0,0,0,0,0,0],weekOnly:0,actualWeek:0,schedWeek:0};
+    if(r.isSemi){
+      const wk=Math.round(semiWeeklyCost(r.semiAmount)*100);
+      _allocCents(wk,[1,1,1,1,1,1,1]).forEach((c,d)=>{p.actual[d]=c/100;});
+      p.actualWeek=wk/100;
+    }else{
+      const cents=Math.round((r._breakdown.actualFinal||0)*100);
+      const mins=[0,1,2,3,4,5,6].map(d=>Math.round(((ds[d]&&ds[d].billableH)||0)*60));
+      if(mins.some(m=>m>0))_allocCents(cents,mins).forEach((c,d)=>{p.actual[d]=c/100;});
+      else p.weekOnly=cents/100;
+      p.actualWeek=cents/100;
+    }
+    if(hourly)ds.forEach((d,i)=>{if(d&&d.shift&&i<7)p.sched[i]=Math.round((d.expectedH||0)*r.wage*100)/100;});
+    p.schedWeek=Math.round(p.sched.reduce((a,b)=>a+b,0)*100)/100;
+    people.push(p);
+  });
+  const dayTot=[0,1,2,3,4,5,6].map(d=>({actual:Math.round(people.reduce((a,p)=>a+p.actual[d],0)*100)/100,sched:Math.round(people.reduce((a,p)=>a+p.sched[d],0)*100)/100}));
+  const week={actual:Math.round(people.reduce((a,p)=>a+p.actualWeek,0)*100)/100,sched:Math.round(people.reduce((a,p)=>a+p.schedWeek,0)*100)/100};
+  return{people,dayTot,week};
+}
+function _costDiffHtml(actual,sched){
+  const d=Math.round((actual-sched)*100)/100;
+  if(Math.abs(d)<0.005)return'<span class="wk-diff">as scheduled</span>';
+  return`<span class="wk-diff" style="color:${d>0?'var(--red)':'var(--green)'}">${d>0?'+':'−'}$${Math.abs(d).toFixed(2)} ${d>0?'over':'under'}</span>`;
+}
+function renderPayrollCostGrid(rows,ent){
+  const table=document.getElementById('payrollGrid');if(!table)return;
+  const idx=entities.indexOf(ent);
+  const cg=entityCostGrid(idx)||{people:[],dayTot:[],week:{actual:0,sched:0}};
+  const byName=new Map(cg.people.map(p=>[_aliasNorm(p.name),p]));
+  const dLabels=ent.dateLabels||[];
+  let html='<thead><tr><th style="border-right:2px solid #999">Name</th><th style="border-right:2px solid #999">Rate</th>';
+  for(let d=0;d<7;d++)html+=`<th>${DAYS[d]}</th>`;
+  html+='<th style="background:#DAD8D2">Weekly</th></tr><tr><th class="date-row" style="border-right:2px solid #999"></th><th class="date-row" style="border-right:2px solid #999"></th>';
+  for(let d=0;d<7;d++)html+=`<th class="date-row">${dLabels[d]||''}</th>`;
+  html+='<th class="date-row" style="background:#DAD8D2"></th></tr></thead><tbody>';
+  const seen=new Set();
+  const line=(label,p)=>{
+    const rateTxt=p?(p.kind==='hourly'?'$'+p.rate.toFixed(2)+'/h':p.kind==='semi'?'semi-monthly':p.kind==='flat'?'flat':'no rate'):'left out';
+    let h=`<tr class="cost-row"><td class="name-cell">${escHtml(label)}</td><td class="name-cell" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${escHtml(rateTxt)}</td>`;
+    for(let d=0;d<7;d++){
+      if(!p){h+='<td class="pay-day"></td>';continue;}
+      const a=p.actual[d],sc=p.sched[d];
+      if(!(a>0.004)&&!(sc>0.004)){h+='<td class="pay-day" style="text-align:center;color:var(--text3)">—</td>';continue;}
+      h+=`<td class="pay-day" style="text-align:center"><div style="font-weight:600;font-family:'IBM Plex Mono',monospace">$${a.toFixed(2)}</div>${p.kind==='hourly'?`<div style="font-size:10px;color:var(--text3)">sched $${sc.toFixed(2)}</div>${_costDiffHtml(a,sc)}`:''}</td>`;
+    }
+    if(!p)h+='<td class="pay-weekly"><span class="wk-diff">not in this week\'s payroll</span></td></tr>';
+    else h+=`<td class="pay-weekly"><span class="wk-actual">$${p.actualWeek.toFixed(2)}</span>${p.weekOnly?'<span class="wk-diff">flat, no hours</span>':''}${p.kind==='hourly'?`<span class="wk-diff">sched $${p.schedWeek.toFixed(2)}</span>${_costDiffHtml(p.actualWeek,p.schedWeek)}`:''}</td></tr>`;
+    return h;
+  };
+  rows.forEach(r=>{
+    const key=r.schedName||r.name;const p=byName.get(_aliasNorm(key));
+    if(p)seen.add(p);
+    html+=line(r.name||key,p||null);
+  });
+  cg.people.filter(p=>!seen.has(p)).forEach(p=>{html+=line(p.displayName||p.name,p);});
+  html+=`<tr class="total-row cost-total"><td class="name-cell"><b>Total</b></td><td class="name-cell"></td>`;
+  for(let d=0;d<7;d++){const t=cg.dayTot[d]||{actual:0,sched:0};html+=`<td class="pay-day" style="text-align:center"><div style="font-weight:700;font-family:'IBM Plex Mono',monospace">$${t.actual.toFixed(2)}</div><div style="font-size:10px;color:var(--text3)">sched $${t.sched.toFixed(2)}</div></td>`;}
+  html+=`<td class="pay-weekly"><span class="wk-actual">$${cg.week.actual.toFixed(2)}</span><span class="wk-diff">sched $${cg.week.sched.toFixed(2)} (hourly)</span></td></tr></tbody>`;
+  table.innerHTML=html;
+  document.getElementById('payrollGridHeading').style.display='block';
+  document.getElementById('payrollGridWrap').style.display='block';
+}
 function renderPayrollGrid(rows,ent,hasActuals,noSchedule){
   const table=document.getElementById('payrollGrid');if(!table)return;
+  if(payrollGridView()==='cost'){renderPayrollCostGrid(rows,ent);return;} // FC-00058
   // Use the original schedule week dates; actuals are filtered against dateLabels too.
   const dLabels=ent.dateLabels;
   let html='<thead><tr><th style="border-right:2px solid #999">Name</th><th style="border-right:2px solid #999">Employee ID</th>';
@@ -6009,9 +6258,11 @@ function renderIntake(){
         </div>
         <div class="intake-drop ${(ent.intake.mixedFiles||[]).length>0?'has-files':''}" id="mixDrop_${idx}" onclick="document.getElementById('mixInput_${idx}').click()" style="border-color:var(--blue);background:rgba(37,99,235,0.02)">
           <div class="label" style="color:var(--blue)">Mixed / Auto-Classify</div>
-          <div class="hint">Drop any timecard images — auto-detects type</div>
+          <div class="hint">Images, a zip or a folder — each image is looked at and you see what it is before OCR</div>
           <div class="count">${(ent.intake.mixedFiles||[]).length?(ent.intake.mixedFiles.length)+' file'+((ent.intake.mixedFiles.length)>1?'s':'')+' ready':''}</div>
-          <input type="file" id="mixInput_${idx}" accept="image/*" multiple>
+          <div style="margin-top:4px;display:flex;gap:6px;justify-content:center"><button class="btn" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();document.getElementById('mixFolderInput_${idx}').click()">Folder</button><button class="btn" style="font-size:10px;padding:2px 8px" onclick="event.stopPropagation();document.getElementById('mixInput_${idx}').click()">Images or zip</button></div>
+          <input type="file" id="mixInput_${idx}" accept="image/*,.zip,application/zip" multiple>
+          <input type="file" id="mixFolderInput_${idx}" webkitdirectory directory multiple style="display:none" onclick="event.stopPropagation()">
         </div>
       </div>
 
@@ -6027,7 +6278,7 @@ function renderIntake(){
 
       <div class="ocr-results ${ent.intake.reviewRows.length>0||ent.intake.ocrDone?'active':''}" id="ocrResults_${idx}">
         ${renderReviewSummary(ent)}
-        <div class="review-legend"><strong>Legend</strong><span><span class="legend-abbr">TC</span> = Timecard photo</span><span><span class="legend-abbr">EC</span> = EasyClocking</span><span><span class="legend-abbr">MN</span> = Manual</span></div>
+        <div class="review-legend"><strong>Legend</strong><span><span class="legend-abbr">TC</span> = Timecard photo</span><span><span class="legend-abbr">EC</span> = EasyClocking</span><span><span class="legend-abbr">MN</span> = Manual</span><span><span class="legend-blue">9:00 AM</span> = changed or typed by hand</span><span><span class="warn-dot" style="display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--amber)"></span> = rows not approved yet</span></div>
         <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap"><button class="btn" onclick="addManualRowEntity(${idx})" title="Add a row for an employee not already in the table" style="font-size:12px;padding:5px 12px">✚ Add employee row</button><button class="btn" onclick="scrollToIntakeUpload(${idx})" title="Upload additional timecards for this entity without losing any approved or edited rows — new rows join the queue marked as new" style="font-size:12px;padding:5px 12px">📎 Add more timecards</button><span style="font-size:11px;color:var(--text3)">Use when an entire employee is missing</span><span style="flex:1"></span><button class="btn" onclick="document.getElementById('actualsIntakeImportInput').click()" title="Re-import a previously exported Actuals Intake .xlsx — restores approved rows so payroll can be calculated without redoing OCR" style="font-size:12px;padding:5px 12px">⤴ Import Actuals (.xlsx)</button><button class="btn btn-green" onclick="exportActualsIntakeExcel()" title="Export reviewed actuals across all entities — re-importable, includes both approved and unapproved rows (unapproved rows are clearly marked)" style="font-size:12px;padding:5px 14px">📥 Export Actuals (.xlsx)</button></div>
         <div id="reviewTable_${idx}">${renderReviewTableHtml(ent,idx)}</div>
       </div>
@@ -6042,7 +6293,7 @@ function renderIntake(){
   entities.forEach((ent,idx)=>{
     wireIntakeDrop('tcDrop_'+idx,'tcInput_'+idx,files=>addIntakeFiles(idx,'tc',files));
     wireIntakeDrop('ecDrop_'+idx,'ecInput_'+idx,files=>addIntakeFiles(idx,'ec',files));
-    wireIntakeDrop('mixDrop_'+idx,'mixInput_'+idx,files=>addIntakeFiles(idx,'mixed',files));
+    _wireMixedDrop(idx); // FC-00055
     // Restore OCR job list (retry buttons etc.) if a prior run left any jobs around
     if(ent.intake&&Array.isArray(ent.intake._ocrJobs)&&ent.intake._ocrJobs.length>0){
       renderOcrFileList(idx,ent.intake._ocrJobs);
@@ -6050,6 +6301,16 @@ function renderIntake(){
   });
 }
 
+// FC-00055: the Mixed box reads folders and zips and opens the sort preview for its entity.
+function _wireMixedDrop(idx){
+  const dz=document.getElementById('mixDrop_'+idx),fi=document.getElementById('mixInput_'+idx),ff=document.getElementById('mixFolderInput_'+idx);
+  if(!dz||!dz.addEventListener)return;
+  dz.addEventListener('dragover',e=>{e.preventDefault();dz.classList.add('dragover')});
+  dz.addEventListener('dragleave',()=>dz.classList.remove('dragover'));
+  dz.addEventListener('drop',e=>{e.preventDefault();dz.classList.remove('dragover');mixedDropFromDataTransfer(idx,e.dataTransfer);});
+  if(fi&&fi.addEventListener)fi.addEventListener('change',e=>{mixedDropFromInput(idx,e.target.files);fi.value='';});
+  if(ff&&ff.addEventListener)ff.addEventListener('change',e=>{mixedDropFromInput(idx,e.target.files);ff.value='';});
+}
 function wireIntakeDrop(dropId,inputId,cb){
   const dz=document.getElementById(dropId),fi=document.getElementById(inputId);
   if(!dz||!fi)return;
@@ -6225,17 +6486,18 @@ function addManualRowEntity(idx){
 }
 
 // Employee-level manual row: pre-selects the active employee tab
-function addManualRow(idx){
+function addManualRow(idx,forIso){
   const ent=entities[idx];ensureIntakeState(ent);
   // Default the empName to the currently-active employee sub-tab so the row
-  // lands on the tab the user is already looking at.
+  // lands on the tab the user is already looking at (FC-00057: also a person not on the schedule).
   const schedNames=ent.employees.map(e=>e.name).filter(Boolean);
   const activeTab=ent.intake.activeEmpTab;
-  const prefillName=(activeTab&&activeTab!=='__unrecognized__'&&schedNames.includes(activeTab))?activeTab:'';
+  const prefillName=(activeTab&&activeTab!=='__unrecognized__'&&(schedNames.includes(activeTab)||_registeredOffSchedule(ent,activeTab)===activeTab))?activeTab:'';
   // Default the date to the first schedule date — guaranteed to be inside
-  // the loaded week and lets the user tab-to-change if needed.
+  // the loaded week and lets the user tab-to-change if needed. FC-00057: "+ Add punches" on an
+  // empty day passes that day's date.
   const firstDate=(ent.dateLabels||[]).find(d=>d)||'';
-  const iso=schedLabelToIso(firstDate)||'';
+  const iso=(forIso&&/^\d{4}-\d{2}-\d{2}$/.test(forIso))?forIso:(schedLabelToIso(firstDate)||'');
   const dayIdx=iso?new Date(iso+'T00:00:00').getDay():0;
   const newId='manual_'+Date.now()+'_'+Math.random().toString(36).slice(2,7);
   ent.intake.reviewRows.push({
@@ -7111,6 +7373,17 @@ function _isManualRow(r){return !!r&&r.source==='MN'}
 // for that box (row._ocr[k]); the OCR value travels with the box, so merge/split carry it.
 function _boxEdited(row,k){return !!(row&&row._ocr&&row._ocrSource&&(row[k]||'')!==(row._ocr[k]||''))}
 function editedBoxes(row){return REVIEWER_EDIT_FIELDS.filter(k=>_boxEdited(row,k))}
+// FC-00057: a box is blue when its value did not come from OCR: an OCR box the owner changed, or
+// any filled box on a row typed by hand (a manual row has no OCR reading at all).
+function _boxByHand(row,k){
+  if(_boxEdited(row,k))return true;
+  return !!(row&&!(row._ocr&&row._ocrSource)&&row.source==='MN'&&row[k]);
+}
+function _boxByHandTitle(row,k){
+  if(_boxEdited(row,k))return` title="Changed by hand — OCR read ${escHtml((k==='date'?row._ocr[k]:to12h(row._ocr[k]))||'(blank)')}"`;
+  if(_boxByHand(row,k))return' title="Typed by hand"';
+  return'';
+}
 // A punch pair is a manual entry when its In or Out box was edited or the row's date was
 // corrected; a row typed by hand (no OCR reading at all) is manual throughout.
 function _isManualPair(row,n){
@@ -7321,32 +7594,127 @@ function _unrecognizedGroupsHtml(ent,idx,rows){
   groups.forEach(gr=>{
     h+=`<div style="display:flex;align-items:center;gap:8px;margin:3px 0"><b>${escHtml(gr.name)}</b><span style="color:var(--text3)">${gr.rows.length} row${gr.rows.length===1?'':'s'}</span>`;
     if(gr.archived)h+=`<span style="color:var(--red)">Matches archived: ${escHtml(gr.archived)}</span><button class="mini-btn" style="font-size:11px;padding:2px 8px" onclick="reactivateFromReview(${idx},'${escHtml(escJs(gr.name))}')" title="Make ${escHtml(gr.archived)} active again and put these rows on them">Reactivate</button>`;
-    else h+=`<button class="mini-btn approve" style="font-size:11px;padding:2px 8px" onclick="addNewEmployee(${idx},'${escHtml(escJs(gr.name))}','${escHtml(escJs(gr.name))}')" title="Create ${escHtml(gr.name)} as a new employee with a permanent ID; the name can be edited on their tab">Add as new employee</button>`;
+    else h+=`<button class="mini-btn approve" style="font-size:11px;padding:2px 8px" onclick="openNewEmployeeDialog(${idx},{spelling:'${escHtml(escJs(gr.name))}',group:true})" title="Create ${escHtml(gr.name)} as a new employee with a permanent ID; the name can be edited on their tab">Add as new employee</button>`;
     h+='</div>';
   });
   return h+'</div>';
 }
 // FC-00048: creates a person (or reuses the one already holding that name) and moves the
 // Unrecognized rows read as `fromSpelling` onto them. One undo step. Returns the record.
-function addNewEmployee(entIdx,name,fromSpelling){
+function addNewEmployee(entIdx,name,fromSpelling,extra){
   const ent=entities[entIdx];const nm=(name||'').toString().trim();
   if(!ent||!nm)return null;
   ensureIntakeState(ent);
   const arch=_archivedMatch(ent.id,nm);
   if(arch){alert(arch.canonical_name+' is archived. Use Reactivate to bring them back instead of adding a new employee.');return null;}
+  extra=extra||{};
   let rec=null;
   _withCheckpoint('Add employee · '+nm,()=>{
     const existing=_resolveRecordNoMint(ent.id,nm);
+    // FC-00056: a brand-new person continues after the highest ID ever issued for the entity.
+    if(!existing){const code=_entityCodeFor(ent.id);const hw=_idHighWater()[code]||0;session._empIdSeq=session._empIdSeq||{};if(!(session._empIdSeq[code]>=hw))session._empIdSeq[code]=hw;}
     rec=existing||ensureRosterRecord(ent.id,nm);
     const onSched=(ent.employees||[]).some(e=>e&&_resolveRecordNoMint(ent.id,e.name)===rec);
     if(!existing||!(rec.fromFile||rec.addedNew||onSched))rec.addedNew=true;
     const n=_aliasNorm(fromSpelling||nm);
     ent.intake.reviewRows.forEach(r=>{if(r&&_aliasNorm(r.empName)===n&&reviewBucketKey(r,ent)==='__unrecognized__'){r.empName=rec.canonical_name;recomputeRowFlags(r,ent);}});
     if(fromSpelling)_learnSpelling(ent,rec.canonical_name,fromSpelling);
+    // FC-00056: the row the dialog was opened from goes to the new person; its card spelling is
+    // remembered; optional wage and pay method are set the normal way (History, settings export).
+    if(extra.rowId){const row=ent.intake.reviewRows.find(r=>r&&r.id===extra.rowId);if(row){const from=row.empName;row.empName=rec.canonical_name;_record({type:'reviewEdit',screen:'intake',target:{kind:'reviewRow',entity:ent.id,id:row.id,field:'empName'},from:from||'',to:rec.canonical_name,meta:_rowMeta(row,ent,{empName:rec.canonical_name})});recomputeRowFlags(row,ent);if(row.needsReview)row.approved=false;}}
+    if(extra.spelling&&!fromSpelling&&_aliasNorm(extra.spelling)!==_aliasNorm(rec.canonical_name)&&_spellingSafeToLearn(ent,rec.canonical_name,extra.spelling,null))_learnSpelling(ent,rec.canonical_name,extra.spelling);
+    const k=wKey(ent.id,rec.canonical_name);
+    if(extra.rate!=null)dispatch({type:'wage',screen:'intake',target:{kind:'employee',entity:ent.id,id:k,field:'wage'},from:wageRates[k],to:extra.rate,meta:{empName:rec.canonical_name}});
+    if(extra.method)dispatch({type:'payMethod',screen:'intake',target:{kind:'employee',entity:ent.id,id:k,field:'payMethod'},from:payMethod[k]||'deposit',to:extra.method,meta:{empName:rec.canonical_name}});
     ent.intake.activeEmpTab=rec.canonical_name;
   });
   if(currentTab==='intake'){refreshReviewTable(entIdx);}
   scheduleDynamicRecompute();
+  return rec;
+}
+// ================================================================
+// FC-00056 — New employee dialog: first and last name, permanent ID shown before it is created
+// ================================================================
+// Names follow the house rule: full first name and full last name; when the last name is not
+// known the entity's name stands in ("<First> Hefner"). The ID continues after the highest
+// number ever issued for the entity (the settings file carries it, see _idHighWater), so a
+// number is never handed out twice. Rate and pay method are optional here and can be set on
+// the Payroll tab; everything lands in the settings export.
+let _newEmp=null;
+function _titleWord(w){w=String(w||'').trim();return w&&w===w.toLowerCase()?w.charAt(0).toUpperCase()+w.slice(1):w;}
+function _cleanNamePart(v){return String(v||'').replace(/\s+/g,' ').trim().split(' ').map(_titleWord).join(' ');}
+function newEmployeeFullName(entIdx,first,last){
+  const ent=entities[entIdx];const f=_cleanNamePart(first),l=_cleanNamePart(last);
+  if(!f)return'';
+  return f+' '+(l||(ent?_entityFileLabel(ent):''));
+}
+function previewNextEmployeeId(entIdx){
+  const ent=entities[entIdx];if(!ent)return'';
+  const code=_entityCodeFor(ent.id);
+  let n=Math.max((session._empIdSeq||{})[code]||0,(session._fileIdMax||{})[code]||0,(_idHighWater()[code]||0));
+  let id;do{n++;id=`EMP_${code}_${String(n).padStart(5,'0')}`;}while(session.roster.byId[id]);
+  return id;
+}
+function openNewEmployeeDialog(entIdx,opts){
+  const ent=entities[entIdx];if(!ent)return false;
+  opts=opts||{};
+  const sp=String(opts.spelling||'').trim();
+  const parts=sp.split(/\s+/).filter(Boolean);
+  _newEmp={entIdx,rowId:opts.rowId||null,spelling:sp,group:!!opts.group,first:_cleanNamePart(parts[0]||''),last:_cleanNamePart(parts.slice(1).join(' ')),rate:'',method:'',error:''};
+  _renderNewEmp(true);
+  setTimeout(()=>{const f=document.getElementById('newEmpFirst');if(f&&f.focus)f.focus();},0);
+  return true;
+}
+function closeNewEmployeeDialog(){_newEmp=null;_renderNewEmp(false);}
+function setNewEmpField(k,v){if(!_newEmp)return;_newEmp[k]=v;_newEmp.error='';_renderNewEmpPreview();}
+function _newEmpHtml(){
+  const d=_newEmp;if(!d)return'';
+  const ent=entities[d.entIdx];
+  const loaded=_settingsLoadedThisSession();
+  let h=`<p class="sub">Entity: <b>${escHtml(ent.name||'')}</b>. Full first name and full last name. If the last name is not known, leave it blank and <b>${escHtml(_entityFileLabel(ent))}</b> is used.</p>`;
+  h+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <label>First name<input id="newEmpFirst" type="text" value="${escHtml(d.first)}" oninput="setNewEmpField('first',this.value)" onkeydown="if(event.key==='Enter')createNewEmployeeFromDialog()"></label>
+    <label>Last name<input id="newEmpLast" type="text" value="${escHtml(d.last)}" placeholder="${escHtml(_entityFileLabel(ent))}" oninput="setNewEmpField('last',this.value)" onkeydown="if(event.key==='Enter')createNewEmployeeFromDialog()"></label>
+    <label>Wage / hour <span style="color:var(--text3);font-weight:400">(optional)</span><input id="newEmpRate" type="number" step="0.01" min="0" value="${escHtml(d.rate)}" oninput="setNewEmpField('rate',this.value)"></label>
+    <label>Pay method <span style="color:var(--text3);font-weight:400">(optional)</span><select id="newEmpMethod" onchange="setNewEmpField('method',this.value)"><option value="">— set on Payroll —</option>${['cash','deposit','contract'].map(m=>`<option value="${m}" ${d.method===m?'selected':''}>${escHtml(methodLabel(m))}</option>`).join('')}</select></label>
+  </div>`;
+  h+=`<div id="newEmpPreview" style="margin-top:12px;font-size:13px">${_newEmpPreviewHtml()}</div>`;
+  if(!loaded)h+='<div style="font-size:11px;color:var(--amber);margin-top:6px">No settings file loaded yet: the ID is shown as it will be numbered now and is confirmed when last week\'s settings file is loaded.</div>';
+  h+=`<div class="actions"><button class="btn" onclick="closeNewEmployeeDialog()">Cancel</button><button class="btn btn-primary" onclick="createNewEmployeeFromDialog()">Create employee</button></div>`;
+  return h;
+}
+function _newEmpPreviewHtml(){
+  const d=_newEmp;if(!d)return'';
+  const full=newEmployeeFullName(d.entIdx,d.first,d.last);
+  let h=`Saved as: <b>${escHtml(full||'—')}</b> · ID <b class="mono">${escHtml(previewNextEmployeeId(d.entIdx))}</b>`;
+  if(d.spelling&&_aliasNorm(d.spelling)!==_aliasNorm(full))h+=`<div style="font-size:11px;color:var(--text3)">The card spelling “${escHtml(d.spelling)}” is kept as an alternate spelling.</div>`;
+  if(d.error)h+=`<div style="color:var(--red);font-size:12px;margin-top:4px">${escHtml(d.error)}</div>`;
+  return h;
+}
+function _renderNewEmpPreview(){const el=document.getElementById('newEmpPreview');if(el)el.innerHTML=_newEmpPreviewHtml();}
+function _renderNewEmp(open){
+  const ov=document.getElementById('newEmpOverlay');if(!ov)return;
+  if(!open||!_newEmp){ov.style.display='none';return;}
+  document.getElementById('newEmpBody').innerHTML=_newEmpHtml();
+  ov.style.display='flex';
+}
+// Returns the new person's record, or null with the reason shown in the dialog.
+function createNewEmployeeFromDialog(){
+  const d=_newEmp;if(!d)return null;
+  const ent=entities[d.entIdx];if(!ent)return null;
+  const full=newEmployeeFullName(d.entIdx,d.first,d.last);
+  const fail=msg=>{d.error=msg;_renderNewEmpPreview();return null;};
+  if(!_cleanNamePart(d.first))return fail('Type the first name.');
+  const arch=_archivedMatch(ent.id,full);
+  if(arch)return fail(arch.canonical_name+' is archived. Use Reactivate on the Unrecognized tab to bring them back.');
+  const existing=_resolveRecordNoMint(ent.id,full);
+  if(existing&&existing.canonical_name&&(existing.fromFile||existing.addedNew||(ent.employees||[]).some(e=>e&&_resolveRecordNoMint(ent.id,e.name)===existing)))return fail(existing.canonical_name+' already exists ('+existing.id+'). Pick them in the Employee list instead.');
+  const rateN=d.rate===''?null:parseFloat(d.rate);
+  if(rateN!=null&&(isNaN(rateN)||rateN<0))return fail('The wage must be a number of 0 or more.');
+  const rec=addNewEmployee(d.entIdx,full,d.group?d.spelling:null,{rate:rateN,method:d.method||null,spelling:d.spelling,rowId:d.rowId});
+  if(!rec)return null;
+  _newEmp=null;_renderNewEmp(false);
+  showToast('Created '+rec.canonical_name+' · '+rec.id,'ok');
   return rec;
 }
 // FC-00047: an archived person found on a card is made active again by the owner's click, and the
@@ -7379,6 +7747,9 @@ function renderReviewTableHtml(ent,idx){
     if(!buckets.has(k))buckets.set(k,[]);
     buckets.get(k).push(r);
   });
+  // FC-00057: someone added this week gets a tab even before they have a row, so punches can be
+  // typed in for them.
+  _addedNewOffSchedule(ent).forEach(n=>{if(!buckets.has(n))buckets.set(n,[]);});
   // Restore active tab if it still has rows; otherwise pick the first bucket that has rows.
   if(!ent.intake.activeEmpTab||!buckets.has(ent.intake.activeEmpTab)){
     ent.intake.activeEmpTab=schedNames.find(n=>(buckets.get(n)||[]).length>0)
@@ -7390,28 +7761,34 @@ function renderReviewTableHtml(ent,idx){
 
   // Render tab bar
   let html='<div class="emp-subtabs" role="tablist">';
+  // FC-00057: every row needs a person's approval, so the dot shows on anyone with a row that is
+  // not approved yet (left-out rows are decided; ignored people are not paid from their cards).
+  const _dotN=(n,b)=>(ent.intake.ignoredEmployees&&ent.intake.ignoredEmployees[n])?0:b.filter(r=>!r.approved&&!r.leftOut).length;
+  const _dot=n=>n>0?'<span class="warn-dot" title="'+n+' row'+(n===1?'':'s')+' not approved yet"></span>':'';
   schedNames.forEach(n=>{
     const b=buckets.get(n)||[];
-    const needs=b.filter(r=>r.needsReview&&!r.approved).length;
+    const needs=_dotN(n,b);
     const active=n===activeKey?' active':'';
-    html+=`<button class="emp-subtab${active}" onclick="setEmpSubtab(${idx},'${escJs(n)}')" title="${escHtml(n)} — ${b.length} row${b.length===1?'':'s'}">${escHtml(n)}<span class="cnt">${b.length}</span>${needs>0?'<span class="warn-dot" title="'+needs+' need review"></span>':''}${_dupFlagHtml(ent.id,n)}</button>`;
+    html+=`<button class="emp-subtab${active}" onclick="setEmpSubtab(${idx},'${escJs(n)}')" title="${escHtml(n)} — ${b.length} row${b.length===1?'':'s'}">${escHtml(n)}<span class="cnt">${b.length}</span>${_dot(needs)}${_dupFlagHtml(ent.id,n)}</button>`;
   });
   // FC-00048: confirmed people who are not on the schedule (added this week, or in the settings
   // file) get their own tab after the scheduled ones.
   [...buckets.keys()].filter(k=>k!=='__unrecognized__'&&!schedNames.includes(k)).forEach(n=>{
     const b=buckets.get(n)||[];
-    const needs=b.filter(r=>r.needsReview&&!r.approved).length;
+    const needs=_dotN(n,b);
     const active=n===activeKey?' active':'';
-    html+=`<button class="emp-subtab off-sched${active}" onclick="setEmpSubtab(${idx},'${escHtml(escJs(n))}')" title="${escHtml(n)} — not on this week's schedule · ${b.length} row${b.length===1?'':'s'}">${escHtml(n)} <span style="font-size:10px;color:var(--text3)">(not on schedule)</span><span class="cnt">${b.length}</span>${needs>0?'<span class="warn-dot" title="'+needs+' need review"></span>':''}</button>`;
+    html+=`<button class="emp-subtab off-sched${active}" onclick="setEmpSubtab(${idx},'${escHtml(escJs(n))}')" title="${escHtml(n)} — not on this week's schedule · ${b.length} row${b.length===1?'':'s'}">${escHtml(n)} <span style="font-size:10px;color:var(--text3)">(not on schedule)</span><span class="cnt">${b.length}</span>${_dot(needs)}</button>`;
   });
   const unrec=buckets.get('__unrecognized__')||[];
   const unrecActive=activeKey==='__unrecognized__'?' active':'';
-  html+=`<button class="emp-subtab unrecognized${unrecActive}" onclick="setEmpSubtab(${idx},'__unrecognized__')" title="Rows whose name doesn't match any scheduled employee">Unrecognized<span class="cnt">${unrec.length}</span></button>`;
+  html+=`<button class="emp-subtab unrecognized${unrecActive}" onclick="setEmpSubtab(${idx},'__unrecognized__')" title="Rows whose name doesn't match any scheduled employee">Unrecognized<span class="cnt">${unrec.length}</span>${_dot(unrec.filter(r=>!r.approved&&!r.leftOut).length)}</button>`;
+  html+=`<button class="emp-subtab new-emp-tab" onclick="openNewEmployeeDialog(${idx})" title="Create a new employee with a permanent ID (FC-00056)">+ New employee</button>`;
   html+='</div>';
 
   // Table for the active bucket
   const show3=rows.some(r=>r.clockIn3||r.clockOut3||(r._reread&&(r._reread.values.clockIn3||r._reread.values.clockOut3)));
-  if(activeRows.length===0){
+  const _dayView=activeKey!=='__unrecognized__'?_reviewWeekIsos(ent):null; // FC-00057
+  if(activeRows.length===0&&!_dayView){
     html+='<div class="review-empty-msg">No rows for this employee yet.</div>';
     return html;
   }
@@ -7425,7 +7802,8 @@ function renderReviewTableHtml(ent,idx){
   // FC-00007 rename entry point for Actuals Intake: the employee's name here is click-to-edit
   // and commits through the same renameEmployeeViaDispatcher flow as Payroll.
   const empNameHtml=activeKey==='__unrecognized__'?empLabel:inlineEditableNameHtml(ent.id,activeKey,'intake',()=>renderIntake());
-  html+=`<span style="color:var(--text2)">${empNameHtml}: <strong>${empApproved}</strong> / ${empTotal} approved${isIgnored?' <span style="color:var(--amber);font-weight:600">— Time Cards Ignored</span>':''}</span>`;
+  const _ph=_dayView?_intakePersonHours(_intakeHours(idx,activeKey),ent,activeKey):null; // FC-00057
+  html+=`<span style="color:var(--text2)">${empNameHtml}: <strong>${empApproved}</strong> / ${empTotal} approved${isIgnored?' <span style="color:var(--amber);font-weight:600">— Time Cards Ignored</span>':''}${_ph?_weekHoursHtml(_ph):''}</span>`;
   html+='<span style="display:flex;gap:6px">';
   if(empApproved<empTotal){
     html+=`<button class="mini-btn approve" onclick="approveAllForEmployee(${idx},'${escJs(activeKey)}')" title="Approve all rows for ${empLabel}" style="font-size:11px;padding:3px 10px">✓ Approve all for ${empLabel}</button>`;
@@ -7468,7 +7846,8 @@ function renderReviewTableHtml(ent,idx){
   if(show3)html+='<th>In 3</th><th>Out 3</th>';
   html+='<th>Flags</th>';
   html+='<th>Action</th></tr></thead><tbody>';
-  activeRows.forEach(r=>{
+  const _ncols=(show3?16:14);
+  const _rowHtml=r=>{
     const cls=(r.approved?'approved':(r.needsReview?'needs-review':''))+(r._newSinceUpload?' new-since-upload':'');
     const srcCls=r.source==='TC'?'tc':(r.source==='EC'?'ec':(r.source==='MN'?'mn':(r.source==='XL'?'xl':'')));
     html+=`<tr class="${cls}" data-row-id="${r.id}">`;
@@ -7542,12 +7921,12 @@ function renderReviewTableHtml(ent,idx){
     const dayLbl=r.date?(['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(r.date+'T00:00:00').getDay()]||''):'';
     html+=`<td style="text-align:center;font-size:11px;color:var(--text2);font-family:'IBM Plex Mono',monospace">${dayLbl}</td>`;
     // 5. Date
-    html+=`<td><input class="date-field${_boxEdited(r,'date')?' box-edited':''}"${_boxEdited(r,'date')?` title="Edited — OCR read ${escHtml(r._ocr.date||'(blank)')}"`:''} type="date" value="${escHtml(r.date)}" oninput="updateReviewFieldLight('${r.id}','date',this.value)" onchange="commitDateInput(this,'${r.id}','date')" onblur="commitDateInput(this,'${r.id}','date')"></td>`;
+    html+=`<td><input class="date-field${_boxByHand(r,'date')?' box-edited':''}"${_boxByHandTitle(r,'date')} type="date" data-rbox="${escHtml(r.id)}|date" value="${escHtml(r.date)}" oninput="updateReviewFieldLight('${r.id}','date',this.value)" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}" onblur="commitDateInput(this,'${r.id}','date',event)"></td>`;
     // 6-11 Time pairs (use TEXT inputs to prevent native time-picker focus loss between digits)
     const timeFields=show3?['clockIn1','clockOut1','clockIn2','clockOut2','clockIn3','clockOut3']:['clockIn1','clockOut1','clockIn2','clockOut2'];
     timeFields.forEach(k=>{
-      const ed=_boxEdited(r,k);
-      html+=`<td><input class="time-text${ed?' box-edited':''}"${ed?` title="Edited — OCR read ${escHtml(to12h(r._ocr[k])||'(blank)')}"`:''} type="text" inputmode="text" pattern="[0-9:aApPmM ]*" maxlength="8" placeholder="--:-- --" value="${escHtml(to12h(r[k]))}" oninput="handleTimeInput(this,'${r.id}','${k}')" onblur="commitTimeInput(this,'${r.id}','${k}')" style="width:76px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px"></td>`;
+      const ed=_boxByHand(r,k);
+      html+=`<td><input class="time-text${ed?' box-edited':''}"${_boxByHandTitle(r,k)} type="text" inputmode="text" pattern="[0-9:aApPmM ]*" maxlength="8" placeholder="--:-- --" data-rbox="${escHtml(r.id)}|${k}" value="${escHtml(to12h(r[k]))}" oninput="handleTimeInput(this,'${r.id}','${k}')" onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}" onblur="commitTimeInput(this,'${r.id}','${k}',event)" style="width:76px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:11px"></td>`;
     });
     // Flags
     const editBadge=r._reviewerEdited?`<span class="new-badge" style="background:#E0F2FE;color:#075985;border-color:#7DD3FC" title="You changed what OCR read. Your values are final: this row is now a manual entry and survives OCR re-runs.">✎ edited (was ${escHtml(r._ocrSource||'OCR')})</span>`:'';
@@ -7565,10 +7944,102 @@ function renderReviewTableHtml(ent,idx){
     }
     html+='</td></tr>';
     if(r._reread)html+=_rereadRowHtml(r,timeFields);
-  });
+  };
+  if(_dayView){
+    // FC-00057: every day of the pay week, in order, with its hours; days without punches are
+    // shown empty so every person's tab reads the same. Rows outside the week come last.
+    const inWeek=new Set(_dayView);
+    const empShifts=((ent.employees||[]).find(e=>e&&e.name===activeKey)||{}).shifts||null;
+    _dayView.forEach((iso,i)=>{
+      const dayRows=activeRows.filter(r=>r.date===iso);
+      const d=new Date(iso+'T00:00:00').getDay();
+      html+=_dayHeadHtml(iso,_ph?_ph.days[d]:null,empShifts?empShifts[d]:null,_ncols,isIgnored);
+      if(dayRows.length)dayRows.forEach(_rowHtml);
+      else html+=`<tr class="day-empty"><td colspan="${_ncols}">No punches · <a href="#" onclick="addManualRowForDay(${idx},'${iso}');return false">+ Add punches</a></td></tr>`;
+    });
+    const outRows=activeRows.filter(r=>!inWeek.has(r.date)).sort((a,b)=>(a.date||'~').localeCompare(b.date||'~'));
+    if(outRows.length){
+      html+=`<tr class="day-head day-out"><td colspan="${_ncols}"><b>Outside this pay week</b> · not paid this week</td></tr>`;
+      outRows.forEach(_rowHtml);
+    }
+  }else{
+    activeRows.forEach(_rowHtml);
+  }
   html+='</tbody></table></div>';
   return html;
 }
+// ================================================================
+// FC-00057 — the review tab shows every day of the pay week with day and week hours
+// ================================================================
+// The pay week: the loaded schedule's seven dates, or with no schedule the Sun–Sat week most of
+// the entity's rows fall in. null when there is nothing to anchor a week to.
+function _reviewWeekIsos(ent){
+  const fromSched=(ent.dateLabels||[]).map(l=>l?schedLabelToIso(l):'');
+  if(fromSched.length===7&&fromSched.every(Boolean))return fromSched;
+  const cnt={};
+  ((ent.intake&&ent.intake.reviewRows)||[]).forEach(r=>{
+    if(!r||!r.date)return;const d=new Date(r.date+'T00:00:00');if(isNaN(d))return;
+    const sun=_isoAddDays(r.date,-d.getDay());cnt[sun]=(cnt[sun]||0)+1;
+  });
+  const best=Object.keys(cnt).sort((a,b)=>cnt[b]-cnt[a]||a.localeCompare(b))[0];
+  return best?[0,1,2,3,4,5,6].map(i=>_isoAddDays(best,i)):null;
+}
+// Hours with the payroll math (computePayrollForEntity on the same punch days payroll builds):
+// `paid` counts approved rows only (what payroll pays now), `all` also counts the rows still
+// waiting for approval. Read-only: the entity's real actuals are put back untouched. With
+// `personKey`, only that person's rows are used, so no record is ever created for a name on an
+// unrecognized row just by looking at the tab.
+function _intakeHours(idx,personKey){
+  const ent=entities[idx];if(!ent||!ent.intake)return null;
+  let rows=ent.intake.reviewRows||[];
+  if(personKey!=null)rows=rows.filter(r=>r&&reviewBucketKey(r,ent)===personKey);
+  const saved=ent.actualDays,hadFlag=('_actualsFromReview' in ent),savedFlag=ent._actualsFromReview,savedMode=actualsMode;
+  const run=list=>{ent.actualDays=_actualDaysFromRows(ent,list);const c=computePayrollForEntity(idx);return c.results.concat(c.orphanRows);};
+  let paid=[],all=[];
+  try{
+    actualsMode='separate';
+    paid=run(rows.filter(r=>r&&r.approved===true));
+    all=run(rows.filter(r=>r&&(r.approved===true||!r.leftOut)));
+  }finally{
+    ent.actualDays=saved;actualsMode=savedMode;
+    if(hadFlag)ent._actualsFromReview=savedFlag;else delete ent._actualsFromReview;
+  }
+  return{paid,all};
+}
+function _intakePersonHours(h,ent,key){
+  if(!h)return null;
+  const k=_aliasNorm(key);
+  const pick=list=>list.filter(r=>{const n=r.schedName||r.name;return _aliasNorm(n)===k||_aliasNorm(_personNameOnEntity(ent,n)||'')===k;});
+  const p=pick(h.paid),a=pick(h.all);
+  const day=(list,d)=>list.reduce((x,r)=>x+((r.days&&r.days[d]&&r.days[d].billableH)||0),0);
+  const days=[0,1,2,3,4,5,6].map(d=>({paid:day(p,d),all:day(a,d)}));
+  const wk=list=>list.reduce((x,r)=>x+(r.actualHours||0),0);
+  return{days,paidWeek:_r2(wk(p)),allWeek:_r2(wk(a))};
+}
+function _weekHoursHtml(ph){
+  const pend=_r2(ph.allWeek-ph.paidWeek);
+  return`<span class="emp-week-hrs" title="Hours with the payroll rules: span minus the larger of the break minimum and the actual gap">Week: <b>${escHtml(fmtHrs(ph.paidWeek))}</b> approved${Math.abs(pend)>=0.005?` · <span class="pend">${escHtml(fmtHrs(ph.allWeek))} once every row is approved</span>`:''}</span>`;
+}
+function _dayHeadHtml(iso,dh,shift,ncols,ignored){
+  let h=`<tr class="day-head"><td colspan="${ncols}"><b>${escHtml(_isoDayLabel(iso))}</b>`;
+  if(ignored)h+='<span class="dh-hrs">time cards ignored</span>';
+  else if(dh){
+    h+=`<span class="dh-hrs">${escHtml(fmtHrs(dh.paid))} approved</span>`;
+    const pend=_r2(dh.all-dh.paid);
+    if(Math.abs(pend)>=0.005)h+=`<span class="dh-pend">${escHtml(fmtHrs(dh.all))} once approved</span>`;
+  }
+  if(shift!=null)h+=`<span class="dh-sched">Scheduled: ${escHtml(String(shift).trim()||'OFF')}</span>`;
+  return h+'</td></tr>';
+}
+// People added this week (FC-00048/56) who are not on the schedule: they get a tab before their
+// first row exists.
+function _addedNewOffSchedule(ent){
+  const sched=new Set((ent.employees||[]).map(e=>_aliasNorm(e&&e.name)));
+  return Object.keys(session.roster.byId).map(id=>session.roster.byId[id])
+    .filter(r=>r&&r.entity===ent.id&&r.addedNew&&r.canonical_name&&rosterActive[r.id]!==false&&!sched.has(_aliasNorm(r.canonical_name)))
+    .map(r=>r.canonical_name);
+}
+function addManualRowForDay(idx,iso){return addManualRow(idx,iso);}
 
 // FC-00042: the comparison line under a row with a waiting re-read. One cell per box, aligned
 // under it: the re-read value and a Current | Re-read toggle (Current by default).
@@ -7623,13 +8094,16 @@ function from12h(str){
   // 2) Already 24h HH:MM
   m=str.match(/^(\d{1,2}):(\d{2})$/);
   if(m){return pad2(Math.min(23,parseInt(m[1])))+':'+pad2(Math.min(59,parseInt(m[2])));}
-  // 3) Bare digits: 3→H:MM, 4→HH:MM, 1-2→HH:00
+  // 3) Bare digits: 3→H:MM, 4→HH:MM, 1-2→HH:00. FC-00054: a trailing A/AM or P/PM counts
+  // ("500p" = 5:00 PM, "1130a" = 11:30 AM, "5p" = 5:00 PM); before, it was ignored.
+  const ap=(str.match(/(A|P)M?\s*$/)||[])[1]||'';
   const digits=str.replace(/[^0-9]/g,'');
   if(digits&&/^\d+$/.test(digits)){
     let hh,mm;
     if(digits.length<=2){hh=parseInt(digits);mm=0;}
     else if(digits.length===3){hh=parseInt(digits.slice(0,1));mm=parseInt(digits.slice(1));}
     else {hh=parseInt(digits.slice(0,digits.length-2));mm=parseInt(digits.slice(-2));}
+    if(ap&&hh>=1&&hh<=12){if(ap==='A'&&hh===12)hh=0;else if(ap==='P'&&hh!==12)hh+=12;}
     return pad2(Math.min(23,hh||0))+':'+pad2(Math.min(59,mm||0));
   }
   return str; // unparseable
@@ -7649,7 +8123,8 @@ function handleTimeInput(el,id,field){
   _applyReviewerEditState(h.row);
   scheduleDynamicRecompute();
 }
-function commitTimeInput(el,id,field){
+function commitTimeInput(el,id,field,ev){
+  _noteNextBox(ev); // FC-00054: the box the owner moved to keeps the cursor after the redraw
   const raw=(el.value||'').trim();
   if(raw===''){
     el.value='';
@@ -7667,12 +8142,57 @@ function commitTimeInput(el,id,field){
 // oninput -> updateReviewFieldLight (no render); onchange/onblur -> commitDateInput (full render).
 // Guarded so a change+blur pair (native picker fires both events) only triggers one full
 // commit+render per distinct value — the second event for the same already-committed value is a no-op.
-function commitDateInput(el,id,field){
+// FC-00054: a date box saves when the owner leaves it (Tab, click elsewhere, Enter), never on
+// "change": the browser fires change on every typed digit, which saved half-typed dates (typing
+// "1" saved January) and redrew the table under the cursor.
+function commitDateInput(el,id,field,ev){
+  _noteNextBox(ev);
   const val=el.value||'';
   const h=findReviewRow(id);if(!h)return;
-  if(h.row._dateCommitted===val)return; // already fully committed this value (e.g. change then blur)
+  if(h.row._dateCommitted===val&&(h.row[field]||'')===val)return; // already committed this value
   h.row._dateCommitted=val;
   updateReviewField(id,field,val);
+}
+// ---- FC-00054: keep the cursor where the owner put it ----
+// Saving a box redraws the review table. A redraw while the mouse button is down would replace
+// the box being clicked, so it waits until the click has landed; afterwards the box that has
+// the cursor (or the one Tab moved to) is found again by its data-rbox key and refocused.
+let _ptrDown=false,_refocusKey=null;
+const _deferredReviewRefresh=new Set();
+function _noteNextBox(ev){
+  const t=ev&&ev.relatedTarget;
+  const k=t&&t.getAttribute?t.getAttribute('data-rbox'):null;
+  if(k)_refocusKey=k;
+}
+function _activeBoxState(){
+  if(typeof document==='undefined')return null;
+  // The box the owner is moving to (Tab or click) wins: while a box is being left, the browser
+  // can still report it as the focused one.
+  if(_refocusKey)return{key:_refocusKey,keepSel:false};
+  const a=document.activeElement;
+  const k=a&&a.getAttribute?a.getAttribute('data-rbox'):null;
+  if(k){let s=null,e=null;try{s=a.selectionStart;e=a.selectionEnd;}catch(_){}return{key:k,s,e,keepSel:true};}
+  return null;
+}
+function _restoreBox(st){
+  _refocusKey=null;
+  if(!st||!st.key||typeof document==='undefined'||!document.querySelector)return;
+  let el=null;
+  try{el=document.querySelector('[data-rbox="'+String(st.key).replace(/"/g,'\\"')+'"]');}catch(_){el=null;}
+  if(!el||!el.focus)return;
+  try{el.focus({preventScroll:true});}catch(_){try{el.focus();}catch(__){}}
+  try{
+    if(st.keepSel&&st.s!=null&&el.setSelectionRange)el.setSelectionRange(st.s,st.e);
+    else if(!st.keepSel&&el.select&&el.type==='text')el.select();
+  }catch(_){}
+}
+function _flushDeferredReviewRefresh(){
+  const list=[..._deferredReviewRefresh];_deferredReviewRefresh.clear();
+  list.forEach(i=>refreshReviewTable(i));
+}
+if(typeof document!=='undefined'&&document.addEventListener){
+  document.addEventListener('mousedown',()=>{_ptrDown=true;},true);
+  document.addEventListener('mouseup',()=>{_ptrDown=false;if(_deferredReviewRefresh.size)setTimeout(_flushDeferredReviewRefresh,0);},true);
 }
 
 function findReviewRow(id){
@@ -7710,11 +8230,11 @@ function updateReviewField(id,field,val){
   // FC-00048: "+ New employee…" in the name dropdown asks for the name, creates the person and
   // puts this row on them.
   if(field==='empName'&&val==='__new__'){
-    const nm=prompt('New employee name:',(h.row.rawOcrName||h.row.empName||'').trim());
-    if(!nm||!nm.trim()){refreshReviewTable(entities.indexOf(h.ent));return;}
-    const rec=addNewEmployee(entities.indexOf(h.ent),nm.trim(),null);
-    if(!rec)return;
-    val=rec.canonical_name;
+    // FC-00056: the New employee dialog asks for first and last name and shows the permanent ID;
+    // on Create, this row is put on the new person.
+    refreshReviewTable(entities.indexOf(h.ent));
+    openNewEmployeeDialog(entities.indexOf(h.ent),{rowId:id,spelling:(h.row.rawOcrName||h.row.empName||'').trim()});
+    return;
   }
   const from=_takeEditStart(h.row,field);
   h.row[field]=val;
@@ -7829,6 +8349,11 @@ function isRowStructurallyValid(r){
 
 function approveAll(idx){
   const ent=entities[idx];if(!ent||!ent.intake)return;
+  // FC-00057: every punch is reviewed by a person; approving a whole entity in one click is for
+  // testing and rare cases, so it asks first.
+  const waiting=ent.intake.reviewRows.filter(r=>!r.approved).length;
+  if(!waiting){showToast('Every row is already approved','ok');return;}
+  if(!confirm('Approve all '+waiting+' row'+(waiting===1?'':'s')+' for '+(ent.name||'this entity')+' without checking them one by one?\n\nEvery punch should be checked against its image. Use this only for testing or a rare case.'))return;
   let approved=0,skipped=0;const changed=[];
   ent.intake.reviewRows.forEach(r=>{
     if(r.approved)return;
@@ -7937,6 +8462,9 @@ function _restoreReviewScroll(idx,pos){
 
 function refreshReviewTable(idx){
   const ent=entities[idx];if(!ent)return;
+  // FC-00054: never redraw under a mouse press; the click lands first, then the redraw runs.
+  if(_ptrDown){_deferredReviewRefresh.add(idx);return;}
+  const _box=_activeBoxState();
   // Preserve scroll position to prevent page jump on blur/commit
   const scrollX=window.scrollX,scrollY=window.scrollY;
   const wrapScroll=_captureReviewScroll(idx);
@@ -7954,6 +8482,7 @@ function refreshReviewTable(idx){
   }
   // Restore scroll position
   window.scrollTo(scrollX,scrollY);
+  _restoreBox(_box);
 }
 
 // ================================================================
@@ -7977,6 +8506,16 @@ function syncActualsFromReview(){
     // split and a waiting re-read unapprove rows), punches built from them must not keep
     // paying (FC-00043 review).
     if(approvedRows.length===0){if(ent._actualsFromReview){ent.actualDays=[];delete ent._actualsFromReview;}return;}
+    rows.forEach(r=>{if(r)delete r._superseded;});
+    ent.actualDays=_actualDaysFromRows(ent,approvedRows,rows);
+    ent._actualsFromReview=true;
+  });
+}
+// The punch days payroll pays for one set of review rows (FC-00057 split this out of
+// syncActualsFromReview so the review tab can show day and week hours with the same math).
+// `markRows` (optional) is the row list whose _superseded flags are set; omitted = no side effect.
+function _actualDaysFromRows(ent,approvedRows,markRows){
+    const rows=markRows||[];
     const out=[];
     const schedNames=ent.employees.map(e=>e.name).filter(Boolean);
     approvedRows.forEach(r=>{
@@ -8019,7 +8558,6 @@ function syncActualsFromReview(){
     });
     // FC-00029: MN supersedes overlapping TC/EC. Within one employee+date, any OCR pair that
     // overlaps a manual pair is dropped; non-overlapping pairs from every source still add.
-    rows.forEach(r=>{if(r)delete r._superseded;});
     out.forEach(day=>{
       const mnPairs=day.pairs.filter(p=>p._mn);
       if(mnPairs.length===0)return;
@@ -8033,9 +8571,7 @@ function syncActualsFromReview(){
       });
       day.pairs=kept;
     });
-    ent.actualDays=out;
-    ent._actualsFromReview=true;
-  });
+    return out;
 }
 
 
@@ -8091,9 +8627,14 @@ function _reviewRowPersonName(r,ent){
   return k==='__unrecognized__'?((r.empName||'').trim()||'(no name)'):k;
 }
 // Rows that a payroll export would leave unpaid without the owner deciding.
-function unpaidReviewRows(){
+// FC-00059: `scope` = entity ids of the report being exported (a one-entity report only asks
+// about that entity's rows); default = the export running now, or the one the stop is open for.
+let _payGateScope=null;
+function unpaidReviewRows(scope){
+  const sc=scope!==undefined?scope:(_exportScope||_payGateScope);
   const out=[];
   entities.forEach((ent,ei)=>{
+    if(sc&&!sc.includes(ent.id))return;
     const rows=(ent.intake&&ent.intake.reviewRows)||[];
     if(!rows.length)return;
     const wk=_weekIsoSet(ent),ign=_ignoredNameSet(ent);
@@ -8141,6 +8682,7 @@ function _payrollGateOk(cont){
   if(_dlCapture&&_dlCapture.gateOk)return true;
   if(!unpaidReviewRows().length)return true;
   _payGateCont=cont||null;
+  _payGateScope=_exportScope?_exportScope.slice():null;
   _renderPayGate(true);
   return false;
 }
@@ -8170,7 +8712,7 @@ function _renderPayGate(open){
 }
 function _payGateAfterChange(){
   if(unpaidReviewRows().length){_renderPayGate(true);return;}
-  const c=_payGateCont;_payGateCont=null;
+  const c=_payGateCont;_payGateCont=null;_payGateScope=null;
   _renderPayGate(false);
   if(c)return c();
 }
@@ -8180,7 +8722,7 @@ function payGateApproveAll(){
   unpaidReviewRows().forEach(x=>{if(_approvable(x.row)&&!x.unrec)approveReviewRow(x.row.id);});
   return _payGateAfterChange();
 }
-function payGateCancel(){_payGateCont=null;_renderPayGate(false);}
+function payGateCancel(){_payGateCont=null;_payGateScope=null;_renderPayGate(false);}
 function payGateGoToRow(entIdx,id){
   payGateCancel();
   const ent=entities[entIdx];const h=findReviewRow(id);
@@ -8358,8 +8900,10 @@ function entityStats(idx){
     s.workedPct=s.expected>0?s.worked/s.expected:null;
     s.avgLate=s.lateDays?s.lateMin/s.lateDays:null;
     s.avgEarly=s.earlyDays?s.earlyMin/s.earlyDays:null;
-    s.earlyCost=hourly?_r2(s.earlyMin/60*r.wage):null;
-    s.stayCost=hourly?_r2(s.stayMin/60*r.wage):null;
+    // FC-00060: rounded half-up to the cent like Excel's ROUND (42 min × $11.25 = $7.875 → $7.88),
+    // so the Stats sheet's formulas give the same cents as the screen.
+    s.earlyCost=hourly?_r2half(s.earlyMin/60*r.wage):null;
+    s.stayCost=hourly?_r2half(s.stayMin/60*r.wage):null;
     people.push(s);
   });
   const sum=k=>people.reduce((a,p)=>a+(p[k]||0),0);
@@ -8406,36 +8950,73 @@ function renderStatsTable(idx){
 const XL_FMT_HMM='[h]:mm';
 // FC-00051: the Stats sheet of the Combined Excel — one block per entity, payroll-sheet order
 // and colors, names as the payroll report prints them.
+// FC-00060: the Stats sheet is a math sheet — every figure is a number (durations as h:mm,
+// money as $) and every percent, average, cost and total is a formula over the cells beside it,
+// so editing a count or a minute total recalculates the row and the entity total. The screen's
+// Stats tab is unchanged; the sheet splits its combined text columns into one number each.
+const STATS_XL_HEADERS=['Employee','Rate','Expected','Worked','Worked %','Days worked (scheduled)','Late days','Late %','Late >5 min days','Late min (total)','Avg late','Early days','Early min (total)','Avg early','Early max','Early cost','Stayed-late days','Stayed-late min','Stayed-late cost','Break expected','Break actual','Over 40 h','Other hours days','Missed days'];
 function _writeStatsSheet(ewb,data){
   const ws=ewb.addWorksheet('Stats');
   const nm=_makeNameFormatter('payroll');
   const per=_exportPeriodStr();
   const t=ws.addRow(['STATS — punctuality and hours vs schedule'+(per?' — '+per:'')]);
   t.getCell(1).font={name:'Arial',bold:true,size:13};
-  const hrsCell=(v)=>({v:_r2(v||0)/24,fmt:XL_FMT_HMM});
+  ws.addRow(['Late = clock-in 1+ min after the shift start (over 5 min is the red level). Early clock-ins are counted, never flagged. Costs use the hourly rate. Every %, average, cost and total is a formula.']).getCell(1).font={name:'Arial',italic:true,size:9,color:{argb:'FF555555'}};
+  const H='[h]:mm';
+  const col=k=>STATS_XL_HEADERS.indexOf(k);
+  const L=k=>_xlCol(col(k));
   data.forEach(({entityId})=>{
     const idx=entities.findIndex(e=>e.id===entityId);if(idx<0)return;
     const st=entityStats(idx);if(!st||!st.people.length)return;
     const pal=_paletteForEntity(entities[idx]);
     ws.addRow([]);
     const er=ws.addRow([st.entity]);er.getCell(1).font={name:'Arial',bold:true,size:11};
-    const hr=ws.addRow(STATS_HEADERS);
-    hr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};c.fill=_fc12Fill('FFE8E8E4');});
+    const hr=ws.addRow(STATS_XL_HEADERS);
+    hr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};c.fill=_fc12Fill('FFE8E8E4');c.alignment={wrapText:true,vertical:'middle'};});
+    hr.height=30;
+    let first=0,last=0;
+    const colSum={}; // cached results of the total row's SUMs
     const put=(p,isTotal)=>{
-      const vals=_statsCells(p,isTotal);
-      vals[0]=isTotal?st.entity+' total':nm(st.entityId,p.name);
-      const row=ws.addRow(vals);
-      // Hours as real durations (h:mm) so they still add up in Excel.
-      [[1,p.expected],[2,p.worked],[12,p.expBreak],[13,p.actBreak]].forEach(([ci,v])=>{const c=row.getCell(ci+1);const x=hrsCell(v);c.value=x.v;c.numFmt=x.fmt;});
-      if(p.workedPct!=null){const c=row.getCell(4);c.value=Math.round(p.workedPct*1000)/1000;c.numFmt='0.0%';}
-      [[9,p.earlyCost],[11,p.stayCost]].forEach(([ci,v])=>{if(v==null)return;const c=row.getCell(ci+1);c.value=v;c.numFmt=XL_FMT_MONEY;});
+      const row=ws.addRow([isTotal?st.entity+' total':nm(st.entityId,p.name)]);const n=row.number;
+      const ref=k=>L(k)+n;
+      const set=(k,v,fmt)=>{const c=row.getCell(col(k)+1);c.value=v;if(fmt)c.numFmt=fmt;if(!isTotal){const x=typeof v==='number'?v:(v&&typeof v.result==='number'?v.result:0);colSum[k]=(colSum[k]||0)+x;}};
+      const fx=(k,f,r,fmt)=>set(k,{formula:f,result:r==null?'':r},fmt);
+      const sum=(k,fmt)=>fx(k,'SUM('+L(k)+first+':'+L(k)+last+')',colSum[k]||0,fmt);
+      if(!isTotal){
+        if(p.rate!=null)set('Rate',p.rate,XL_FMT_MONEY);
+        set('Expected',_r2(p.expected)/24,H);set('Worked',_r2(p.worked)/24,H);
+        set('Days worked (scheduled)',p.workedSchedDays);set('Late days',p.lateDays);set('Late >5 min days',p.late5Days);
+        set('Late min (total)',p.lateMin/1440,H);set('Early days',p.earlyDays);set('Early min (total)',p.earlyMin/1440,H);
+        set('Early max',p.earlyMax/1440,H);set('Stayed-late days',p.stayDays);set('Stayed-late min',p.stayMin/1440,H);
+        set('Break expected',_r2(p.expBreak)/24,H);set('Break actual',_r2(p.actBreak)/24,H);
+        set('Other hours days',p.otherDays);set('Missed days',p.missedDays);
+        fx('Over 40 h','MAX(0,ROUND('+ref('Worked')+'*24-40,2))/24',(p.otH||0)/24,H+';;""');
+      }else{
+        ['Expected','Worked','Late min (total)','Early min (total)','Stayed-late min','Break expected','Break actual'].forEach(k=>sum(k,H));
+        ['Days worked (scheduled)','Late days','Late >5 min days','Early days','Stayed-late days','Other hours days','Missed days'].forEach(k=>sum(k,'0'));
+        fx('Early max','MAX('+L('Early max')+first+':'+L('Early max')+last+')',(p.earlyMax||0)/1440,H);
+        fx('Over 40 h','COUNTIF('+L('Over 40 h')+first+':'+L('Over 40 h')+last+',">0")',p.otCount||0,'0" over";;""');
+        ['Early cost','Stayed-late cost'].forEach(k=>sum(k,XL_FMT_MONEY_DASH));
+      }
+      // Cached results are what the formulas give from the cells as written (durations rounded
+      // to the minute or the hundredth of an hour, exactly as the cells hold them).
+      const cv=k=>{const c=row.getCell(col(k)+1).value;return typeof c==='number'?c:(c&&typeof c.result==='number'?c.result:0);};
+      fx('Worked %','IF('+ref('Expected')+'>0,'+ref('Worked')+'/'+ref('Expected')+',"")',cv('Expected')>0?cv('Worked')/cv('Expected'):'','0.0%');
+      fx('Late %','IF('+ref('Days worked (scheduled)')+'>0,'+ref('Late days')+'/'+ref('Days worked (scheduled)')+',"")',cv('Days worked (scheduled)')>0?cv('Late days')/cv('Days worked (scheduled)'):'','0%');
+      fx('Avg late','IF('+ref('Late days')+'>0,'+ref('Late min (total)')+'/'+ref('Late days')+',"")',cv('Late days')>0?cv('Late min (total)')/cv('Late days'):'',H);
+      fx('Avg early','IF('+ref('Early days')+'>0,'+ref('Early min (total)')+'/'+ref('Early days')+',"")',cv('Early days')>0?cv('Early min (total)')/cv('Early days'):'',H);
+      if(!isTotal&&p.rate!=null){
+        fx('Early cost','ROUND('+ref('Early min (total)')+'*24*'+ref('Rate')+',2)',p.earlyCost||0,XL_FMT_MONEY_DASH);
+        fx('Stayed-late cost','ROUND('+ref('Stayed-late min')+'*24*'+ref('Rate')+',2)',p.stayCost||0,XL_FMT_MONEY_DASH);
+      }
       row.eachCell(c=>{c.font={name:'Arial',size:10,bold:!!isTotal};});
       _applyEntityPalette(row,pal,isTotal?'subtotal':'body',null);
+      return n;
     };
-    st.people.forEach(p=>put(p,false));
+    st.people.forEach((p,i)=>{const n=put(p,false);if(!i)first=n;last=n;});
     put(st.total,true);
   });
-  [22,10,10,9,13,13,9,13,24,10,20,13,12,12,12,12,10].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+  ws.getColumn(1).width=24;for(let i=2;i<=STATS_XL_HEADERS.length;i++)ws.getColumn(i).width=11;
   return ws;
 }
 
@@ -8556,23 +9137,39 @@ function _writeLaborCostSheet(ewb,data){
     ws.addRow([]);
     const er=ws.addRow([lc.entity]);er.getCell(1).font={name:'Arial',bold:true,size:11};
     const hr=ws.addRow(['',...hdr,'Week']);hr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};c.fill=_fc12Fill('FFE8E8E4');});
-    const put=(lbl,f,wk,fmt)=>{
-      const row=ws.addRow([lbl]);
-      lc.days.forEach((d,i)=>{const v=f(d);const c=row.getCell(i+2);if(fmt==='money')money(row,i+2,v);else if(fmt==='hours'){c.value=Math.round((v||0)*100)/100/24;c.numFmt=XL_FMT_HMM;}else c.value=v;});
-      const c=row.getCell(LC_DAYS+2);if(fmt==='money')money(row,LC_DAYS+2,wk);else if(fmt==='hours'){c.value=Math.round((wk||0)*100)/100/24;c.numFmt=XL_FMT_HMM;}else c.value=wk;
+    // FC-00060: day values are the allocated figures; the Week column, $ / hour, Variance and
+    // the week's labor cost are formulas over them.
+    const W=_xlCol(LC_DAYS+1),D1=_xlCol(1),D7=_xlCol(LC_DAYS);
+    const rowsAt={};
+    const put=(key,lbl,f,wk,fmt,weekF)=>{
+      const row=ws.addRow([lbl]);const n=row.number;rowsAt[key]=n;
+      const hv=v=>fmt==='hoursExact'?(v||0)/24:Math.round((v||0)*100)/100/24;
+      lc.days.forEach((d,i)=>{const v=f(d);const c=row.getCell(i+2);if(v==null){return;}if(fmt==='money')money(row,i+2,v);else if(fmt==='hours'||fmt==='hoursExact'){c.value=hv(v);c.numFmt=XL_FMT_HMM;}else c.value=v;});
+      const c=row.getCell(LC_DAYS+2);
+      const res=(fmt==='hours'||fmt==='hoursExact')?(weekF?lc.days.reduce((a,d)=>a+hv(f(d)),0):hv(wk)):(fmt==='money'?Math.round((wk||0)*100)/100:wk);
+      c.value=weekF?{formula:weekF(n),result:res}:res;
+      c.numFmt=(fmt==='hours'||fmt==='hoursExact')?XL_FMT_HMM:(fmt==='money'?XL_FMT_MONEY:'0');
       row.eachCell(c=>{c.font={name:'Arial',size:10};});
       _applyEntityPalette(row,pal,'body',null);
+      return row;
     };
-    put('Hours',d=>d.hours,lc.week.hours,'hours');
-    put('People',d=>d.people,lc.week.people);
-    put('Cost',d=>d.cost,lc.week.cost,'money');
-    put('$ / hour (hourly)',d=>d.perHour,lc.week.perHour,'money');
-    put('Scheduled (hourly)',d=>d.sched,lc.week.sched,'money');
-    put('Actual (hourly)',d=>d.hourlyCost,lc.week.hourlyCost,'money');
-    put('Variance',d=>d.variance,lc.week.variance,'money');
-    lc.fixed.forEach(x=>{const r=ws.addRow(['Flat, no hours: '+x.name]);money(r,LC_DAYS+2,x.amount);});
-    lc.semis.forEach(x=>{const r=ws.addRow(['Semi-monthly: '+x.name+' (per half-month '+_money(x.amount)+'; per day '+_money(x.daily)+'; paid this run '+_money(x.pay)+')']);money(r,LC_DAYS+2,x.weekly);});
-    const tr=ws.addRow(['Labor cost this week']);money(tr,LC_DAYS+2,lc.total);tr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};});
+    const sumF=n=>'SUM('+D1+n+':'+D7+n+')';
+    put('hours','Hours',d=>d.hours,lc.week.hours,'hours',sumF);
+    put('people','People',d=>d.people,lc.week.people,null,null);
+    put('cost','Cost',d=>d.cost,lc.week.cost,'money',sumF);
+    put('hh','Hours (hourly people)',d=>d.hourlyHours,lc.week.hourlyHours,'hoursExact',sumF);
+    put('sched','Scheduled (hourly)',d=>d.sched,lc.week.sched,'money',sumF);
+    put('act','Actual (hourly)',d=>d.hourlyCost,lc.week.hourlyCost,'money',sumF);
+    const ph=put('ph','$ / hour (hourly)',()=>null,lc.week.perHour,'money',null);
+    for(let i=0;i<=LC_DAYS;i++){const C=_xlCol(i+1),c=ph.getCell(i+2);const v=i<LC_DAYS?lc.days[i].perHour:lc.week.perHour;c.value={formula:'IF('+C+rowsAt.hh+'>0,ROUND('+C+rowsAt.act+'/('+C+rowsAt.hh+'*24),2),"")',result:v==null?'':v};c.numFmt=XL_FMT_MONEY;}
+    const vr=put('var','Variance (actual − scheduled)',()=>null,lc.week.variance,'money',null);
+    for(let i=0;i<=LC_DAYS;i++){const C=_xlCol(i+1),c=vr.getCell(i+2);const v=i<LC_DAYS?lc.days[i].variance:lc.week.variance;c.value={formula:C+rowsAt.act+'-'+C+rowsAt.sched,result:v};c.numFmt=XL_FMT_MONEY_SIGNED;}
+    const extraRows=[];
+    lc.fixed.forEach(x=>{const r=ws.addRow(['Flat, no hours: '+x.name]);money(r,LC_DAYS+2,x.amount);extraRows.push(r.number);});
+    lc.semis.forEach(x=>{const r=ws.addRow(['Semi-monthly: '+x.name+' (per half-month '+_money(x.amount)+'; per day '+_money(x.daily)+'; paid this run '+_money(x.pay)+')']);money(r,LC_DAYS+2,x.weekly);extraRows.push(r.number);});
+    const tr=ws.addRow(['Labor cost this week']);
+    {const c=tr.getCell(LC_DAYS+2);c.value={formula:[W+rowsAt.cost].concat(extraRows.map(n=>W+n)).join('+'),result:lc.total};c.numFmt=XL_FMT_MONEY;}
+    tr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};});
     _applyEntityPalette(tr,pal,'subtotal',null);
     ws.addRow([]);
     const cols=hdr.slice();if(lc.hasNextSun)cols.push('Sun (next week)');
@@ -8637,9 +9234,13 @@ function _entityFolderOf(paths){
   }
   return segs.map(s=>s[0]||'');
 }
-async function weekDropAddFiles(list){
+// FC-00055: `opts.entIdx` = the drop came from one entity's Mixed / Auto-Classify box: every image
+// belongs to that entity whatever folder it sits in, and the same sort screen opens for it.
+async function weekDropAddFiles(list,opts){
+  opts=opts||{};
+  const scope=(opts.entIdx!=null&&entities[opts.entIdx])?+opts.entIdx:null;
   list=(list||[]).filter(x=>x&&x.file);
-  if(!list.length){showToast('No files found in that folder','err');return null;}
+  if(!list.length){showToast(scope!=null?'No images found in what was dropped':'No files found in that folder','err');return null;}
   const folders=_entityFolderOf(list.map(x=>x.path||x.file.webkitRelativePath||x.file.name));
   const known=new Set();
   // Images already in this session (queued or OCR'd) are skipped, so a second drop never doubles punches.
@@ -8656,9 +9257,9 @@ async function weekDropAddFiles(list){
     let sha='';try{sha=await _imageFingerprint(file);}catch(_){}
     if(sha&&known.has(sha)){dups.push(name);continue;}
     if(sha)known.add(sha);
-    items.push({id:'wd'+i+'_'+Math.random().toString(36).slice(2,7),file,name,folder:folders[i],entIdx:folderEntityIdx(folders[i]),kind:null,status:'pending',sha});
+    items.push({id:'wd'+i+'_'+Math.random().toString(36).slice(2,7),file,name,folder:folders[i],entIdx:scope!=null?scope:folderEntityIdx(folders[i]),kind:null,status:'pending',sha});
   }
-  _weekDrop={items,skipped,dups,folders:[...new Set(items.map(x=>x.folder))]};
+  _weekDrop={items,skipped,dups,folders:[...new Set(items.map(x=>x.folder))],scope};
   _renderWeekDrop(true);
   await weekDropClassifyAll();
   return _weekDrop;
@@ -8701,7 +9302,9 @@ function weekDropBlockers(){
   if(!live.length)b.push('No images to read');
   return b;
 }
-async function weekDropStartOcr(){
+// FC-00055: `queueOnly` puts the sorted images on each entity's Timecard / EasyClocking lists
+// without starting OCR (the owner presses Run OCR when ready).
+async function weekDropStartOcr(queueOnly){
   const wd=_weekDrop;if(!wd)return false;
   if(weekDropBlockers().length){_renderWeekDrop(true);return false;}
   const byEnt=new Map();
@@ -8709,6 +9312,7 @@ async function weekDropStartOcr(){
   _weekDrop=null;_renderWeekDrop(false);
   const order=[...byEnt.keys()].sort((a,b)=>a-b);
   order.forEach(i=>{const g=byEnt.get(i);if(g.tc.length)addIntakeFiles(i,'tc',g.tc);if(g.ec.length)addIntakeFiles(i,'ec',g.ec);});
+  if(queueOnly===true){showToast('Queued for OCR: '+order.map(i=>{const g=byEnt.get(i);return(entities[i].name||'Entity')+' '+g.tc.length+' timecard'+(g.tc.length===1?'':'s')+', '+g.ec.length+' EasyClocking';}).join(' · '),'ok');return true;}
   for(const i of order){await runOcrForEntity(i);}
   return true;
 }
@@ -8723,7 +9327,7 @@ function _weekDropHtml(){
     h+='</div>';
   }
   const groups=[...new Set(wd.items.filter(it=>it.entIdx>=0).map(it=>it.entIdx))].sort((a,b)=>a-b);
-  const thumb=it=>{let u='';try{if(!it._url&&typeof URL!=='undefined'&&URL.createObjectURL)it._url=URL.createObjectURL(it.file);u=it._url||'';}catch(_){}return u?`<img src="${escHtml(u)}" alt="" style="width:72px;height:72px;object-fit:cover;border-radius:4px;display:block">`:'';};
+  const thumb=it=>{let u='';try{if(!it._url&&typeof URL!=='undefined'&&URL.createObjectURL)it._url=URL.createObjectURL(it.file);u=it._url||'';}catch(_){}return u?`<img src="${escHtml(u)}" alt="" style="width:132px;height:132px;object-fit:cover;border-radius:4px;display:block;cursor:zoom-in" title="Click to see it full size" onclick="openImgModal('${escHtml(u)}')">`:'';};
   const card=it=>`<div class="wd-item" data-id="${escHtml(it.id)}" style="display:inline-block;width:150px;margin:4px;padding:4px;border:1px solid var(--border);border-radius:6px;vertical-align:top;font-size:10px">${thumb(it)}<div style="word-break:break-all">${escHtml(it.name)}</div>${it.status==='classifying'?'<div style="color:var(--amber)">looking…</div>':''}<div style="margin-top:3px;display:flex;gap:3px;flex-wrap:wrap"><button class="mini-btn" onclick="weekDropSetKind('${escHtml(escJs(it.id))}','${it.kind==='TC'?'EC':'TC'}')">→ ${it.kind==='TC'?'EasyClocking':'Timecard'}</button><select onchange="weekDropSetEntity('${escHtml(escJs(it.id))}',this.value)" style="font-size:10px">${entities.map((e,i)=>`<option value="${i}" ${i===it.entIdx?'selected':''}>${escHtml(e.name||'Entity '+(i+1))}</option>`).join('')}</select><button class="mini-btn reject" onclick="weekDropRemove('${escHtml(escJs(it.id))}')" title="Leave this image out">✕</button></div></div>`;
   groups.forEach(gi=>{
     const its=wd.items.filter(it=>it.entIdx===gi);
@@ -8738,12 +9342,15 @@ function _weekDropHtml(){
   if(wd.dups.length)h+=`<div style="font-size:11px;color:var(--text3)">Already in this session, skipped: ${wd.dups.map(escHtml).join(', ')}</div>`;
   if(wd.skipped.length)h+=`<div style="font-size:11px;color:var(--text3)">Not images, skipped: ${wd.skipped.map(escHtml).join(', ')}</div>`;
   const bl=weekDropBlockers();
-  h+=`<div class="actions"><span style="font-size:12px;color:var(--amber)">${bl.map(escHtml).join(' · ')}</span><button class="btn" onclick="weekDropCancel()">Cancel</button><button class="btn btn-primary" onclick="weekDropStartOcr()" ${bl.length?'disabled style="opacity:0.45;cursor:not-allowed"':''}>Start OCR</button></div>`;
+  const dis=bl.length?'disabled style="opacity:0.45;cursor:not-allowed"':'';
+  h+=`<div class="actions"><span style="font-size:12px;color:var(--amber)">${bl.map(escHtml).join(' · ')}</span><button class="btn" onclick="weekDropCancel()">Cancel</button>${wd.scope!=null?`<button class="btn" onclick="weekDropStartOcr(true)" ${dis} title="Put the images on the Timecard and EasyClocking lists; press Run OCR when ready">Add to the lists</button>`:''}<button class="btn btn-primary" onclick="weekDropStartOcr()" ${dis}>Start OCR</button></div>`;
   return h;
 }
 function _renderWeekDrop(open){
   const ov=document.getElementById('weekDropOverlay');if(!ov)return;
   if(!open||!_weekDrop){ov.style.display='none';return;}
+  const h2=ov.querySelector?ov.querySelector('h2'):null;
+  if(h2)h2.textContent=_weekDrop.scope!=null?((entities[_weekDrop.scope]&&entities[_weekDrop.scope].name)||'Entity')+' — what each image is, before OCR':'Week folder — check the sort, then Start OCR';
   document.getElementById('weekDropBody').innerHTML=_weekDropHtml();
   ov.style.display='flex';
 }
@@ -8774,21 +9381,28 @@ async function _filesFromZip(file){
   }
   return out;
 }
-async function weekDropFromDataTransfer(dt){
+async function _listFromDataTransfer(dt){
   const items=Array.from((dt&&dt.items)||[]);
   const entries=items.map(i=>i.webkitGetAsEntry?i.webkitGetAsEntry():null).filter(Boolean);
   let list=[];
   if(entries.length)list=await _filesFromEntries(entries);
   else list=Array.from((dt&&dt.files)||[]).map(f=>({file:f,path:f.name}));
-  const zips=list.filter(x=>/\.zip$/i.test(x.file.name));
-  for(const z of zips)list=list.concat(await _filesFromZip(z.file));
-  return weekDropAddFiles(list.filter(x=>!/\.zip$/i.test(x.file.name)));
+  return _expandZips(list);
 }
-async function weekDropFromInput(files){
-  let list=Array.from(files||[]).map(f=>({file:f,path:f.webkitRelativePath||f.name}));
+async function _expandZips(list){
   const zips=list.filter(x=>/\.zip$/i.test(x.file.name));
   for(const z of zips)list=list.concat(await _filesFromZip(z.file));
-  return weekDropAddFiles(list.filter(x=>!/\.zip$/i.test(x.file.name)));
+  return list.filter(x=>!/\.zip$/i.test(x.file.name));
+}
+async function weekDropFromDataTransfer(dt){return weekDropAddFiles(await _listFromDataTransfer(dt));}
+async function weekDropFromInput(files){
+  return weekDropAddFiles(await _expandZips(Array.from(files||[]).map(f=>({file:f,path:f.webkitRelativePath||f.name}))));
+}
+// FC-00055: the Mixed / Auto-Classify box takes images, a zip or a whole folder; every image is
+// looked at and the sort screen shows what each one is before anything is read.
+async function mixedDropFromDataTransfer(idx,dt){return weekDropAddFiles(await _listFromDataTransfer(dt),{entIdx:idx});}
+async function mixedDropFromInput(idx,files){
+  return weekDropAddFiles(await _expandZips(Array.from(files||[]).map(f=>({file:f,path:f.webkitRelativePath||f.name}))),{entIdx:idx});
 }
 function _weekDropZoneHtml(){
   return `<div class="intake-drop week-drop" id="weekFolderDrop" style="border-color:var(--blue);background:rgba(37,99,235,0.03);margin-bottom:14px;min-height:70px">
@@ -8846,6 +9460,19 @@ function _exportPeriodStr(){
   return 'PERIOD '+toShort(firstEntWithDates.dateLabels[0])+' – '+toShort(firstEntWithDates.dateLabels[6]);
 }
 
+// FC-00059: the payroll report's title names its entities when it does not cover all of them.
+function _reportTitle(kind){
+  if(kind==='combined'){
+    const all=_payrollEntityIds();
+    const sc=_exportScope;
+    if(sc&&sc.length&&!(sc.length===all.length&&all.every(id=>sc.includes(id)))){
+      const names=entities.filter(e=>sc.includes(e.id)).map(e=>(e.name||'Entity').toUpperCase());
+      return 'PAYROLL REPORT — '+names.join(', ');
+    }
+    return 'COMBINED PAYROLL REPORT';
+  }
+  return kind==='cashOnly'?'CASH-ONLY REPORT':kind==='depositOnly'?'DEPOSIT-ONLY REPORT':kind==='timecard'?'TIME CARD DATA REPORT':kind==='payrollCalc'?'PAYROLL CALCULATION REPORT':'FULL REPORT';
+}
 function _exportFilenameBase(kind){
   const names={cashOnly:'Cash_Only',depositOnly:'Deposit_Only',combined:'Combined',timecard:'Time_Card_Data',payrollCalc:'Payroll_Calculation',full:'Full_Report'};
   const firstEntWithDates=entities.find(e=>e.dateLabels&&e.dateLabels.some(d=>d));
@@ -8857,6 +9484,11 @@ function _exportFilenameBase(kind){
   return (names[kind]||'Payroll')+weekPart;
 }
 
+// FC-00059: the entities an export covers (declared with DOWNLOADS, above).
+async function _withExportScope(ids,fn){
+  const prev=_exportScope;_exportScope=ids?ids.slice():null;
+  try{return await fn();}finally{_exportScope=prev;}
+}
 function _collectExportData(){
   const out=[];
   // FC-00027: every entity is considered, scheduled or not. An entity with no schedule still
@@ -8864,6 +9496,7 @@ function _collectExportData(){
   // export — that was a silent underpay path. Entities with nothing at all are skipped below
   // by the allRows.length===0 check.
   entities.forEach(e=>{
+    if(_exportScope&&!_exportScope.includes(e.id))return; // FC-00059
     const idx=entities.indexOf(e);
     const entName=e.name||('Entity '+(idx+1));
     const {results,orphanRows}=computePayrollForEntity(idx);
@@ -9002,21 +9635,37 @@ function _fxPayBlock(r,n,cols,opts){
 function _xlApplyFx(row,fx){
   Object.keys(fx).forEach(k=>{
     const ci=+k,spec=fx[k],cell=row.getCell(ci+1);
-    cell.value=spec.f!=null?{formula:spec.f,result:Math.round((spec.r||0)*100)/100}:spec.v;
+    cell.value=spec.f!=null?{formula:spec.f,result:spec.raw?(spec.r||0):Math.round((spec.r||0)*100)/100}:spec.v;
     if(spec.fmt)cell.numFmt=spec.fmt;
   });
 }
 // Shared subtotal math for the Excel and PDF writers: spec.totals lists the summed columns.
+// FC-00059: a {hmmOf:col} total is that hours total shown as h:mm.
 function _sectionTotals(spec,rows){
   const out={};
-  (spec.totals||[]).forEach(t=>{out[t.col]=Math.round(rows.reduce((a,r)=>a+(t.val(r)||0),0)*100)/100});
+  (spec.totals||[]).forEach(t=>{if(t.hmmOf!=null)return;out[t.col]=Math.round(rows.reduce((a,r)=>a+(t.val(r)||0),0)*100)/100});
+  (spec.totals||[]).forEach(t=>{if(t.hmmOf!=null)out[t.col]=out[t.hmmOf]||0;});
   return out;
 }
 function _totalCellText(t,v){
-  if(t.blankZero&&Math.abs(v)<0.005)return '';
-  return _cellText(t.hours?xlHours(v):xlMoney(v));
+  if((t.blankZero||t.hmmOf!=null)&&Math.abs(v)<0.005)return '';
+  if(t.hmmOf!=null)return fmtHmm(v);
+  return _cellText(t.hours?xlHours(v):(t.signed?xlMoneySigned(v):xlMoney(v)));
 }
-function _totalFmt(t){return t.hours?(t.blankZero?XL_FMT_HOURS_BLANK0:XL_FMT_HOURS):(t.blankZero?XL_FMT_MONEY_BLANK0:XL_FMT_MONEY)}
+function _totalFmt(t){if(t.hmmOf!=null)return XL_FMT_HMM_BLANK0;if(t.signed)return XL_FMT_SIGNED_BLANK0;return t.hours?(t.blankZero?XL_FMT_HOURS_BLANK0:XL_FMT_HOURS):(t.blankZero?XL_FMT_MONEY_BLANK0:XL_FMT_MONEY)}
+// FC-00059: the payroll report's columns, by name.
+const COMBINED_HEADERS=['Entity','Employee','Method','Hours','H:MM','Rate','Actual Total','Deposit','Cash','Rounded Final','Diff'];
+const COMBINED_COLS={entity:0,employee:1,method:2,hours:3,hmm:4,rate:5,total:6,deposit:7,cash:8,final:9,diff:10};
+const COMBINED_XL_WIDTHS=[17,22,15,10,9,9,13,13.41796875,13.05078125,15,10];
+// Hours as an Excel duration (h:mm). The value is the decimal hours to the nearest minute, so it
+// reads exactly like the screen's h:mm.
+const XL_FMT_HMM_BLANK0='[h]:mm;-[h]:mm;""';
+function xlHmm(h){const m=Math.round((h||0)*60);return _numCell(m/1440,'[h]:mm',fmtHmm(m/60));}
+function _fxHmmCell(n,C,hours){
+  if(hours==null)return{};
+  const H=_xlCol(C.hours)+n;
+  return{[C.hmm]:{f:'ROUND('+H+'*60,0)/1440',r:Math.round(_r2(hours)*60)/1440,fmt:'[h]:mm',raw:true}};
+}
 
 // ---- Table spec per kind ----
 function _columnsFor(kind,nameKey){
@@ -9055,11 +9704,16 @@ function _columnsFor(kind,nameKey){
     };
   }
   if(kind==='combined'){
+    // FC-00059: H:MM sits next to Hours (the same hours as hours:minutes), and every number
+    // column has subtotals and a grand total. COMBINED_COLS names the positions for every writer.
+    const C=COMBINED_COLS;
     return {
-      headers:['Entity','Employee','Method','Hours','Rate','Actual Total','Deposit','Cash','Rounded Final','Diff'],
-      widths:[100,130,90,60,60,80,70,70,90,60],
+      headers:COMBINED_HEADERS.slice(),
+      widths:[100,130,90,60,55,60,80,70,70,90,60],
+      cols:C,
       rowFn:(r)=>{
-        const hrs=r.isFlat?'':xlHours(hasActuals?(r.actualHours||0):(r.expectedH||0));
+        const hv=r.isFlat?null:(hasActuals?(r.actualHours||0):(r.expectedH||0));
+        const hrs=hv==null?'':xlHours(hv);
         const rate=r._wageBlank?'':(r.isFlat?'flat':(r.wage>0?xlMoney(r.wage):'—'));
         const methodLbl=methodLabel(r._breakdown.method);
         const diff=r._breakdown.roundingDiff||0;
@@ -9069,6 +9723,7 @@ function _columnsFor(kind,nameKey){
           _nm(r)+(r.isFlat?' (flat)':''),
           methodLbl,
           hrs,
+          hv==null?'':xlHmm(hv),
           rate,
           r._wageBlank?'':(r._totalPay>0?xlMoney(r._breakdown.actualFinal):'—'),
           r._breakdown.deposit>0?xlMoney(r._breakdown.deposit):'—',
@@ -9077,14 +9732,17 @@ function _columnsFor(kind,nameKey){
           diffCell
         ];
       },
-      fx:(r,n)=>_fxPayBlock(r,n,{hours:3,rate:4,total:5,deposit:6,cash:7,final:8,diff:9},{hoursDrivePay:hasActuals}),
-      // Reference layout: only Actual Total, Deposit and Cash carry subtotals.
+      fx:(r,n)=>Object.assign(_fxHmmCell(n,C,r.isFlat?null:(hasActuals?(r.actualHours||0):(r.expectedH||0))),_fxPayBlock(r,n,{hours:C.hours,rate:C.rate,total:C.total,deposit:C.deposit,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals})),
       totals:[
-        {col:5,val:r=>r._breakdown.actualFinal||0},
-        {col:6,val:r=>r._breakdown.deposit||0,blankZero:true},
-        {col:7,val:r=>r._breakdown.cash||0,blankZero:true}
+        {col:C.hours,val:r=>r.isFlat?0:_r2(hasActuals?(r.actualHours||0):(r.expectedH||0)),hours:true,blankZero:true},
+        {col:C.hmm,hmmOf:C.hours},
+        {col:C.total,val:r=>r._breakdown.actualFinal||0},
+        {col:C.deposit,val:r=>r._breakdown.deposit||0,blankZero:true},
+        {col:C.cash,val:r=>r._breakdown.cash||0,blankZero:true},
+        {col:C.final,val:r=>r._breakdown.roundedFinal||0},
+        {col:C.diff,val:r=>r._breakdown.roundingDiff||0,signed:true,blankZero:true}
       ],
-      numCols:[3,4,5,6,7,8,9],
+      numCols:[C.hours,C.hmm,C.rate,C.total,C.deposit,C.cash,C.final,C.diff],
       sortFn:_paytypeExportSortFn
     };
   }
@@ -9378,20 +10036,16 @@ async function _exportExcel(kind){
   const _fc12Colorize=(kind==='combined'||kind==='cashOnly'||kind==='depositOnly');
 
   // Title
-  const titleText=(
-    kind==='cashOnly'?'CASH-ONLY REPORT':
-    kind==='depositOnly'?'DEPOSIT-ONLY REPORT':
-    kind==='combined'?'COMBINED PAYROLL REPORT':
-    kind==='timecard'?'TIME CARD DATA REPORT':
-    kind==='payrollCalc'?'PAYROLL CALCULATION REPORT':
-    'FULL REPORT'
-  );
+  const titleText=_reportTitle(kind);
   const per=_exportPeriodStr();
   const title=ws.addRow([titleText+(per?' — '+per:'')]);
   title.getCell(1).font={name:'Arial',bold:true,size:14};
   title.getCell(1).alignment={horizontal:'center'};
   title.height=26;
 
+  // FC-00060: the combined report's Hours come from the Hours sheet (every paid day, punch by
+  // punch), so changing a punch time in the workbook recalculates hours, pay and every total.
+  const _hoursMap=(kind==='combined'&&entities.some(e=>e.actualDays&&e.actualDays.length>0))?_writeHoursDetailSheet(ewb,data):null;
   let titleMerged=false;
   async function writeSection(sectionKind){
     const spec=_columnsFor(sectionKind,_DL_KEY_FOR_KIND[kind]);
@@ -9422,7 +10076,7 @@ async function _exportExcel(kind){
     // cashOnly's last column (Cash Portion) gets it too. depositOnly has no cash column —
     // its Deposit column is body-colored, not specially tinted (per FC-00012 DoD).
     const cashColIdx=
-      sectionKind==='combined'?8:
+      sectionKind==='combined'?COMBINED_COLS.cash+1:
       sectionKind==='cashOnly'?spec.headers.length:
       null;
 
@@ -9443,6 +10097,11 @@ async function _exportExcel(kind){
         if(!firstRow)firstRow=row.number;
         lastRow=row.number;
         if(spec.fx)_xlApplyFx(row,spec.fx(r,row.number));
+        if(_hoursMap&&sectionKind==='combined'&&!r.isFlat){
+          const hm=_hoursMap.get(r._entityId+'|'+_aliasNorm(r._empName));
+          const hc=row.getCell(COMBINED_COLS.hours+1);
+          if(hm)hc.value={formula:'ROUND(SUM('+hm.ref+'),2)',result:_r2(r.actualHours||0)};
+        }
         row.eachCell((cell,ci)=>{
           cell.alignment={horizontal:spec.numCols.indexOf(ci-1)>=0?'right':'left',vertical:'middle'};
           cell.border={bottom:thinB,left:thinB,right:thinB};cell.font={name:'Arial',size:10};
@@ -9457,9 +10116,10 @@ async function _exportExcel(kind){
       const sub=ws.addRow(subCells);
       totals.forEach(t=>{
         const L=_xlCol(t.col),cell=sub.getCell(t.col+1);
-        cell.value={formula:'SUM('+L+firstRow+':'+L+lastRow+')',result:entVals[t.col]};
+        if(t.hmmOf!=null)cell.value={formula:'ROUND('+_xlCol(t.hmmOf)+sub.number+'*60,0)/1440',result:Math.round(entVals[t.hmmOf]*60)/1440};
+        else cell.value={formula:'SUM('+L+firstRow+':'+L+lastRow+')',result:entVals[t.col]};
         cell.numFmt=_totalFmt(t);
-        grandVals[t.col]+=entVals[t.col];
+        if(t.hmmOf==null)grandVals[t.col]+=entVals[t.col];
       });
       subRowNums.push(sub.number);
       sub.eachCell((cell,ci)=>{
@@ -9481,6 +10141,7 @@ async function _exportExcel(kind){
     const g=ws.addRow(grandCells);
     totals.forEach(t=>{
       const L=_xlCol(t.col),cell=g.getCell(t.col+1);
+      if(t.hmmOf!=null){cell.value={formula:'ROUND('+_xlCol(t.hmmOf)+g.number+'*60,0)/1440',result:Math.round(Math.round(grandVals[t.hmmOf]*100)/100*60)/1440};cell.numFmt=_totalFmt(t);return;}
       const f=subRowNums.length?subRowNums.map(n=>L+n).join(','):'0';
       cell.value={formula:'SUM('+f+')',result:Math.round(grandVals[t.col]*100)/100};
       cell.numFmt=_totalFmt(t);
@@ -9495,8 +10156,7 @@ async function _exportExcel(kind){
     // Column widths — combined mode uses the reference report's exact Excel width units;
     // other kinds keep the legacy px/6 conversion.
     if(sectionKind==='combined'){
-      const combinedWidths=[17,22,15,10,9,13,13.41796875,13.05078125,15,10];
-      combinedWidths.forEach((w,i)=>{ws.getColumn(i+1).width=w});
+      COMBINED_XL_WIDTHS.forEach((w,i)=>{ws.getColumn(i+1).width=w});
     }else{
       spec.widths.forEach((w,i)=>{ws.getColumn(i+1).width=Math.round(w/6)});
     }
@@ -9515,6 +10175,82 @@ async function _exportExcel(kind){
   downloadBlob(await ewb.xlsx.writeBuffer(),fname);
   _toastExportWithWeekNote(fname);
 }
+
+// FC-00060: the Hours sheet of the payroll workbook. One row per person per paid day with the
+// punches the tool paid (approved rows, after a hand edit replaced an overlapping card reading),
+// as real Excel times. Each row's formulas restate the tool's day rule: span from the first
+// clock-in to the last clock-out, minus the larger of the entity's break minimum and the actual
+// gap (or the per-day break set by hand). "+1" is a punch that starts the next calendar day
+// (an overnight chain). Returns Map "entityId|name" -> {ref} (the range the report sums).
+function _writeHoursDetailSheet(ewb,data){
+  const ws=ewb.addWorksheet('Hours');
+  const map=new Map();
+  const days=[];
+  let maxPairs=1;
+  data.forEach(({entityName,entityId,rows})=>{
+    const ent=entities.find(e=>e.id===entityId);
+    rows.forEach(r=>{
+      if(r.isFlat)return;
+      (r.days||[]).forEach((d,di)=>{
+        if(!d||!d.actual||!(d.workedH>0))return;
+        const pairs=((d.actual.pairs)||[]).filter(p=>p&&p.outAdj>p.in).slice().sort((a,b)=>a.in-b.in);
+        if(!pairs.length)return;
+        maxPairs=Math.max(maxPairs,pairs.length);
+        days.push({entityName,entityId,r,dayIdx:di,iso:(ent&&ent.dateLabels&&ent.dateLabels[di])?schedLabelToIso(ent.dateLabels[di]):'',pairs,minBreak:d.defaultBreakMin||0,set:d.breakOverrideMin,billable:d.billableH||0});
+      });
+    });
+  });
+  const per=_exportPeriodStr();
+  const t=ws.addRow(['HOURS — every paid day, punch by punch'+(per?' — '+per:'')]);t.getCell(1).font={name:'Arial',bold:true,size:13};
+  ws.addRow(['Change a time and the day\'s hours, the payroll report\'s Hours, pay and totals recalculate. Hours per day = span − the larger of the break minimum and the actual gap (or Break set). "+1" = the punch starts the next calendar day.']).getCell(1).font={name:'Arial',italic:true,size:9,color:{argb:'FF555555'}};
+  ws.addRow([]);
+  const hdr=['Entity','Employee','Date','Day'];
+  for(let k=1;k<=maxPairs;k++)hdr.push('In '+k,'Out '+k,'+1');
+  const cMin=hdr.length;hdr.push('Break min (min)','Break set (min)','Span','Worked','Break','Hours');
+  const hr=ws.addRow(hdr);hr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};c.fill=_fc12Fill('FFE8E8E4');c.alignment={horizontal:'center'};});
+  ws.views=[{state:'frozen',ySplit:4}];
+  const colIn=k=>4+(k-1)*3,colOut=k=>5+(k-1)*3,colOff=k=>6+(k-1)*3; // 0-based
+  const L=i=>_xlCol(i);
+  const cSet=cMin+1,cSpan=cMin+2,cWork=cMin+3,cBrk=cMin+4,cHrs=cMin+5;
+  const nm=_makeNameFormatter('payroll');
+  let cur=null;
+  days.forEach(x=>{
+    const vals=[x.entityName,nm(x.entityId,x.r._empName),'',x.iso?DAYS_LONG_EN[new Date(x.iso+'T00:00:00').getDay()]:DAYS_LONG_EN[x.dayIdx]];
+    const row=ws.addRow(vals);const n=row.number;
+    if(x.iso){const c=row.getCell(3);c.value=_isoToExcelDate(x.iso);c.numFmt='ddd mm/dd/yy';}
+    const S=[],E=[],D=[];
+    x.pairs.forEach((p,i)=>{
+      const k=i+1,off=Math.floor(p.in/24),inT=((p.in%24)+24)%24/24,outT=((p.outAdj%24)+24)%24/24;
+      const ci=row.getCell(colIn(k)+1),co=row.getCell(colOut(k)+1),cf=row.getCell(colOff(k)+1);
+      ci.value=inT;ci.numFmt='h:mm AM/PM';co.value=outT;co.numFmt='h:mm AM/PM';cf.value=off;cf.numFmt='0;-0;""';
+      const I=L(colIn(k))+n,U=L(colOut(k))+n,O=L(colOff(k))+n;
+      S.push('('+O+'+'+I+')');D.push('MOD('+U+'-'+I+',1)');E.push('('+O+'+'+I+'+MOD('+U+'-'+I+',1))');
+    });
+    const spanH=(()=>{const st=Math.min(...x.pairs.map(p=>p.in)),en=Math.max(...x.pairs.map(p=>p.outAdj));return en-st;})();
+    const workH=x.pairs.reduce((a,p)=>a+(p.minutes||0),0)/60;
+    const brkH=x.set!=null?Math.max(0,Math.min(x.set/60,spanH)):Math.max(x.minBreak/60,Math.max(0,spanH-workH));
+    row.getCell(cMin+1).value=x.minBreak;
+    if(x.set!=null)row.getCell(cSet+1).value=x.set;
+    const SP=L(cSpan)+n,WK=L(cWork)+n,BR=L(cBrk)+n,MN=L(cMin)+n,ST=L(cSet)+n;
+    row.getCell(cSpan+1).value={formula:'24*(MAX('+E.join(',')+')-MIN('+S.join(',')+'))',result:spanH};
+    row.getCell(cWork+1).value={formula:'24*('+D.join('+')+')',result:workH};
+    row.getCell(cBrk+1).value={formula:'IF('+ST+'<>"",MAX(0,MIN('+ST+'/60,'+SP+')),MAX('+MN+'/60,'+SP+'-'+WK+'))',result:brkH};
+    row.getCell(cHrs+1).value={formula:'MAX(0,'+SP+'-'+BR+')',result:x.billable};
+    [cSpan,cWork,cBrk,cHrs].forEach(c=>{row.getCell(c+1).numFmt='0.00';});
+    row.eachCell(c=>{c.font=Object.assign({name:'Arial',size:10},c.font&&c.font.bold?{bold:true}:{});});
+    row.getCell(cHrs+1).font={name:'Arial',size:10,bold:true};
+    const key=x.entityId+'|'+_aliasNorm(x.r._empName);
+    if(!cur||cur.key!==key){cur={key,first:n,last:n};map.set(key,cur);}else cur.last=n;
+  });
+  map.forEach(v=>{v.ref="'Hours'!$"+L(cHrs)+'$'+v.first+':$'+L(cHrs)+'$'+v.last;});
+  ws.getColumn(1).width=14;ws.getColumn(2).width=20;ws.getColumn(3).width=14;ws.getColumn(4).width=11;
+  for(let k=1;k<=maxPairs;k++){ws.getColumn(colIn(k)+1).width=10;ws.getColumn(colOut(k)+1).width=10;ws.getColumn(colOff(k)+1).width=4;}
+  [cMin,cSet].forEach(c=>{ws.getColumn(c+1).width=10;});[cSpan,cWork,cBrk,cHrs].forEach(c=>{ws.getColumn(c+1).width=8;});
+  return map;
+}
+const DAYS_LONG_EN=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+// Excel date serial (1900 system) for an ISO date, as a plain number (no time zone shift).
+function _isoToExcelDate(iso){const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');if(!m)return null;return(Date.UTC(+m[1],+m[2]-1,+m[3])-Date.UTC(1899,11,30))/86400000;}
 
 // ---- PDF writer ----
 async function _exportPdf(kind){
@@ -9537,14 +10273,7 @@ async function _exportPdf(kind){
   const doc=new jsPDF({unit:'pt',format:'letter',orientation:landscape?'landscape':'portrait'});
   const pageW=doc.internal.pageSize.getWidth();
 
-  const titleText=(
-    kind==='cashOnly'?'CASH-ONLY REPORT':
-    kind==='depositOnly'?'DEPOSIT-ONLY REPORT':
-    kind==='combined'?'COMBINED PAYROLL REPORT':
-    kind==='timecard'?'TIME CARD DATA REPORT':
-    kind==='payrollCalc'?'PAYROLL CALCULATION REPORT':
-    'FULL REPORT'
-  );
+  const titleText=_reportTitle(kind);
   const per=_exportPeriodStr();
   doc.setFont('helvetica','bold');doc.setFontSize(14);
   doc.text(titleText+(per?' — '+per:''),pageW/2,36,{align:'center'});
@@ -9565,7 +10294,7 @@ async function _exportPdf(kind){
     // cashOnly's last column (Cash Portion) gets it too. depositOnly has no cash column —
     // matches the cashColIdx logic in _exportExcel (which is 1-based; this is 0-based).
     const cashColIdx=
-      sectionKind==='combined'?7:
+      sectionKind==='combined'?COMBINED_COLS.cash:
       sectionKind==='cashOnly'?spec.headers.length-1:
       null;
 
@@ -9714,7 +10443,10 @@ async function _exportPdf(kind){
 const ACTUALS_INTAKE_HEADERS=[
   'Entity','Employee Name','Date','Day of the Week',
   'Clock In 1','Clock Out 1','Clock In 2','Clock Out 2','Clock In 3','Clock Out 3',
-  'Approved','Source','Image','Confidence','Flags','Suggested Name','Row ID'
+  'Approved','Source','Image','Confidence','Flags','Suggested Name','Row ID',
+  // FC-00060: hours of the row's punch pairs (a formula over the times), and what OCR read for
+  // each box (so a re-import knows which boxes were changed by hand and keeps them blue).
+  'Punched Hours','OCR Values'
 ];
 const ACTUALS_INTAKE_SCHEMA_TAG='SPCalcActualsIntakeV1';
 
@@ -9746,6 +10478,7 @@ function _gatherActualsIntakeRows(){
         flags:(r.flags||[]).slice(),
         suggested,
         rowId:r.id||'',
+        ocr:(r._ocr&&r._ocrSource)?{s:r._ocrSource,v:r._ocr}:null,
         ent
       });
     });
@@ -9776,20 +10509,31 @@ function _writeActualsIntakeSheet(ws,rows,opts){
   hdr.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};c.alignment={vertical:'middle'};});
   rows.forEach(r=>{
     const flagsStr=r.flags.join('; ');
+    // FC-00060: dates and times are real Excel values (a date and a time of day), so the sheet
+    // can do math with them; they print as before (2026-10-05, 9:01 AM) and re-import the same.
+    const tv=v=>{const h=parseClockTime(v);return h==null?(v?to12h(v):''):h/24;};
     const xlsxRow=ws.addRow([
-      r.entity,r.emp,r.date,r.dayName,
-      to12h(r.in1),to12h(r.out1),to12h(r.in2),to12h(r.out2),to12h(r.in3),to12h(r.out3),
+      r.entity,r.emp,r.date?(_isoToExcelDate(r.date)!=null?_isoToExcelDate(r.date):r.date):'',r.dayName,
+      tv(r.in1),tv(r.out1),tv(r.in2),tv(r.out2),tv(r.in3),tv(r.out3),
       r.approved?'Yes':(r.leftOut?'Left out':'No'),r.source,r.image,
       typeof r.confidence==='number'?Math.round(r.confidence*100)/100:'',
-      flagsStr,r.suggested,r.rowId
+      flagsStr,r.suggested,r.rowId,
+      '',r.ocr?JSON.stringify(r.ocr):''
     ]);
+    const n=xlsxRow.number;
+    if(typeof xlsxRow.getCell(3).value==='number')xlsxRow.getCell(3).numFmt='yyyy-mm-dd';
+    for(let c=5;c<=10;c++)if(typeof xlsxRow.getCell(c).value==='number')xlsxRow.getCell(c).numFmt='h:mm AM/PM';
+    const pr=[['E','F'],['G','H'],['I','J']].map(([a,b])=>'IF(AND(ISNUMBER('+a+n+'),ISNUMBER('+b+n+')),MOD('+b+n+'-'+a+n+',1),0)');
+    const hrs=_computeActualsHours(r);
+    xlsxRow.getCell(18).value={formula:'ROUND(24*('+pr.join('+')+'),2)',result:hrs==null?0:Math.round(hrs*100)/100};
+    xlsxRow.getCell(18).numFmt='0.00';
     if(!r.approved){
       xlsxRow.eachCell(c=>{c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF3CD'}};});
       xlsxRow.getCell(11).font={bold:true,color:{argb:'FFB45309'}};
     }
   });
   ws.columns.forEach((col,i)=>{
-    const widths=[18,20,12,12,12,12,12,12,12,12,11,8,22,11,30,18,16];
+    const widths=[18,20,12,12,12,12,12,12,12,12,11,8,22,11,30,18,16,10,24];
     col.width=widths[i]||14;
   });
   ws.views=[{state:'frozen',ySplit:4}];
@@ -9979,6 +10723,10 @@ function _ingestActualsIntakeRows(rows,colMap){
       flags:[],needsReview:false,approved:false
     };
     if(leftOutImp)newRow.leftOut=true;
+    // FC-00060: what OCR read for each box comes back, so edited boxes stay marked (blue) and
+    // only edited pairs count as manual entries, exactly as before the export.
+    const ocrRaw=get(row,'ocr values');
+    if(ocrRaw){try{const o=JSON.parse(ocrRaw);if(o&&o.v&&(o.s==='TC'||o.s==='EC')){newRow._ocr={};REVIEWER_EDIT_FIELDS.forEach(k=>{newRow._ocr[k]=String(o.v[k]||'');});newRow._ocrSource=o.s;_applyReviewerEditState(newRow);}}catch(_){}}
     if(suggested)newRow._suggestedName=suggested;
     if(iso){const d=new Date(iso+'T00:00:00');if(!isNaN(d))newRow.dayIdx=d.getDay();}
     // Try to map empName to scheduled name (so reviewBucketKey works)
@@ -9999,7 +10747,10 @@ function _ingestActualsIntakeRows(rows,colMap){
       (newRow.clockIn1&&newRow.clockOut1)||
       (newRow.clockIn2&&newRow.clockOut2)||
       (newRow.clockIn3&&newRow.clockOut3);
-    if(approved&&newRow.empName&&newRow.date&&hasCompletePair&&isRowStructurallyValid(newRow)){
+    // FC-00057: a row with no punches at all ("did not work" on EasyClocking) keeps its approval
+    // too, so a re-import never puts back rows the owner already approved.
+    const noPunches=!['clockIn1','clockOut1','clockIn2','clockOut2','clockIn3','clockOut3'].some(k=>newRow[k]);
+    if(approved&&newRow.empName&&newRow.date&&(hasCompletePair||noPunches)&&isRowStructurallyValid(newRow)){
       newRow.approved=true;
       newRow.needsReview=false;
       restoredApproved++;
@@ -10143,9 +10894,10 @@ function _gatherPayrollSettingsRows(includeBreaks){
     // FC-00036: everyone the settings file defined stays in the file — including people not
     // on this week's schedule and people marked inactive — so no permanent ID ever drops out
     // of the master file (a dropped ID is how IDs drifted week to week).
+    // FC-00056: a person added this week is written too, even before their first punch.
     Object.keys(session.roster.byId).forEach(id=>{
       const r=session.roster.byId[id];
-      if(r&&r.entity===ent.id&&r.fromFile&&r.canonical_name)pushRow(r.canonical_name,r.canonical_name);
+      if(r&&r.entity===ent.id&&(r.fromFile||r.addedNew)&&r.canonical_name)pushRow(r.canonical_name,r.canonical_name);
     });
     // Rows in permanent-ID order, so the file reads the same every week.
     const entRows=out.splice(entStart).sort((a,b)=>String(a.employeeId).localeCompare(String(b.employeeId)));

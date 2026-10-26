@@ -149,7 +149,7 @@ test('test_export_uses_selected_palette', async () => {
   dataRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Nirvana 11th');
   assert.ok(dataRow > 0);
   assert.equal(fills[`${dataRow},1`], api.FC14_PRESETS['Lavender'].body, 'export must use the selected Lavender preset body fill');
-  assert.equal(fills[`${dataRow},8`], api.FC14_PRESETS['Lavender'].cash, 'export must use the selected Lavender preset cash fill');
+  assert.equal(fills[`${dataRow},${api.COMBINED_COLS.cash + 1}`], api.FC14_PRESETS['Lavender'].cash, 'export must use the selected Lavender preset cash fill');
 
   const subtotalRow = findRowIndex(sheet, row => row[1] && /subtotal/i.test(row[1].value || ''));
   assert.ok(subtotalRow > 0);

@@ -45,7 +45,7 @@ test('test_combined_excel_and_pdf_carry_no_schedule_entity', async () => {
   const janeRow = ws.rows.find(r => r && r[2] && /^Jane/.test(String(r[2].value)));
   assert.ok(janeRow, 'Jane in the Combined Excel');
   const grand = ws.rows.filter(r => r && r[1] && r[1].value === 'GRAND TOTAL').pop();
-  assert.equal(xlNum(grand[6]), 120 + 160, 'grand total = 8h x $15 + 8h x $20');
+  assert.equal(xlNum(grand[api.COMBINED_COLS.total + 1]), 120 + 160, 'grand total = 8h x $15 + 8h x $20');
 
   await api.exportCashPdf();
   const call = api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1];
@@ -57,9 +57,10 @@ test('test_previews_include_no_schedule_entity', () => {
   const model = api._fc13PreviewModel();
   assert.ok(model.rows.some(r => r.kind === 'data' && /^Jane/.test(r.cells[1])), 'combined preview shows Jane');
   assert.ok(model.rows.some(r => r.kind === 'subtotal' && r.cells[0] === 'NoSched Co subtotal'));
+  // FC-00059: the all-entity preview is merged into the one export preview.
   api.renderPayroll();
-  const host = api.__sandbox.document.getElementById('allEntityPreviewHost');
-  assert.match(host.innerHTML, /NoSched Co/, 'all-entity preview shows the no-schedule entity');
+  const host = api.__sandbox.document.getElementById('fc13PreviewHost');
+  assert.match(host.innerHTML, /NoSched Co/, 'the export preview shows the no-schedule entity');
 });
 
 test('test_break_confirmation_covers_no_schedule_entity', async () => {

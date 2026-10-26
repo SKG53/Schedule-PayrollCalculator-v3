@@ -42,8 +42,8 @@ test('test_each_box_tracks_its_own_edit', () => {
   assert.equal(r.source, 'MN', 'any edited box makes the row a manual entry');
   const html = api.renderReviewTableHtml(ent, 0);
   assert.equal((html.match(/box-edited/g) || []).length, 2);
-  assert.match(html, /title="Edited — OCR read 5:00 PM"/);
-  assert.match(html, /title="Edited — OCR read 2026-08-10"/);
+  assert.match(html, /title="Changed by hand — OCR read 5:00 PM"/);
+  assert.match(html, /title="Changed by hand — OCR read 2026-08-10"/);
 });
 
 test('test_box_reset_clears_only_that_box', () => {

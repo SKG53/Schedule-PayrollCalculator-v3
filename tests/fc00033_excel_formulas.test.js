@@ -41,62 +41,48 @@ function setup() {
   return api;
 }
 
-// ---- Minimal evaluator for the functions the exports use ----
-const colNum = (L) => L.split('').reduce((a, c) => a * 26 + c.charCodeAt(0) - 64, 0);
-function xround(x, d) { const f = Math.pow(10, d); const y = Math.abs(x) * f; return Math.sign(x) * Math.round(+y.toFixed(9)) / f; }
-function evaluate(ws, formula) {
-  const cellVal = (L, r) => { const c = ws.rows[r] && ws.rows[r][colNum(L)]; if (!c) return 0; const v = c.value;
-    if (v && typeof v === 'object' && 'formula' in v) return evaluate(ws, v.formula);
-    return typeof v === 'number' ? v : 0; };
-  const range = (L1, r1, L2, r2) => { const out = []; for (let r = r1; r <= r2; r++) for (let c = colNum(L1); c <= colNum(L2); c++) out.push(cellVal(String.fromCharCode(64 + c), r)); return out; };
-  const fns = {
-    ROUND: (x, d) => xround(x, d), ROUNDDOWN: (x, d) => Math.trunc(x * Math.pow(10, d)) / Math.pow(10, d),
-    MIN: (...a) => Math.min(...a.flat()), MAX: (...a) => Math.max(...a.flat()), IF: (c, a, b) => (c ? a : b),
-    SUM: (...a) => a.flat().reduce((s, x) => s + x, 0),
-  };
-  const js = formula
-    .replace(/([A-Z]+)(\d+):([A-Z]+)(\d+)/g, (_, a, b, c, d) => `range('${a}',${b},'${c}',${d})`)
-    .replace(/\b([A-Z]{1,2})(\d+)\b/g, (_, a, b) => `cellVal('${a}',${b})`)
-    .replace(/\b(ROUNDDOWN|ROUND|MIN|MAX|IF|SUM)\(/g, 'fns.$1(');
-  return Function('fns', 'cellVal', 'range', `return (${js});`)(fns, cellVal, range);
-}
+// ---- Evaluator (FC-00060: shared in xl-helpers, follows formulas across sheets) ----
+const { xlEval, xlFormulaMismatches } = require('./xl-helpers');
+let _wb = null;
+function evaluate(ws, formula) { return xlEval(_wb || { worksheets: [ws] }, ws, formula); }
 const isFx = (c) => !!(c && c.value && typeof c.value === 'object' && 'formula' in c.value);
-function assertAllFormulasAgree(ws, label) {
-  let n = 0;
-  ws.rows.forEach((row, r) => (row || []).forEach((c, ci) => {
-    if (!isFx(c)) return;
-    n++;
-    const got = Math.round(evaluate(ws, c.value.formula) * 100) / 100;
-    assert.equal(got, c.value.result, `${label} R${r}C${ci} ${c.value.formula}: evaluates ${got}, tool cached ${c.value.result}`);
-  }));
+function assertAllFormulasAgree(ws, label, wb) {
+  _wb = wb || null;
+  const { n, bad } = xlFormulaMismatches(wb || { worksheets: [ws] }, ws);
+  assert.deepEqual(bad, [], label + ': every formula evaluates to the tool\'s cached value');
   return n;
 }
 
 test('test_combined_rows_are_formulas_that_reproduce_tool_values', async () => {
   const api = setup();
   await api.exportCombinedExcel();
-  const ws = api.__lastExcelWorkbook.worksheets[0];
-  const n = assertAllFormulasAgree(ws, 'combined');
+  const wb = api.__lastExcelWorkbook;
+  const ws = wb.worksheets[0];
+  // FC-00059/60: H:MM after Hours; Hours is a formula over the Hours sheet. Columns by name (1-based).
+  const C = Object.fromEntries(Object.entries(api.COMBINED_COLS).map(([k, v]) => [k, v + 1]));
+  const n = assertAllFormulasAgree(ws, 'combined', wb);
   assert.ok(n >= 8 * 4, 'every pay row carries deposit/cash/final/diff formulas');
+  assert.deepEqual(xlFormulaMismatches(wb, wb.worksheets.find(w => w.name === 'Hours')).bad, [], 'Hours sheet formulas agree');
   const data = api._collectExportData().flatMap(d => d.rows);
   const rowFor = (name) => ws.rows.find(r => r && r[2] && r[2].value === name);
   for (const name of ['Ann', 'Ben', 'Dee', 'Ermine', 'Falcon', 'Gravel', 'Harbor']) {
     const r = rowFor(name), b = data.find(x => x._empName === name)._breakdown;
-    assert.match(r[6].value.formula, /^ROUND\(D\d+\*E\d+,2\)$/, name + ' Actual Total = hours x rate');
-    assert.equal(xlNum(r[6]), b.actualFinal);
-    assert.equal(xlNum(r[7]), b.deposit, name + ' deposit');
-    assert.equal(xlNum(r[8]), b.cash, name + ' cash');
-    assert.equal(xlNum(r[9]), b.roundedFinal, name + ' rounded final');
-    assert.equal(typeof r[5].value, 'number', name + ' rate is a number so the formula can use it');
+    assert.match(r[C.total].value.formula, /^ROUND\(D\d+\*F\d+,2\)$/, name + ' Actual Total = hours x rate');
+    assert.match(r[C.hours].value.formula, /^ROUND\(SUM\('Hours'!/, name + ' Hours come from the Hours sheet');
+    assert.equal(xlNum(r[C.total]), b.actualFinal);
+    assert.equal(xlNum(r[C.deposit]), b.deposit, name + ' deposit');
+    assert.equal(xlNum(r[C.cash]), b.cash, name + ' cash');
+    assert.equal(xlNum(r[C.final]), b.roundedFinal, name + ' rounded final');
+    assert.equal(typeof r[C.rate].value, 'number', name + ' rate is a number so the formula can use it');
   }
   // Flat amount is an input value; its split still flows from it.
   const cy = rowFor('Cy (flat)');
-  assert.equal(cy[6].value, 300);
-  assert.ok(isFx(cy[8]), 'flat row cash is still a formula');
+  assert.equal(cy[C.total].value, 300);
+  assert.ok(isFx(cy[C.cash]), 'flat row cash is still a formula');
   // Zero amounts are numbers shown as a dash, never the text "—".
   const dee = rowFor('Dee');
-  assert.equal(xlNum(dee[8]), 0);
-  assert.match(dee[8].numFmt, /"—"$/);
+  assert.equal(xlNum(dee[C.cash]), 0);
+  assert.match(dee[C.cash].numFmt, /"—"$/);
 });
 
 test('test_subtotals_sum_rows_and_grand_sums_subtotals', async () => {
@@ -105,29 +91,39 @@ test('test_subtotals_sum_rows_and_grand_sums_subtotals', async () => {
   const ws = api.__lastExcelWorkbook.worksheets[0];
   const subs = ws.rows.map((r, i) => [r, i]).filter(([r]) => r && r[1] && / subtotal$/.test(r[1].value));
   assert.equal(subs.length, 2);
-  subs.forEach(([r]) => assert.match(r[6].value.formula, /^SUM\(F\d+:F\d+\)$/));
+  // FC-00059: Actual Total is column G, Deposit H; Hours (D), Rounded Final and Diff are summed too.
+  subs.forEach(([r]) => assert.match(r[7].value.formula, /^SUM\(G\d+:G\d+\)$/));
+  subs.forEach(([r]) => assert.match(r[4].value.formula, /^SUM\(D\d+:D\d+\)$/, 'hours subtotal'));
   const grand = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL');
-  assert.equal(grand[6].value.formula, 'SUM(' + subs.map(([, i]) => 'F' + i).join(',') + ')');
   assert.equal(grand[7].value.formula, 'SUM(' + subs.map(([, i]) => 'G' + i).join(',') + ')');
+  assert.equal(grand[8].value.formula, 'SUM(' + subs.map(([, i]) => 'H' + i).join(',') + ')');
+  assert.equal(grand[10].value.formula, 'SUM(' + subs.map(([, i]) => 'J' + i).join(',') + ')', 'rounded final grand total');
 });
 
 test('test_editing_an_input_moves_the_totals', async () => {
   const api = setup();
   await api.exportCombinedExcel();
-  const ws = api.__lastExcelWorkbook.worksheets[0];
+  const wb = api.__lastExcelWorkbook;
+  _wb = wb;
+  const ws = wb.worksheets[0];
+  const hs = wb.worksheets.find(w => w.name === 'Hours');
   const grand = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL');
-  const before = evaluate(ws, grand[6].value.formula);
+  const before = evaluate(ws, grand[7].value.formula);
+  // FC-00060: change Ann's clock-out on the Hours sheet by one hour: hours, pay and totals follow.
+  const hdr = hs.rows.find(r => r && r[1] && r[1].value === 'Entity');
+  const outCol = hdr.findIndex(c => c && c.value === 'Out 1');
+  const annDay = hs.rows.find(r => r && r[2] && r[2].value === 'Ann');
+  annDay[outCol].value += 1 / 24; // one more hour at $15.37
+  assert.equal(Math.round((evaluate(ws, grand[7].value.formula) - before) * 100) / 100, 15.37);
   const ann = ws.rows.find(r => r && r[2] && r[2].value === 'Ann');
-  ann[4].value += 1; // one more hour at $15.37
-  assert.equal(Math.round((evaluate(ws, grand[6].value.formula) - before) * 100) / 100, 15.37);
-  assert.equal(evaluate(ws, ann[8].value.formula), Math.round(evaluate(ws, ann[6].value.formula)), 'cash re-rounds');
+  assert.equal(evaluate(ws, ann[9].value.formula), Math.round(evaluate(ws, ann[7].value.formula)), 'cash re-rounds');
 });
 
 test('test_every_report_kind_formulas_agree_and_payroll_calc_totals_not_under_diff', async () => {
   const api = setup();
   for (const kind of ['cashOnly', 'depositOnly', 'timecard', 'payrollCalc', 'full']) {
     await api._exportExcel(kind);
-    assertAllFormulasAgree(api.__lastExcelWorkbook.worksheets[0], kind);
+    assertAllFormulasAgree(api.__lastExcelWorkbook.worksheets[0], kind, api.__lastExcelWorkbook);
   }
   await api._exportExcel('payrollCalc');
   const ws = api.__lastExcelWorkbook.worksheets[0];

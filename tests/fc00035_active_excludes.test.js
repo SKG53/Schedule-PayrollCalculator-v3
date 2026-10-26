@@ -55,7 +55,7 @@ test('test_unchecked_person_with_hours_is_a_loud_warning', async () => {
   assert.match(doc.getElementById('toast').className, /err/);
   assert.match(doc.getElementById('toast').innerHTML, /Active unchecked but has hours\/pay: Ben/);
   const grand = api.__lastExcelWorkbook.worksheets[0].rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL');
-  assert.equal(xlNum(grand[6]), 120, 'only Ann (8 h x $15) is paid');
+  assert.equal(xlNum(grand[api.COMBINED_COLS.total + 1]), 120, 'only Ann (8 h x $15) is paid');
 });
 
 test('test_checkbox_toast_payroll_calc_totals_and_recheck', () => {

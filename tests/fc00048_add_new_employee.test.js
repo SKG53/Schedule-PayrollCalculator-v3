@@ -66,8 +66,11 @@ test('test_add_as_new_without_file_shows_id_pending', () => {
 
 test('test_new_employee_from_dropdown', () => {
   const { api, e, p1 } = setup();
-  api.__sandbox.prompt = () => 'Pip Moss';
+  // FC-00056: "+ New employee…" opens the New employee dialog (first and last name, ID shown).
   api.updateReviewField(p1.id, 'empName', '__new__');
+  assert.ok(api.getNewEmp(), 'the dialog is open');
+  api.setNewEmpField('first', 'Pip'); api.setNewEmpField('last', 'Moss');
+  api.createNewEmployeeFromDialog();
   assert.equal(p1.empName, 'Pip Moss');
   assert.equal(api.session.roster.byId[api.wKey(0, 'Pip Moss')].addedNew, true);
   assert.equal(api.reviewBucketKey(p1, e), 'Pip Moss');

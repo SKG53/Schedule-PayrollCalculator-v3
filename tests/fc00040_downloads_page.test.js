@@ -43,12 +43,14 @@ function setup() {
 test('test_lists_every_export_with_defaults', () => {
   const { api } = setup();
   // FC-00050: the unused reports and the accountant placeholder are gone.
-  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'timecards', 'settings', 'snapshot']);
+  // FC-00059: one card per report; every entity also has its own payroll report (not in the batch by default).
+  api._syncDownloads();
+  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'payroll:0', 'payroll:1', 'timecards', 'settings', 'snapshot']);
   const ticks = Object.fromEntries(api.DOWNLOADS.map(d => [d.key, Object.keys(d.formats).filter(f => api.downloadFileNames(d.key).some(n => n.endsWith('.' + f))).join('+')]));
-  assert.deepEqual(ticks, { payroll: 'xlsx+pdf', timecards: 'xlsx', settings: 'xlsx', snapshot: 'json' });
+  assert.deepEqual(ticks, { payroll: 'xlsx+pdf', 'payroll:0': '', 'payroll:1': '', timecards: 'xlsx', settings: 'xlsx', snapshot: 'json' });
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  for (const t of ['Payroll report', 'Reviewed timecards', 'Settings (new master)', 'Snapshot', 'Download selected', 'Download all (.zip)']) assert.ok(html.includes(t), t);
+  for (const t of ['Payroll report — combined', 'Payroll report — NIRVANA 11TH', 'Payroll report — ZION', 'Reviewed timecards', 'Settings file', 'Snapshot', 'Download batch as files', 'Download batch as one zip', "exportCardNow('payroll','xlsx')", "exportCardNow('payroll','pdf')"]) assert.ok(html.includes(t), t);
   for (const t of ['Accountant file', 'Cash-only report', 'Manager schedule report', 'Time Card Data', 'Full report']) assert.ok(!html.includes(t), t + ' removed');
 });
 
@@ -63,7 +65,7 @@ test('test_file_names_follow_convention', () => {
   assert.deepEqual(api.downloadFileNames('snapshot'), ['Nirvana_ZionDist_0809to0815_Snapshot.json']);
   return api.exportPayrollSettingsExcel(false).then(() => {
     const ts = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Tool Settings');
-    const rows = ts.rows.slice(2).map(r => [r[1].value, r[2].value]);
+    const rows = ts.rows.slice(2).map(r => [r[1].value, r[2].value]).filter(r => /^File label/.test(r[0]));
     assert.deepEqual(rows.at(-1), ['File label · ZION', 'ZionDist']);
     const { api: b } = setup();
     b._ingestToolSettings([['File label · ZION', 'ZionDist']]);

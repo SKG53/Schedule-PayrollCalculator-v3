@@ -151,15 +151,20 @@ test('test_stats_sheet_in_combined_excel_payroll_sheet_unchanged', async () => {
   const { api } = setup();
   await api.exportCombinedExcel();
   const wb = api.__lastExcelWorkbook;
-  assert.deepEqual(wb.worksheets.map(w => w.name), ['Report', 'Stats', 'Labor Cost']); // Labor Cost: FC-00052
-  const st = wb.worksheets[1];
-  const vals = st.rows.slice(1).map(r => (r || []).slice(1).map(c => c && c.value));
+  // FC-00060: an Hours sheet (punch by punch) follows the report; Stats is a math sheet.
+  assert.deepEqual(wb.worksheets.map(w => w.name), ['Report', 'Hours', 'Stats', 'Labor Cost']); // Labor Cost: FC-00052
+  const st = wb.worksheets.find(w => w.name === 'Stats');
+  const { xlNum } = require('./xl-helpers');
+  const vals = st.rows.slice(1).map(r => (r || []).slice(1).map(c => c && xlNum(c)));
   const hdr = vals.find(r => r[0] === 'Employee');
-  assert.deepEqual(hdr, api.STATS_HEADERS);
+  assert.deepEqual(hdr, api.STATS_XL_HEADERS);
+  const H = (k) => api.STATS_XL_HEADERS.indexOf(k);
   const avery = vals.find(r => r[0] === 'AVERY');
   assert.ok(avery, 'names as the payroll report prints them (FIRST LAST)');
-  assert.equal(avery[1], 32 / 24, 'hours are real durations');
-  assert.equal(avery[4], '2/3 · 67%');
+  assert.equal(avery[H('Expected')], 32 / 24, 'hours are real durations');
+  assert.equal(avery[H('Late days')], 2);
+  assert.equal(avery[H('Days worked (scheduled)')], 3);
+  assert.equal(Math.round(avery[H('Late %')] * 100), 67, 'late % = late days / days worked (a formula)');
   assert.ok(vals.some(r => r[0] === 'Alpha Test total'));
   // The payroll sheet is the same with or without the Stats sheet.
   assert.equal(wb.worksheets[0].rows[3][1].value, 'Entity');

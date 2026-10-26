@@ -1,7 +1,7 @@
 // Combined PDF subtotal / grand-total rows must match the Combined Excel export and the
 // read-only preview to the penny: summed from actualFinal, written into the Actual Total /
-// Deposit / Cash columns, with Rounded Final and Diff left blank. The PDF used to sum
-// `final` and write it into the Diff column.
+// Deposit / Cash columns. The PDF used to sum `final` and write it into the Diff column.
+// FC-00059: Hours, H:MM, Rounded Final and Diff now carry totals too, the same in all three.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp, resetToSingleEntity } = require('./load-app');
@@ -40,16 +40,28 @@ function setup() {
 const isTotal = (label) => typeof label === 'string' && (label.endsWith(' subtotal') || label === 'GRAND TOTAL');
 const money = (v) => (v === '' || v == null ? '' : '$' + Number(v).toFixed(2));
 // Excel shows a formula's result, and a hidden-zero format shows 0 as blank.
-const shown = (c) => (!c ? '' : (xlHidesZero(c) && xlNum(c) === 0 ? '' : money(xlNum(c))));
+const hmm = (days) => { const m = Math.round(days * 1440); return Math.floor(m / 60) + ':' + String(m % 60).padStart(2, '0'); };
+// Column-aware display text of an Excel total cell (1-based column `ci`).
+const shownCol = (api, c, ci) => {
+  if (!c) return '';
+  const v = xlNum(c);
+  if (xlHidesZero(c) && v === 0) return '';
+  const C = api.COMBINED_COLS;
+  if (ci - 1 === C.hours) return Number(v).toFixed(2);
+  if (ci - 1 === C.hmm) return hmm(v);
+  if (ci - 1 === C.diff) return (v > 0 ? '+' : '') + '$' + Number(v).toFixed(2);
+  return money(v);
+};
 
 test('test_combined_pdf_totals_match_excel_and_preview', async () => {
   const api = setup();
 
   await api.exportCombinedExcel();
   const ws = api.__lastExcelWorkbook.worksheets[0];
-  // 10 combined columns; 1-based sheet cells -> 0-based display text.
+  // 11 combined columns (FC-00059 adds H:MM); 1-based sheet cells -> 0-based display text.
+  const N = api.COMBINED_HEADERS.length;
   const excelTotals = ws.rows.filter(r => r && r[1] && isTotal(r[1].value))
-    .map(r => Array.from({ length: 10 }, (_, i) => (i === 0 ? r[1].value : shown(r[i + 1]))));
+    .map(r => Array.from({ length: N }, (_, i) => (i === 0 ? r[1].value : shownCol(api, r[i + 1], i + 1))));
 
   await api.exportCombinedPdf();
   const call = api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1];
@@ -62,9 +74,11 @@ test('test_combined_pdf_totals_match_excel_and_preview', async () => {
   assert.equal(excelTotals.length, 3, 'two entity subtotals + grand total');
   assert.deepEqual(pdfTotals, excelTotals, 'PDF total rows must equal the Excel total rows');
   assert.deepEqual(pdfTotals, previewTotals, 'PDF total rows must equal the preview total rows');
+  const C = api.COMBINED_COLS;
   pdfTotals.forEach(r => {
-    assert.notEqual(r[5], '', 'Actual Total column carries the amount');
-    assert.equal(r[8], '', 'Rounded Final stays blank');
-    assert.equal(r[9], '', 'Diff column stays blank');
+    assert.notEqual(r[C.total], '', 'Actual Total column carries the amount');
+    assert.notEqual(r[C.final], '', 'Rounded Final carries its total (FC-00059)');
+    assert.notEqual(r[C.hours], '', 'Hours carries its total (FC-00059)');
+    assert.match(r[C.hmm], /^\d+:\d\d$/, 'H:MM total reads h:mm');
   });
 });

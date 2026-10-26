@@ -110,11 +110,13 @@ test('test_export_copy_excel_matches_cells', async () => {
   const ann = rowIndex(s, 'data', 'Ann');
   api._fc24EditCell(0, 0, 'EDITED TITLE');
   api._fc24EditCell(ann, 1, 'Ann Edited');
-  api._fc24EditCell(ann, 3, '7.5');        // Hours
-  api._fc24EditCell(ann, 4, '$16.00');     // Rate
-  api._fc24EditCell(ann, 7, '$1,234.56');  // Cash
-  api._fc24EditCell(ann, 9, '-$0.40');     // Diff
-  api._fc24EditCell(ann, 6, 'n/a');        // non-numeric text in a numeric column
+  const C = api.COMBINED_COLS; // FC-00059: columns by name (H:MM sits after Hours)
+  api._fc24EditCell(ann, C.hours, '7.5');       // Hours
+  api._fc24EditCell(ann, C.hmm, '7:30');        // H:MM
+  api._fc24EditCell(ann, C.rate, '$16.00');     // Rate
+  api._fc24EditCell(ann, C.cash, '$1,234.56');  // Cash
+  api._fc24EditCell(ann, C.diff, '-$0.40');     // Diff
+  api._fc24EditCell(ann, C.deposit, 'n/a');     // non-numeric text in a numeric column
   const before = realState(api);
   await api._fc24ExportScratchExcel();
   assert.equal(realState(api), before, 'export must not touch real data');
@@ -125,19 +127,20 @@ test('test_export_copy_excel_matches_cells', async () => {
   assert.deepEqual(hdr.slice(1).map(c => c.value), s.rows[1].cells);
   const data = ws.rows.find(r => r && r[2] && r[2].value === 'Ann Edited');
   assert.ok(data, 'edited row written');
-  assert.equal(data[4].value, 7.5); assert.equal(data[4].numFmt, '0.00');
-  assert.equal(data[5].value, 16); assert.match(data[5].numFmt, /\$/);
-  assert.equal(data[8].value, 1234.56); assert.match(data[8].numFmt, /\$/);
-  assert.equal(data[10].value, -0.4);
-  assert.equal(data[7].value, 'n/a');
+  assert.equal(data[C.hours + 1].value, 7.5); assert.equal(data[C.hours + 1].numFmt, '0.00');
+  assert.equal(xlNum(data[C.hmm + 1]), 450 / 1440); assert.equal(data[C.hmm + 1].numFmt, '[h]:mm');
+  assert.equal(data[C.rate + 1].value, 16); assert.match(data[C.rate + 1].numFmt, /\$/);
+  assert.equal(data[C.cash + 1].value, 1234.56); assert.match(data[C.cash + 1].numFmt, /\$/);
+  assert.equal(data[C.diff + 1].value, -0.4);
+  assert.equal(data[C.deposit + 1].value, 'n/a');
   // Every scratch row is written, in order: title, blank, then one sheet row per scratch row.
   assert.equal(ws.rows.length - 1, s.rows.length + 1);
   // Grand total row carries its (unedited) snapshot values.
   const g = s.rows[s.rows.length - 1];
   const gRow = ws.rows[ws.rows.length - 1];
   assert.equal(gRow[1].value, 'GRAND TOTAL');
-  assert.equal(xlNum(gRow[6]), parseFloat(g.cells[5].replace(/[$,]/g, '')));
-  assert.match(gRow[6].value.formula, /^SUM\(/, 'grand total is a live SUM of the subtotals');
+  assert.equal(xlNum(gRow[C.total + 1]), parseFloat(g.cells[C.total].replace(/[$,]/g, '')));
+  assert.match(gRow[C.total + 1].value.formula, /^SUM\(/, 'grand total is a live SUM of the subtotals');
 });
 
 test('test_export_copy_pdf_matches_cells', async () => {
