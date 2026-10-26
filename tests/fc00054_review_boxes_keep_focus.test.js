@@ -93,3 +93,16 @@ test('test_reimport_keeps_approved_rows_without_punches', () => {
   api._ingestActualsIntakeRows([row], cm);
   assert.equal(e.intake.reviewRows[0].approved, true, 'a "did not work" row the owner approved stays approved');
 });
+
+// Review fix: leaving a date box without changing it records the next box but redraws nothing;
+// that key must not linger and pull the cursor into a time box on some later redraw.
+test('test_unchanged_box_leaves_no_refocus_key_behind', async () => {
+  const { api, r } = setup();
+  const next = { getAttribute: (k) => (k === 'data-rbox' ? r.id + '|clockIn1' : null) };
+  const el = { value: r.date };
+  api.commitDateInput(el, r.id, 'date', { relatedTarget: next }); // first leave saves
+  api.commitDateInput(el, r.id, 'date', { relatedTarget: next }); // unchanged: nothing redraws
+  assert.equal(api.getRefocusKey(), r.id + '|clockIn1', 'kept for a redraw that runs straight away');
+  await new Promise((res) => setTimeout(res, 5));
+  assert.equal(api.getRefocusKey(), null, 'gone once that moment has passed');
+});

@@ -185,7 +185,9 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    (Download selected or one zip): the combined Payroll report (with entity tick boxes
    choosing who is on it), one Payroll report per entity (same headers and formatting,
    only that entity), Reviewed timecards, Settings (with "include break columns"),
-   Snapshot. File names `<labels>_<MMDDtoMMDD>_…`. A payroll download first lists every
+   Snapshot. File names `<labels>_<MMDDtoMMDD>_…` (a repeated name in one batch gets `_2`).
+   Exports run one at a time; a one-entity export's prompts, notes and status cover only that
+   entity. "Include per-day breaks" sits beside Import and on the Settings card (one setting). A payroll download first lists every
    unapproved row with punches in the pay week (Approve / Leave out) (FC-00049).
    "Names on exports" (FC-00045): FIRST LAST (default, FC-00050) / As saved / FIRST;
    printing only.

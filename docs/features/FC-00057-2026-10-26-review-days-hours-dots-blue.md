@@ -70,9 +70,15 @@ None.
 - `test_rows_outside_the_week_are_listed_last`
 - `test_no_schedule_week_from_the_rows`
 - `test_looking_at_a_tab_never_creates_a_person`
+- `test_no_schedule_dates_other_dates_are_paid_not_outside`
+- `test_hours_from_an_actuals_file_show_on_the_tab`
 
 ## Slice
 M
 
 ## Affected entities
 All
+
+## Independent review fixes (2026-10-26)
+- With no schedule dates there is no week filter and payroll pays every approved row. Those rows are now listed under "Other dates", and the tab says payroll pays them too and adds each to the same weekday. Before, the tab said "not paid this week". Merging two Mondays into one Monday is existing pay behaviour and is unchanged; loading the schedule sets the pay week.
+- Punches that came from an actuals file, with no review rows behind them, show with the hours payroll pays instead of 0:00.

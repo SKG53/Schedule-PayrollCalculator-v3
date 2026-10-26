@@ -58,9 +58,15 @@ None.
 - `test_duplicate_and_archived_refused`
 - `test_new_person_gets_a_tab_before_any_row`
 - `test_late_settings_import_respects_the_highest_id`
+- `test_preview_shows_the_id_the_person_will_get`
+- `test_undo_after_settings_export_does_not_reissue_the_id`
 
 ## Slice
 M
 
 ## Affected entities
 All
+
+## Independent review fixes (2026-10-26)
+- When the typed name was already looked up this session (it has a provisional record), the dialog shows that record's ID, which is the one Create keeps, instead of the next new number.
+- An ID written to a settings file is never issued again, even after Undo removes that person. Undo still takes the person back.

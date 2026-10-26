@@ -150,3 +150,36 @@ test('test_preview_flags_unconfirmed_off_schedule_person', () => {
   assert.match(z.flag, /not confirmed/, 'flagged on screen, as the old all-entity preview did');
   assert.match(api.renderPayrollExportPreviewHtml(), /not confirmed/);
 });
+
+// Review fix: two card clicks in a row (the second before the first file is written) run one
+// after the other; afterwards every screen covers all entities again, and each file has its own.
+test('test_overlapping_card_exports_leave_no_scope_behind', async () => {
+  const { api, saved } = setup();
+  await Promise.all([api.exportCardNow('payroll:0', 'xlsx'), api.exportCardNow('payroll:1', 'xlsx')]);
+  assert.equal(api.getExportScope(), null);
+  assert.deepEqual(api._collectExportData().map(d => d.entityName), ['NIRVANA 11TH', 'HEFNER']);
+  assert.deepEqual(saved, ['Nirvana_0809to0815_AllEmployeesPayroll.xlsx', 'Hefner_0809to0815_AllEmployeesPayroll.xlsx']);
+  assert.ok(api.downloadStatus('payroll:1').ok, 'the other card is not "No payroll rows yet"');
+});
+
+// Review fix: a one-entity export does not ask about another entity's unconfirmed break.
+test('test_entity_export_asks_only_about_its_own_break', async () => {
+  const { api } = setup();
+  api.entities[1].breakMinutesSet = false;
+  const asked = [];
+  api.__sandbox.confirm = (m) => { asked.push(m); return true; };
+  await api.exportCardNow('payroll:0', 'xlsx');
+  assert.equal(asked.filter(m => /Break minutes not confirmed/.test(m)).length, 0);
+  await api.exportCardNow('payroll:1', 'xlsx');
+  assert.equal(asked.filter(m => /Break minutes not confirmed for: HEFNER/.test(m)).length, 1);
+});
+
+// Review fix: two entities with the same file label never overwrite each other in the zip.
+test('test_same_file_names_get_a_number', async () => {
+  const { api } = setup();
+  api.entities[1].name = 'NIRVANA 11TH';
+  api._syncDownloads();
+  const out = await api._buildFiles([{ key: 'payroll:0', fmt: 'xlsx' }, { key: 'payroll:1', fmt: 'xlsx' }]);
+  const n = out.map(f => f.name);
+  assert.equal(new Set(n).size, 2, JSON.stringify(n));
+});

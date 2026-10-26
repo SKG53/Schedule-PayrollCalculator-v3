@@ -188,3 +188,16 @@ test('test_cell_parsing_keeps_currency_numeric', () => {
   assert.equal(api._fc24CellFromText('flat', 4, numCols), 'flat');
   assert.equal(api._fc24CellFromText('123', 1, numCols), '123', 'non-numeric columns stay text');
 });
+
+// FC-00059 (review fix): an editable copy saved in a snapshot before the H:MM column existed
+// (10 columns) gains that column, so Rate and the money columns land where the writer expects.
+test('test_old_ten_column_copy_from_a_snapshot_is_upgraded', () => {
+  const api = setup();
+  api._fc24MakeCopy();
+  const now = JSON.parse(JSON.stringify(api._fc24GetScratch()));
+  const old = JSON.parse(JSON.stringify(now));
+  old.rows.forEach(r => { if (r.cells.length === 11) { r.cells.splice(4, 1); r.bgs.splice(4, 1); r.tips.splice(4, 1); } });
+  const up = api._fc24Upgrade(old);
+  assert.deepEqual(up.rows.map(r => r.cells), now.rows.map(r => r.cells));
+  assert.equal(api._fc24Upgrade(now), now, 'an 11-column copy is left alone');
+});

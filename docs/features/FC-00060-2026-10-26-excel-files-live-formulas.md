@@ -59,9 +59,13 @@ None.
 - `test_changing_the_break_minimum_recalculates`
 - `test_stats_and_labor_cost_are_formulas`
 - `test_timecards_excel_real_times_and_hours`
+- `test_timecards_round_trip_same_clock_time_is_not_an_edit`
 
 ## Slice
 L — sub-slices: Hours sheet; Stats; Labor Cost; Timecards.
 
 ## Affected entities
 All
+
+## Independent review fixes (2026-10-26)
+- A box OCR stored in a form Excel cannot hold as written ("24:00", "9:01:30", "21:5") comes back from the Timecards Excel as the same clock time. It is no longer counted as changed by hand: it is not blue, and its pair does not turn manual and drop the other card's overlapping punches.

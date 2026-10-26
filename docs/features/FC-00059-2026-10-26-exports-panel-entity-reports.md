@@ -70,9 +70,21 @@ None.
 - `test_batch_zip_with_entity_reports`
 - `test_one_preview_in_export_format`
 - `test_preview_flags_unconfirmed_off_schedule_person`
+- `test_overlapping_card_exports_leave_no_scope_behind`
+- `test_entity_export_asks_only_about_its_own_break`
+- `test_same_file_names_get_a_number`
+- `test_old_ten_column_copy_from_a_snapshot_is_upgraded` (in fc00024)
 
 ## Slice
 L — sub-slices: cards and batch; entity scope; preview merge; H:MM and totals.
 
 ## Affected entities
 All
+
+## Independent review fixes (2026-10-26)
+- Exports run one at a time. Two quick card clicks used to overlap, and the second put back the first one's entity scope, so every screen stayed on one entity until reload.
+- A one-entity export asks only about that entity's unconfirmed break. Its notes (punch days outside the week, Active unchecked) and its card status cover only that entity.
+- Two files with the same name in one batch (two entities with the same file label) get _2 instead of overwriting each other in the zip.
+- An editable copy saved in a snapshot before the H:MM column existed is upgraded on load, so Rate and the money columns land where they belong.
+- "Include per-day breaks" is beside Import again as well as on the Settings file card. Both boxes are one setting.
+- Not changed, by design: the H:MM column shows the decimal Hours that pay uses. Three rows of 7.33 h show 7:20 each and total 21:59, which matches the 21.99 h paid.

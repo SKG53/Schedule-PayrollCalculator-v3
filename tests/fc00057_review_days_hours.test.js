@@ -173,3 +173,35 @@ test('test_looking_at_a_tab_never_creates_a_person', () => {
   ['Avery', 'Bram', '__unrecognized__'].forEach(k => { e.intake.activeEmpTab = k; api.renderReviewTableHtml(e, 0); });
   assert.equal(ids(), before, 'no roster record (and no ID) for the unrecognized name');
 });
+
+// Review fix: an entity with no schedule dates has no week filter; payroll pays every approved
+// row, so the tab must not call any of them "not paid this week".
+test('test_no_schedule_dates_other_dates_are_paid_not_outside', () => {
+  const { loadApp, resetToSingleEntity } = require('./load-app');
+  const api = loadApp(); api.__sandbox.alert = () => {}; api.__sandbox.confirm = () => true;
+  const e = resetToSingleEntity(api, { id: 0, name: 'Alpha Test', employees: [], dateLabels: ['', '', '', '', '', '', ''], breakMinutes: 0, breakMinutesSet: true });
+  api._syncEntityCode(e); api.ensureIntakeState(e);
+  for (const d of ['2026-08-10', '2026-08-11', '2026-08-17']) {
+    const r = api.processReviewRow({ empName: 'Quinn Vale', date: d, clockIn1: '09:00', clockOut1: '17:00', confidence: 0.95, source: 'TC', originalName: d + '.jpg' }, e);
+    e.intake.reviewRows.push(r); api.approveReviewRow(r.id);
+  }
+  api.addNewEmployee(0, 'Quinn Vale', 'Quinn Vale');
+  api.syncActualsFromReview();
+  e.intake.activeEmpTab = 'Quinn Vale';
+  const html = api.renderReviewTableHtml(e, 0);
+  assert.doesNotMatch(html, /not paid this week/);
+  assert.match(html, /Other dates<\/b> · the schedule has no dates, so payroll pays these too/);
+});
+
+// Review fix: punches that came from an actuals file (no review rows) show with the hours payroll pays.
+test('test_hours_from_an_actuals_file_show_on_the_tab', () => {
+  const { loadApp, resetToSingleEntity } = require('./load-app');
+  const api = loadApp(); api.__sandbox.alert = () => {}; api.__sandbox.confirm = () => true;
+  const WK = ['Aug 9 2026', 'Aug 10 2026', 'Aug 11 2026', 'Aug 12 2026', 'Aug 13 2026', 'Aug 14 2026', 'Aug 15 2026'];
+  const e = resetToSingleEntity(api, { id: 0, name: 'Alpha Test', employees: [{ name: 'Avery', shifts: ['', '9AM - 5PM', '', '', '', '', ''] }], dateLabels: WK, breakMinutes: 0, breakMinutesSet: true,
+    actualDays: [{ empName: 'Avery', entityName: 'Alpha Test', date: '2026-08-10', dayIdx: 1, pairs: [{ in: 9, out: 15, outAdj: 15, minutes: 360 }] }] });
+  api._syncEntityCode(e); api.ensureIntakeState(e);
+  const ph = api._intakePersonHours(api._intakeHours(0, 'Avery'), e, 'Avery');
+  assert.equal(ph.paidWeek, 6);
+  assert.equal(ph.days[1].paid, 6);
+});

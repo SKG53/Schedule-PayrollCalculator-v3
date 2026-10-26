@@ -135,3 +135,17 @@ test('test_preview_shows_the_id_the_person_will_get', () => {
   assert.equal(rec.id, prov);
   assert.equal(api.previewNextEmployeeId(0), 'EMP_' + code + '_' + String(+prov.slice(-5) + 1).padStart(5, '0'));
 });
+
+// Review fix: an ID that went out in a settings file is not issued again after Undo.
+test('test_undo_after_settings_export_does_not_reissue_the_id', async () => {
+  const { api, code } = setup();
+  api.openNewEmployeeDialog(0, {}); api.setNewEmpField('first', 'Wren'); api.setNewEmpField('last', 'Hale');
+  const rec = api.createNewEmployeeFromDialog();
+  await api.exportPayrollSettingsExcel(false);
+  api.undoCheckpoint();
+  assert.ok(!api.session.roster.byId[rec.id], 'undone');
+  api.openNewEmployeeDialog(0, {}); api.setNewEmpField('first', 'Ivo'); api.setNewEmpField('last', 'Pell');
+  const next = api.createNewEmployeeFromDialog();
+  assert.notEqual(next.id, rec.id);
+  assert.equal(next.id, 'EMP_' + code + '_' + String(+rec.id.slice(-5) + 1).padStart(5, '0'));
+});

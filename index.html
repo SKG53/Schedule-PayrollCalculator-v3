@@ -861,8 +861,9 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
           <div class="export-label">Load a settings file</div>
           <button class="btn" onclick="document.getElementById('payrollSettingsImportInput').click()" title="Re-import a Wage / Payroll Settings .xlsx. Per-day breaks are restored when the file has them and 'Include per-day breaks' is ticked on the Settings card below.">Import Settings (.xlsx)</button>
           <input type="file" id="payrollSettingsImportInput" accept=".xlsx,.xls" style="display:none" onchange="if(this.files[0]){importPayrollSettingsFile(this.files[0],_settingsWithBreaks());this.value='';}">
+          <label style="display:flex;align-items:center;gap:4px;font-size:12px"><input type="checkbox" id="settingsImportBreaksToggle" style="width:auto;margin:0" onchange="setSettingsBreaksPref(this.checked)"> Include per-day breaks</label>
         </div>
-        <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5">Exporting the settings file is on the <b>Settings file</b> card in Exports below (FC-00059). <strong>Include per-day breaks</strong> there also decides whether an import restores per-day Override/Actual values and the entity default break.</div>
+        <div style="font-size:11px;color:var(--text3);margin-top:4px;line-height:1.5">Exporting the settings file is on the <b>Settings file</b> card in Exports below (FC-00059). <strong>Include per-day breaks</strong> (here or there, they are one setting) also decides whether an import restores per-day Override/Actual values and the entity default break.</div>
       </div>
     </div>
 
@@ -2268,7 +2269,23 @@ const _QUEUE_KIND={timecardFiles:'TC',easyclockFiles:'EC',mixedFiles:'MIX'};
 // Other features add their own state here (pending settings, thresholds, download ticks).
 const _snapshotParts={};
 function _registerSnapshotPart(name,save,load){_snapshotParts[name]={save,load};}
-_registerSnapshotPart('fc24Scratch',()=>_fc24Scratch?_cloneState(_fc24Scratch):null,v=>{_fc24Scratch=v?_cloneState(v):null;});
+_registerSnapshotPart('fc24Scratch',()=>_fc24Scratch?_cloneState(_fc24Scratch):null,v=>{_fc24Scratch=v?_fc24Upgrade(_cloneState(v)):null;});
+// FC-00059 (review fix): an editable copy saved in a snapshot before the H:MM column existed has
+// 10 columns; it gains the H:MM column after Hours, so Rate, money and Diff land in their columns.
+function _fc24Upgrade(m){
+  if(!m||!Array.isArray(m.rows))return m;
+  const hdr=m.rows.find(r=>r&&r.kind==='hdr');
+  if(!hdr||hdr.cells.length!==10||hdr.cells.includes('H:MM'))return m;
+  m.rows.forEach(r=>{
+    if(!r||!Array.isArray(r.cells)||r.cells.length!==10)return;
+    const h=parseFloat(String(r.cells[3]||'').replace(/[^0-9.\-]/g,''));
+    const v=r.kind==='hdr'?'H:MM':(String(r.cells[3]||'').trim()!==''&&!isNaN(h)?fmtHmm(h):'');
+    r.cells.splice(4,0,v);
+    if(Array.isArray(r.bgs))r.bgs.splice(4,0,r.bgs[3]||'');
+    if(Array.isArray(r.tips))r.tips.splice(4,0,r.tips[3]||'');
+  });
+  return m;
+}
 function _snapshotPartsData(){const o={};Object.keys(_snapshotParts).forEach(k=>{o[k]=_snapshotParts[k].save();});return o;}
 let _lastSavedSig=null;
 
@@ -2552,13 +2569,18 @@ function _toolSettingsRows(){
   ['names:scope','names:all',...NAME_EXPORT_KEYS.map(k=>'names:'+k)].filter(k=>nk.includes(k)&&session.toolSettings[k]).forEach(k=>rows.push([_toolSettingLabel(k),_nameSettingValueText(k,session.toolSettings[k])]));
   // FC-00056: the highest employee ID ever issued per entity, so a number is never handed out
   // twice even when the person who held it is missing from a later file.
-  const hw=_idHighWater();Object.keys(hw).sort().forEach(code=>rows.push([ID_HIGH_WATER_LABEL+' · '+code,hw[code]]));
+  const hw=_idHighWater();Object.keys(hw).sort().forEach(code=>{rows.push([ID_HIGH_WATER_LABEL+' · '+code,hw[code]]);_idWrittenOut[code]=Math.max(_idWrittenOut[code]||0,hw[code]);});
   return rows;
 }
 const ID_HIGH_WATER_LABEL='Highest employee ID issued';
+// Review fix: the highest ID per entity already written to a settings file in this browser
+// session. Undo does not roll it back (it is not session data), so a number that left the tool
+// in a file is never handed to someone else after an Undo.
+const _idWrittenOut={};
 function _idHighWater(){
   const out={};
   const raise=(code,n)=>{if(!code||code==='_loaded'||!(n>0))return;if(!(out[code]>=n))out[code]=n;};
+  Object.keys(_idWrittenOut).forEach(c=>raise(c,_idWrittenOut[c]));
   Object.keys(session._fileIdMax||{}).forEach(c=>raise(c,session._fileIdMax[c]));
   Object.keys(session.roster.byId||{}).forEach(id=>{const m=/^EMP_([A-Z0-9]{3})_(\d{5})$/.exec(id);if(m)raise(m[1],parseInt(m[2],10));});
   return out;
@@ -3394,8 +3416,9 @@ function _rateMissingNamesRaw(){
 function downloadStatus(key){
   // FC-00059: a payroll card's status covers the entities that card exports.
   const sc=_isPayrollKey(key)?_scopeOfKey(key):null;
-  if(sc&&_exportScope===null){const prev=_exportScope;_exportScope=sc;try{return _downloadStatusInner(key,sc);}finally{_exportScope=prev;}}
-  return _downloadStatusInner(key,null);
+  // Synchronous, so setting and restoring the scope here cannot interleave with anything.
+  const prev=_exportScope;_exportScope=sc;
+  try{return _downloadStatusInner(key,sc);}finally{_exportScope=prev;}
 }
 function _downloadStatusInner(key,sc){
   const reasons=[];
@@ -3439,7 +3462,15 @@ async function buildSelectedDownloads(cont){
 }
 // FC-00059: writes the given [{key,fmt}] files. The unapproved-row stop asks once, about the
 // entities of every payroll report in the list.
-async function _buildFiles(list,cont){
+// Review fix: exports run one at a time. Two quick clicks used to overlap, and the second
+// restored the first one's entity scope, so every screen stayed on one entity until reload.
+let _exportChain=Promise.resolve();
+function _buildFiles(list,cont){
+  const run=_exportChain.then(()=>_buildFilesNow(list,cont));
+  _exportChain=run.then(()=>{},()=>{});
+  return run;
+}
+async function _buildFilesNow(list,cont){
   _syncDownloads();
   const files=[];
   const pay=list.filter(x=>_isPayrollKey(x.key));
@@ -3447,7 +3478,7 @@ async function _buildFiles(list,cont){
     const ids=[...new Set([].concat(...pay.map(x=>_scopeOfKey(x.key)||[])))];
     const ok=await _withExportScope(ids,()=>_payrollGateOk(cont));
     if(!ok)return null;
-    if(!_confirmBreaksOrBail())return null;
+    if(!await _withExportScope(ids,()=>_confirmBreaksOrBail()))return null;
   }
   for(const {key,fmt:f} of list){
     const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled||!(f in d.formats))continue;
@@ -3470,6 +3501,10 @@ async function _buildFiles(list,cont){
     const cap=await _withExportScope(sc,()=>_captureOne(d.run[f]));
     cap.forEach((c,j)=>files.push({name:stem+'_'+d.suffix+(j?'_'+(j+1):'')+'.'+_FMT_EXT[f],data:c.data,type:c.type}));
   }
+  // Review fix: two files with one name (two entities with the same file label) would overwrite
+  // each other in the zip; the later one gets _2, _3 before the extension.
+  const seen={};
+  files.forEach(x=>{const k=x.name.toLowerCase();if(!seen[k]){seen[k]=1;return;}const n=++seen[k];x.name=x.name.replace(/(\.[^.]+)?$/,m=>'_'+n+m);});
   return files;
 }
 // FC-00059: one card's Excel / PDF button — that one file, downloaded now.
@@ -3543,7 +3578,7 @@ function _downloadsHtmlInner(){
     }
     const btns=Object.keys(d.formats).map(f=>`<button class="btn ${f==='xlsx'?'btn-green':''}" onclick="exportCardNow('${escJs(d.key)}','${f}')" ${d.disabled?'disabled':''}>${f==='json'?'Save snapshot':_FMT_LABEL[f]}</button>`).join('');
     const ticks=Object.keys(d.formats).map(f=>`<label class="dl-fmt"><input type="checkbox" ${_dlTick(d.key,f)?'checked':''} onchange="setDownloadTick('${escJs(d.key)}','${f}',this.checked)"> ${_FMT_LABEL[f]}</label>`).join(' ');
-    const extra=d.key==='settings'?`<label class="dl-fmt" style="display:block;margin-top:4px"><input type="checkbox" id="settingsIncludeBreaksToggle" ${_settingsBreaksPref?'checked':''} onchange="_settingsBreaksPref=this.checked"> Include per-day breaks</label>`:'';
+    const extra=d.key==='settings'?`<label class="dl-fmt" style="display:block;margin-top:4px"><input type="checkbox" id="settingsIncludeBreaksToggle" ${_settingsBreaksPref?'checked':''} onchange="setSettingsBreaksPref(this.checked)"> Include per-day breaks</label>`:'';
     h+=`<div class="exp-card${d.key.startsWith('payroll:')?' exp-card-entity':''}" data-key="${escHtml(d.key)}"><div class="exp-title">${escHtml(d.label)}</div><div class="dl-desc">${escHtml(d.desc)}</div>${ents}${d.key==='payroll'?_lineNameSelectHtml('payroll'):''}${names.length?'<div class="dl-files">'+names.map(escHtml).join('<br>')+'</div>':''}${extra}<div class="exp-btns">${btns}</div><div class="exp-batch">In batch: ${ticks}</div>`;
     if(st)h+=st.ok?'<div class="dl-ok">✓ Ready</div>':'<div class="dl-warn">⚠ '+st.reasons.map(escHtml).join('<br>⚠ ')+'</div>';
     h+='</div>';
@@ -3552,6 +3587,12 @@ function _downloadsHtmlInner(){
   return h;
 }
 let _settingsBreaksPref=false;
+// One setting, two boxes (beside Import and on the Settings file card): ticking one ticks both.
+function setSettingsBreaksPref(v){
+  _settingsBreaksPref=!!v;
+  if(typeof document==='undefined')return;
+  ['settingsIncludeBreaksToggle','settingsImportBreaksToggle'].forEach(id=>{const el=document.getElementById(id);if(el)el.checked=_settingsBreaksPref;});
+}
 // ================================================================
 // FC-00045 — how names print on exports (display only; IDs and saved names never change)
 // ================================================================
@@ -4870,9 +4911,12 @@ function _weekFilterBannerHtml(ent,calc){
   return html;
 }
 // All entities: {count, hours, text} for the export toast and the preview summary.
+// FC-00059 (review fix): a one-entity export reports only on that entity.
+function _inExportScope(e){return !_exportScope||_exportScope.includes(e.id);}
 function _weekExclusionSummary(){
   let count=0,hours=0;const parts=[];
   entities.forEach((e,i)=>{
+    if(!_inExportScope(e))return;
     const c=computePayrollForEntity(i);
     const n=(c.excludedActuals||[]).length;
     if(n){count+=n;hours+=c.excludedActuals.reduce((a,x)=>a+x.hours,0);parts.push(`${e.name||('Entity '+(i+1))}: ${n}`);}
@@ -4894,6 +4938,7 @@ function _inactiveRowPay(e,r){
 function _inactiveExclusionSummary(){
   const list=[];
   entities.forEach((e,i)=>{
+    if(!_inExportScope(e))return;
     const entName=e.name||('Entity '+(i+1));
     const {results,orphanRows}=computePayrollForEntity(i);
     results.concat(orphanRows).concat(getFlatWageRows(entName)).forEach(r=>{
@@ -7371,6 +7416,9 @@ function _applyReviewerEditState(row){
 function _isManualRow(r){return !!r&&r.source==='MN'}
 // FC-00042: edit state is per box. A box is edited when its value differs from what OCR read
 // for that box (row._ocr[k]); the OCR value travels with the box, so merge/split carry it.
+// Minutes past midnight of a stored time ("9:01:30" → 541, "24:00" → 0), or null.
+function _ocrClockMin(v){const m=/^\s*(\d{1,2}):(\d{1,2})(?::\d{1,2})?\s*$/.exec(String(v||''));if(!m)return null;const h=+m[1],mi=+m[2];if(h>24||mi>59)return null;return (h*60+mi)%1440;}
+function _sameClockMin(a,b){const x=_ocrClockMin(a),y=_ocrClockMin(b);return x!==null&&x===y;}
 function _boxEdited(row,k){return !!(row&&row._ocr&&row._ocrSource&&(row[k]||'')!==(row._ocr[k]||''))}
 function editedBoxes(row){return REVIEWER_EDIT_FIELDS.filter(k=>_boxEdited(row,k))}
 // FC-00057: a box is blue when its value did not come from OCR: an OCR box the owner changed, or
@@ -7961,7 +8009,12 @@ function renderReviewTableHtml(ent,idx){
     });
     const outRows=activeRows.filter(r=>!inWeek.has(r.date)).sort((a,b)=>(a.date||'~').localeCompare(b.date||'~'));
     if(outRows.length){
-      html+=`<tr class="day-head day-out"><td colspan="${_ncols}"><b>Outside this pay week</b> · not paid this week</td></tr>`;
+      // Review fix: with no schedule dates there is no week filter, and payroll pays these rows
+      // too, adding each date to the same weekday above (two Mondays are one Monday).
+      const noWeek=!_reviewWeekFromSchedule(ent);
+      html+=noWeek
+        ?`<tr class="day-head day-out"><td colspan="${_ncols}"><b>Other dates</b> · the schedule has no dates, so payroll pays these too and adds each to the same weekday above (load the schedule to set the pay week)</td></tr>`
+        :`<tr class="day-head day-out"><td colspan="${_ncols}"><b>Outside this pay week</b> · not paid this week</td></tr>`;
       outRows.forEach(_rowHtml);
     }
   }else{
@@ -7975,6 +8028,7 @@ function renderReviewTableHtml(ent,idx){
 // ================================================================
 // The pay week: the loaded schedule's seven dates, or with no schedule the Sun–Sat week most of
 // the entity's rows fall in. null when there is nothing to anchor a week to.
+function _reviewWeekFromSchedule(ent){const f=(ent.dateLabels||[]).map(l=>l?schedLabelToIso(l):'');return f.length===7&&f.every(Boolean);}
 function _reviewWeekIsos(ent){
   const fromSched=(ent.dateLabels||[]).map(l=>l?schedLabelToIso(l):'');
   if(fromSched.length===7&&fromSched.every(Boolean))return fromSched;
@@ -7997,6 +8051,12 @@ function _intakeHours(idx,personKey){
   if(personKey!=null)rows=rows.filter(r=>r&&reviewBucketKey(r,ent)===personKey);
   const saved=ent.actualDays,hadFlag=('_actualsFromReview' in ent),savedFlag=ent._actualsFromReview,savedMode=actualsMode;
   const run=list=>{ent.actualDays=_actualDaysFromRows(ent,list);const c=computePayrollForEntity(idx);return c.results.concat(c.orphanRows);};
+  // Review fix: punches loaded from an actuals file (no review rows behind them) are what payroll
+  // pays; show those instead of the (empty) review rows.
+  if((ent.actualDays||[]).length&&!ent._actualsFromReview&&!rows.some(r=>r&&r.approved===true)){
+    const c=computePayrollForEntity(idx);const list=c.results.concat(c.orphanRows);
+    return{paid:list,all:list};
+  }
   let paid=[],all=[];
   try{
     actualsMode='separate';
@@ -8164,7 +8224,13 @@ const _deferredReviewRefresh=new Set();
 function _noteNextBox(ev){
   const t=ev&&ev.relatedTarget;
   const k=t&&t.getAttribute?t.getAttribute('data-rbox'):null;
-  if(k)_refocusKey=k;
+  if(!k)return;
+  _refocusKey=k;
+  // Review fix: the key only serves the redraw this save causes, which runs straight away. When
+  // nothing redraws (the value did not change), it must not linger and grab the cursor on some
+  // later redraw (Approve, OCR finishing). A redraw delayed by a mouse press runs after the
+  // click, when the clicked box already has the focus.
+  setTimeout(()=>{if(_refocusKey===k)_refocusKey=null;},0);
 }
 function _activeBoxState(){
   if(typeof document==='undefined')return null;
@@ -8194,7 +8260,12 @@ function _flushDeferredReviewRefresh(){
 }
 if(typeof document!=='undefined'&&document.addEventListener){
   document.addEventListener('mousedown',()=>{_ptrDown=true;},true);
-  document.addEventListener('mouseup',()=>{_ptrDown=false;if(_deferredReviewRefresh.size)setTimeout(_flushDeferredReviewRefresh,0);},true);
+  const _ptrUp=()=>{if(!_ptrDown&&!_deferredReviewRefresh.size)return;_ptrDown=false;if(_deferredReviewRefresh.size)setTimeout(_flushDeferredReviewRefresh,0);};
+  document.addEventListener('mouseup',_ptrUp,true);
+  // Review fix: a drag (an image, selected text) or a lost window ends without a mouseup; the
+  // held redraw must still run.
+  ['dragend','pointercancel'].forEach(t=>document.addEventListener(t,_ptrUp,true));
+  if(typeof window!=='undefined'&&window.addEventListener)window.addEventListener('blur',_ptrUp);
 }
 
 function findReviewRow(id){
@@ -8589,7 +8660,7 @@ function _confirmBreaksOrBail(){
   if(_dlCapture&&_dlCapture.breaksOk)return true; // FC-00040: asked once for the whole download
   // FC-00027: an entity with actuals but no schedule still deducts its break, so it needs
   // the same confirmation prompt.
-  const unset=entities.filter(e=>(e.employees.length>0||(e.actualDays&&e.actualDays.length>0))&&!e.breakMinutesSet);
+  const unset=entities.filter(e=>_inExportScope(e)&&(e.employees.length>0||(e.actualDays&&e.actualDays.length>0))&&!e.breakMinutesSet);
   if(unset.length>0){
     const names=unset.map(e=>e.name||'(unnamed)').join(', ');
     if(!confirm('Break minutes not confirmed for: '+names+'.\n\nCurrent values will be used anyway. Continue with export?'))return false;
@@ -10728,7 +10799,11 @@ function _ingestActualsIntakeRows(rows,colMap){
     // FC-00060: what OCR read for each box comes back, so edited boxes stay marked (blue) and
     // only edited pairs count as manual entries, exactly as before the export.
     const ocrRaw=get(row,'ocr values');
-    if(ocrRaw){try{const o=JSON.parse(ocrRaw);if(o&&o.v&&(o.s==='TC'||o.s==='EC')){newRow._ocr={};REVIEWER_EDIT_FIELDS.forEach(k=>{newRow._ocr[k]=String(o.v[k]||'');});newRow._ocrSource=o.s;_applyReviewerEditState(newRow);}}catch(_){}}
+    if(ocrRaw){try{const o=JSON.parse(ocrRaw);if(o&&o.v&&(o.s==='TC'||o.s==='EC')){newRow._ocr={};REVIEWER_EDIT_FIELDS.forEach(k=>{newRow._ocr[k]=String(o.v[k]||'');
+      // Review fix: a box OCR read as "24:00", "9:01:30" or "21:5" travels through Excel as a
+      // real time and comes back as 00:00 / 09:01 / 21:05. Same clock time = not edited: the
+      // value OCR read is kept, so the box is not blue and the pair does not turn manual.
+      if(k!=='date'&&newRow[k]!==newRow._ocr[k]&&_sameClockMin(newRow[k],newRow._ocr[k]))newRow[k]=newRow._ocr[k];});newRow._ocrSource=o.s;_applyReviewerEditState(newRow);}}catch(_){}}
     if(suggested)newRow._suggestedName=suggested;
     if(iso){const d=new Date(iso+'T00:00:00');if(!isNaN(d))newRow.dayIdx=d.getDay();}
     // Try to map empName to scheduled name (so reviewBucketKey works)

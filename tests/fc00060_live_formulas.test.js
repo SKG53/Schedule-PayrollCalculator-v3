@@ -108,3 +108,36 @@ test('test_timecards_excel_real_times_and_hours', async () => {
   assert.equal(xlEval(wb, ws, row[18].value.formula), 7.75, 'punched hours over midnight');
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, []);
 });
+
+// Review fix: OCR can store a time Excel cannot hold as written ("24:00", "9:01:30"). Through the
+// Timecards Excel it comes back as the same clock time; that box is not "changed by hand", so it
+// is not blue and does not turn its pair into a manual entry (which would drop the other card's
+// overlapping punches and change the hours).
+test('test_timecards_round_trip_same_clock_time_is_not_an_edit', async () => {
+  const api = setup();
+  const e = api.entities[0];
+  e.actualDays = [];
+  api.ensureIntakeState(e);
+  const tc = api.processReviewRow({ empName: 'Bram', date: '2026-08-11', clockIn1: '17:00', clockOut1: '24:00', confidence: 0.95, source: 'TC', originalName: 't.jpg' }, e);
+  const ec = api.processReviewRow({ empName: 'Bram', date: '2026-08-11', clockIn1: '16:50', clockOut1: '00:10', confidence: 0.95, source: 'EC', originalName: 'e.jpg' }, e);
+  e.intake.reviewRows.push(tc, ec);
+  api.approveReviewRow(tc.id); api.approveReviewRow(ec.id);
+  api.syncActualsFromReview();
+  const hrs = () => api._collectExportData()[0].rows.find(r => r._empName === 'Bram').actualHours;
+  const before = hrs();
+  await api.exportActualsIntakeExcel();
+  const ws = api.__lastExcelWorkbook.worksheets[0];
+  const H = api.ACTUALS_INTAKE_HEADERS.map(h => h.toLowerCase());
+  const cm = {}; H.forEach((h, i) => { cm[h] = i; });
+  // Read back the way SheetJS shows it: times as text, the stored "24:00" now "12:00 AM".
+  const text = (c) => { const v = c && c.value; if (v == null) return ''; if (typeof v === 'object' && 'formula' in v) return String(v.result); if (typeof v === 'number' && c.numFmt === 'h:mm AM/PM') { const m = Math.round(v * 1440) % 1440; return api.to12h(String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0')); } if (typeof v === 'number' && c.numFmt === 'yyyy-mm-dd') { return new Date(Date.UTC(1899, 11, 30) + v * 86400000).toISOString().slice(0, 10); } return String(v); };
+  const rows = ws.rows.filter(r => r && r[17] && (r[17].value === tc.id || r[17].value === ec.id)).map(r => H.map((_, i) => text(r[i + 1])));
+  assert.equal(rows.length, 2);
+  e.intake.reviewRows = [];
+  api._ingestActualsIntakeRows(rows, cm);
+  api.syncActualsFromReview();
+  const back = e.intake.reviewRows.find(r => r.id === tc.id);
+  assert.equal(api._boxEdited(back, 'clockOut1'), false, 'not blue');
+  assert.equal(back.source, 'TC', 'still an OCR row, not manual');
+  assert.equal(hrs(), before, 'hours unchanged by the round trip');
+});

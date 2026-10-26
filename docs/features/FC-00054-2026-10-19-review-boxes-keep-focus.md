@@ -60,9 +60,14 @@ None.
 - `test_no_partial_date_saved_while_typing`
 - `test_typed_am_pm_shorthand_is_kept`
 - `test_reimport_keeps_approved_rows_without_punches` (FC-00057)
+- `test_unchanged_box_leaves_no_refocus_key_behind`
 
 ## Slice
 S
 
 ## Affected entities
 All
+
+## Independent review fixes (2026-10-26)
+- Leaving a box without changing it no longer leaves a "move here" note behind that later pulls the cursor into a time box with its text selected. The note lasts only for the redraw it was made for.
+- A held redraw (waiting for the mouse button) also runs after a drag ends, a pointer is cancelled or the window loses focus, not only on mouse-up.
