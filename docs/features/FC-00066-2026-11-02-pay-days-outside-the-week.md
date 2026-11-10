@@ -1,14 +1,14 @@
 # FC-00066 — Pay a day from outside the pay week (final pay, late cards) without moving its date
 
-**Date:** 2026-11-02 · **Slice:** M · **Risk:** High · **Status:** drafting · **Affected entities:** All
+**Date:** 2026-11-02 · **Slice:** M · **Risk:** High · **Status:** done · **Affected entities:** All
 
 ## What
 1. **"Pay in this run" on rows outside the pay week.** On a person's review tab, each row under *Outside this pay week* gets a toggle **Pay in this run**. Turned on, the row keeps its **real date** and its hours and pay count in this run.
    - It works for a day after the week (final pay, e.g. someone's last shift is the Sunday after the pay week) and a day before it (a card that turned up late for an earlier week).
    - The row must be approved like any other row; the FC-00049 export check treats an unapproved row with the toggle on as a pay-week row.
 2. **Files show the true date.** The Hours sheet lists the row on its own date with an **Outside pay week** mark; the payroll report's Hours, pay and totals include it through the same formulas. The Timecards Excel keeps the real date and adds the mark in Flags. Stats (punctuality vs schedule) skip the row, since it has no shift in this week's schedule. Labor Cost lists it on its own line under the week, labelled with its date.
-3. **The settings file remembers what was paid early or late.** Each row paid this way is written to a new settings-file section **Paid outside the pay week**: employee ID, date, punches, hours, and the run it was paid in (e.g. `10/25–10/31`).
-4. **The next run cannot pay it again.** When a row comes in (OCR or manual) for the same employee ID and date, and overlaps the punches already paid, the tool leaves it out automatically and shows on that row and at the top of the person's tab: *Paid in the 10/25–10/31 run · not paid again*. The reviewer can undo that with one click (e.g. the earlier payment was only part of the day); undoing is logged.
+3. **The settings file remembers what was paid early or late.** Each row paid this way is written to a new settings-file section **Paid outside the pay week**: employee ID, date, punches, hours, and the run it was paid in (e.g. `08/09–08/15`).
+4. **The next run cannot pay it again.** When a row comes in (OCR or manual) for the same employee ID and date, and overlaps the punches already paid, the tool leaves it out automatically and shows on that row and at the top of the person's tab: *Paid in the 08/09–08/15 run · not paid again*. The reviewer can undo that with one click (e.g. the earlier payment was only part of the day); undoing is logged.
    - Entries older than 60 days drop out of the settings file on export.
 5. **Final pay label.** When a person with a row paid this way is also set inactive in the same run, their report row reads **NAME (final pay)**.
 
@@ -39,6 +39,7 @@ Fully reversible via one revert. Settings files written with the new section loa
 8. Stats exclude the row; Labor Cost lists it on its own dated line; the Timecards Excel keeps its real date.
 
 ## Out of scope
+- A card that turns up late for an earlier week and is paid with **Pay in this run** is not checked against what that earlier week already paid from another card (only days paid outside their own week are recorded); the reviewer compares it with that week's Timecards Excel.
 - Paying a whole other week; this is for single days.
 - Changing the pay-week scope of the tool otherwise.
 
@@ -47,8 +48,23 @@ Fully reversible via one revert. Settings files written with the new section loa
 - 60 days is long enough to keep the record in the settings file.
 
 ## Open questions
-1. Should a toggled row also need a short reason typed in (e.g. "final pay"), shown on the Hours sheet?
-2. Is 60 days the right time to keep the record, or keep it until the owner clears it?
+None. Settled 2026-11-09 when the owner asked to build it: no typed reason is asked for (the "Paid in this run" mark and the settings-file record say what happened); the record is kept 60 days.
+
+## Built
+- Review row field `payOutside` (toggle **Pay in this run** / undo, logged as `reviewPayOutside`) and `paidBeforeOk` (**Pay it anyway** / leave out again, logged as `reviewPaidBefore`); both revert from History.
+- `computePayrollForEntity`: approved outside-week days with `payOutside` are added per person as `row.outsideDays` (span − max(break, gap), no per-day override), into `actualHours` and pay; never merged into a weekday of the loaded week; not in `excludedActuals`. People with only such days become actuals-only rows.
+- `paidBeforeRecord(row, ent)`: same employee ID + date + overlapping punches against a settings-file record from another run → the row is not paid (`syncActualsFromReview`, `_intakeHours`), is not asked about by the export stop, is tagged on the review tab and listed on the person's tab, and is named on exports ("Not paid again: … (paid in the … run)").
+- Settings file: Tool Settings rows `Paid outside the pay week · <ID> · <yyyy-mm-dd>` = `hh:mm–hh:mm · N.NN h · paid in the mm/dd/yy–mm/dd/yy run` (earlier records within 60 days of the week, then this run's); read back by `_ingestToolSettings` into `session.toolSettings` (`paidOut:<ID>|<date>`), so snapshot and undo carry them.
+- `_paysThisRun` / `_isFinalPay`: an inactive person with an outside day paid stays in the preview and exports, printed `NAME (final pay)`.
+- Hours sheet: the day on its real date with Note `Outside pay week · paid in this run` (column added only when needed); Timecards Excel Flags; Stats subtract it from Worked; Labor Cost dated line (`lc.outside`), week table holds only the week, labor cost still = payroll Actual; Payroll tab pill.
+
+- Independent review fixes: on an outside date a chosen row and a not-chosen row of the same day are kept apart (only the chosen one is paid and recorded); the settings file brings payroll up to date before writing the records; records of the current run are never carried (undoing a toggle removes it); re-importing the Timecards Excel turns the toggle back on; matching never creates an employee ID; **Pay in this run** only for a recognized person whose time cards are not ignored; a final-pay person without a rate is in the missing-rate warning.
+
+## Verification
+- `npm test` (10 new tests below).
+- Real-week regression: pay identical to live v3 on the reference weeks with nothing toggled.
+- LibreOffice recalculation of an export with a paid outside day: 0 mismatches; the Hours sheet row feeds the report.
+- Browser (Chromium): toggle, export, settings export → import in a new session → the matching row shows "not paid again", "Pay it anyway" pays it; no page errors.
 
 ## Tests
 `tests/fc00066_pay_outside_week.test.js` (invented names and values only):
@@ -62,6 +78,11 @@ Fully reversible via one revert. Settings files written with the new section loa
 - `test_non_matching_rows_not_blocked`
 - `test_final_pay_label_when_inactive`
 - `test_stats_skip_and_labor_cost_dated_line`
+- `test_untoggled_row_same_outside_day_not_paid`
+- `test_settings_record_written_without_payroll_tab`
+- `test_same_run_record_dropped_after_undo`
+- `test_timecards_reimport_restores_toggle`
+- `test_pay_button_only_for_recognized_people`
 
 ## Slice
 M

@@ -1,7 +1,7 @@
 # Functionality Baseline
 
 **Status: complete as of 2026-08-03, commit 8dbb955** (branch `tool-v2`); kept current by every
-Feature Card since — last updated FC-00065 (2026-10-26).
+Feature Card since — last updated FC-00069 (2026-11-09).
 **Reconciled against the v2 docs** (`CLAUDE.md`, `docs/DOMAIN.md`) the same day —
 see the note at the head of §10.
 
@@ -128,9 +128,13 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
    on click (FC-00055). The sort screen (FC-00062): a summary per entity on top; per entity
    images being looked at, Unsure, Timecard photos, EasyClocking screenshots; each image has
    Timecard / EasyClocking / Unsure toggles; moved images glide and are outlined; scroll
-   position and thumbnails kept on every redraw. While OCR runs, one bar at the top of the
+   position and thumbnails kept on every redraw. The sort screen opens the moment a folder or zip
+   is dropped; a bar at its top says Working (opening, checking for images already loaded n of N,
+   looking at the images n of N with a count per entity, retries) or, when done, green "Ready —
+   press Start OCR" or amber "Waiting for you" naming each need with a Show me button; the Unsure
+   pills go to those images (FC-00067). While OCR runs, one bar at the top of the
    page (sticky) shows the whole run: images done of all queued, the entity now, the ones
-   next, failures, then "OCR finished" (FC-00063). Run OCR (Gemini; concurrency 3,
+   next, failures, then "OCR finished" (FC-00063). Run OCR (Gemini; images read at once = the browser preference "Images read at once", 1–10, default 3, set in Settings or on the sort and OCR bars, also used for typing images; a run keeps its number; rate-limit failures show "try fewer at once" (FC-00068);
    auto-retry 3 attempts with 12 s delay, per-file retry buttons, optional
    auto-escalate to Pro below 75% confidence). Review table split into per-employee
    sub-tabs plus "Unrecognized"; inline edit of name (dropdown of schedule names, confirmed people not on the
@@ -591,3 +595,22 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
     Schedules, punches, and payroll are memory-only. Under the v2 rule 3 table the
     storage itself is permitted; the sentence is simply inaccurate and invites the
     belief that payroll data is being retained.
+
+## Added by FC-00066 to FC-00069 (2026-11-09)
+
+- **Pay a day from outside the pay week (FC-00066).** On a person's review tab, a row under
+  "Outside this pay week" has **Pay in this run**. Approved and turned on, the row keeps its real
+  date and its hours and pay count in this run: payroll adds the day on its own (never onto the
+  same weekday of the loaded week), the Hours sheet lists it on its date with the Note "Outside pay
+  week · paid in this run", the Timecards Excel adds that mark to Flags, Stats leave it out,
+  Labor Cost shows it on its own dated line (the week's labor cost still ties to the payroll
+  Actual), and the Payroll tab shows a "+ … outside week" pill. The export stop asks about such a
+  row while it is unapproved. The settings file's Tool Settings sheet gets one row per paid day:
+  "Paid outside the pay week · <employee ID> · <date>" = "hh:mm–hh:mm · N.NN h · paid in the
+  mm/dd/yy–mm/dd/yy run"; rows older than 60 days before the week drop out on export. Loading
+  that file, a row of the same person and date with overlapping punches from another run is not
+  paid ("Paid in the … run · not paid again", named on exports under "Not paid again"), with
+  "Pay it anyway" (logged, undoable). An inactive person with such a day stays on the run's
+  report as "NAME (final pay)"; otherwise inactive people are still left out (FC-00035).
+- **Missing scheduled days as boxes (FC-00069).** "Scheduled, no approved punches · N days" lists
+  each day in its own box with that day's scheduled shift; a box scrolls to the day's row.
