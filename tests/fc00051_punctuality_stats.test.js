@@ -78,7 +78,7 @@ test('test_scheduled_day_no_punches_red', () => {
   assert.deepEqual(api.scheduledNoPunchDays(e, 'AVERY'), [D(5)]);
   e.intake.activeEmpTab = 'AVERY';
   const html = api.renderReviewTableHtml(e, 0);
-  assert.match(html, /Scheduled, no approved punches: Fri Aug 14/);
+  assert.match(html, /Scheduled, no approved punches · 1 day<div class="snp-chips"><a href="#" class="snp-chip" data-iso="2026-08-14"[^>]*>Fri Aug 14/); // FC-00069: one box per day
   // Ignored employees are not reported.
   e.intake.ignoredEmployees = { AVERY: true };
   assert.deepEqual(api.scheduledNoPunchDays(e, 'AVERY'), []);

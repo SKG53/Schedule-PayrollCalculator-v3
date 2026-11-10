@@ -349,6 +349,26 @@ img.tc-thumb.tc-thumb-small{cursor:default;outline:1px dashed #F59E0B}
 .overlay-panel .wd-row select{width:auto;flex:1;margin:0;padding:3px 4px;font-size:10px;font-family:inherit}
 @keyframes wdPulse{0%{box-shadow:0 0 0 3px rgba(37,99,235,0.95)}70%{box-shadow:0 0 0 3px rgba(37,99,235,0.6)}100%{box-shadow:0 0 0 3px rgba(37,99,235,0)}}
 .wd-item.wd-changed{animation:wdPulse 1.8s ease-out}
+/* FC-00067: sort screen progress bar — working, or waiting for you */
+.wd-bar{position:sticky;top:-24px;z-index:5;background:var(--surface);border:1px solid #93C5FD;border-radius:10px;padding:9px 12px;margin:0 0 12px;box-shadow:0 4px 14px rgba(0,0,0,0.08);font-size:13px}
+.wd-bar.ready{border-color:#86EFAC;background:#F0FDF4}.wd-bar.waiting{border-color:#FCD34D;background:#FFFBEB}
+.wd-bar-line{display:flex;flex-wrap:wrap;align-items:center;gap:8px}
+.wd-bar-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:7px}
+.wd-bar-fill{height:100%;background:#2563EB;transition:width 300ms ease}
+.wd-bar.ready .wd-bar-fill{background:#16A34A}.wd-bar.waiting .wd-bar-fill{background:#F59E0B}
+.wd-bar-fill.indeterminate{width:35%!important;animation:wdSlide 1.2s ease-in-out infinite}
+@keyframes wdSlide{0%{margin-left:-35%}100%{margin-left:100%}}
+.wd-bar-ents{font-size:12px;color:var(--text2);margin-top:4px}
+.wd-bar .wd-par{margin-left:auto;font-size:12px;color:var(--text2);font-weight:400}
+.wd-bar .wd-par input,.ocr-run .wd-par input{width:46px;padding:2px 4px;font-size:12px}
+.wd-pill.un[onclick]{cursor:pointer;text-decoration:underline dotted}
+.wd-map.wd-changed{animation:wdPulse 1.8s ease-out}
+/* FC-00069: scheduled days with no approved punches, one box each */
+.snp-chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:5px}
+.snp-chip{display:inline-flex;flex-direction:column;align-items:flex-start;padding:4px 9px;border:1px solid #FCA5A5;border-radius:7px;background:#fff;color:var(--red);text-decoration:none;font-weight:600;line-height:1.25}
+.snp-chip:hover{background:#FEE2E2}
+.snp-shift{font-size:10px;font-weight:500;color:#9F1239}
+tr.day-head.day-flash td{animation:wdPulse 1.8s ease-out}
 .wd-actions{position:sticky;bottom:-28px;background:var(--surface);padding:10px 0;border-top:1px solid var(--border);margin-top:10px}
 @media (prefers-reduced-motion: reduce){.wd-item{transition:none!important}}
 .intake-entity-block .progress-fill{height:100%;background:var(--blue);transition:width 0.3s}
@@ -711,6 +731,10 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
     <label>Gemini API Key <span class="key-status missing" id="keyStatusBadge">Not saved</span></label>
     <input type="password" id="apiKeyInput" autocomplete="off" placeholder="paste key here">
     <p class="hint">Stored locally in this browser. Never uploaded anywhere except to Google's Gemini API when processing images.</p>
+
+    <label>Images read at once <span style="color:var(--text3);font-weight:400;font-size:12px">(1–10; OCR and image sorting)</span></label>
+    <input type="number" id="ocrParallelInput" min="1" max="10" step="1" value="3">
+    <p class="hint">How many images are sent to Gemini at the same time. More is faster until Google starts limiting requests; then lower it.</p>
 
     <label>Timecard model <span style="color:var(--text3);font-weight:400;font-size:12px">(handwritten physical cards)</span></label>
     <select id="tcModelInput">
@@ -2128,7 +2152,7 @@ function _recordBulkApproval(ent,changed,to,label){
 }
 // The same checks approveReviewRow makes, for reverts that would re-approve a row.
 function _approvable(row){return isRowStructurallyValid(row)&&!row._reread;}
-const _REVIEW_LOG_TYPES=new Set(['reviewEdit','reviewApprove','reviewLeftOut','reviewApproveBulk','reviewRowAdd','reviewRowDelete','reviewIgnore','reviewReread','reviewMerge','reviewSplit']);
+const _REVIEW_LOG_TYPES=new Set(['reviewEdit','reviewApprove','reviewLeftOut','reviewPayOutside','reviewPaidBefore','reviewApproveBulk','reviewRowAdd','reviewRowDelete','reviewIgnore','reviewReread','reviewMerge','reviewSplit']);
 function _applyReviewChange(entry,invert){
   const t=entry.target||{};
   const value=invert?entry.from:entry.to;
@@ -2139,6 +2163,8 @@ function _applyReviewChange(entry,invert){
     const h=findReviewRow(t.id);if(h)h.row.approved=!!value&&_approvable(h.row);
   }else if(entry.type==='reviewLeftOut'){
     const h=findReviewRow(t.id);if(h){if(value)h.row.leftOut=true;else delete h.row.leftOut;}
+  }else if(entry.type==='reviewPayOutside'||entry.type==='reviewPaidBefore'){ // FC-00066
+    const h=findReviewRow(t.id);const f=entry.type==='reviewPayOutside'?'payOutside':'paidBeforeOk';if(h){if(value)h.row[f]=true;else delete h.row[f];}
   }else if(entry.type==='reviewApproveBulk'){
     Object.keys(value||{}).forEach(id=>{const h=findReviewRow(id);if(h)h.row.approved=!!value[id]&&_approvable(h.row);});
   }else if(entry.type==='reviewRowAdd'||entry.type==='reviewRowDelete'){
@@ -2609,6 +2635,7 @@ function _toolSettingsRows(){
   // FC-00056: the highest employee ID ever issued per entity, so a number is never handed out
   // twice even when the person who held it is missing from a later file.
   const hw=_idHighWater();Object.keys(hw).sort().forEach(code=>{rows.push([ID_HIGH_WATER_LABEL+' · '+code,hw[code]]);_idWrittenOut[code]=Math.max(_idWrittenOut[code]||0,hw[code]);});
+  _paidOutSettingsRows().forEach(r=>rows.push(r)); // FC-00066
   return rows;
 }
 const ID_HIGH_WATER_LABEL='Highest employee ID issued';
@@ -2632,6 +2659,8 @@ function _ingestToolSettings(rows){
     const lab=String((r&&r[0])||'').trim();
     const hw=lab.match(/^highest employee id issued\s*·\s*([A-Za-z0-9]{3})$/i);
     if(hw){const n=parseInt(r[1],10);if(n>0){const code=hw[1].toUpperCase();session._fileIdMax=session._fileIdMax||{};if(!(session._fileIdMax[code]>=n))session._fileIdMax[code]=n;session._empIdSeq=session._empIdSeq||{};if(!(session._empIdSeq[code]>=n))session._empIdSeq[code]=n;}return;}
+    const po=lab.match(/^paid outside the pay week\s*·\s*(\S+)\s*·\s*(\d{4}-\d{2}-\d{2})$/i); // FC-00066
+    if(po){const v=String((r&&r[1])||'').trim();if(v&&_parsePaidOutValue(v).pairs.length&&setToolSetting(PAID_OUT_PREFIX+po[1]+'|'+po[2],v,'settings'))n++;return;}
     const fl=lab.match(/^file label\s*·\s*(.+)$/i);
     if(fl){const v=String(r[1]||'').replace(/[^A-Za-z0-9_-]+/g,'');if(v&&setToolSetting('label:'+_aliasNorm(fl[1]),v,'settings'))n++;return;}
     if(/^names on exports\s*·/i.test(lab)){
@@ -3445,7 +3474,7 @@ function _rateMissingNamesRaw(){
     res.results.concat(res.orphanRows).forEach(r=>{
       if(r.isFlat||!(r.actualHours>0)||r.wage>0)return;
       const k=wKey(ent.id,r.schedName||r.name);
-      if(wageBlank[k]||!isRosterActive(ent.id,r.schedName||r.name))return;
+      if(wageBlank[k]||!_paysThisRun(ent.id,r))return; // FC-00066: a final-pay person without a rate is warned about too
       out.push(r.name);
     });
   });
@@ -4762,7 +4791,10 @@ function computePayrollForEntity(idx){
   // week is paid) but never silent — what it drops is returned as `excludedActuals` and shown on
   // the Payroll tab and in the export toast.
   let entityActuals=sourceActuals.filter(d=>validIsoDates.size===0||validIsoDates.has(d.date));
-  const excludedActuals=validIsoDates.size===0?[]:sourceActuals.filter(d=>!validIsoDates.has(d.date)).map(d=>({
+  // FC-00066: a day outside the week that the reviewer chose to pay in this run keeps its own date
+  // and is added to the person's hours on its own (never stacked onto the same weekday).
+  let outsidePaid=validIsoDates.size===0?[]:sourceActuals.filter(d=>!validIsoDates.has(d.date)&&d.payOutside);
+  const excludedActuals=validIsoDates.size===0?[]:sourceActuals.filter(d=>!validIsoDates.has(d.date)&&!d.payOutside).map(d=>({
     empName:d.empName,date:d.date,hours:Math.round((d.pairs||[]).reduce((a,p)=>a+(p.minutes||0),0)/60*100)/100
   }));
   const weekIsos=[...validIsoDates].sort();
@@ -4780,7 +4812,19 @@ function computePayrollForEntity(idx){
   }
   if(ignoredSet.size>0){
     entityActuals=entityActuals.filter(d=>!ignoredSet.has((d.empName||'').toLowerCase().trim()));
+    outsidePaid=outsidePaid.filter(d=>!ignoredSet.has((d.empName||'').toLowerCase().trim()));
   }
+  // FC-00066: each paid outside day, with the same span − break math as a day in the week.
+  const outsideByName={};
+  outsidePaid.forEach(d=>{
+    let first=Infinity,last=-Infinity,tot=0;
+    (d.pairs||[]).forEach(p=>{tot+=p.minutes;if(p.in<first)first=p.in;if(p.outAdj>last)last=p.outAdj;});
+    if(!(tot>0))return;
+    const workedH=tot/60,spanH=Math.max(0,last-first),brk=Math.max(mandBreakH,Math.max(0,spanH-workedH));
+    const k=d.empName.toLowerCase().trim();
+    (outsideByName[k]=outsideByName[k]||[]).push({iso:d.date,dayIdx:d.dayIdx,actual:{pairs:d.pairs,totalMin:tot,firstIn:first,lastOut:last},workedH,spanH,actualBreakH:brk,billableH:Math.max(0,spanH-brk),defaultBreakMin:ent.breakMinutes||0,empName:d.empName});
+  });
+  Object.values(outsideByName).forEach(l=>l.sort((a,b)=>a.iso.localeCompare(b.iso)));
 
   // Aggregate by employee+dayIdx
   const byEmpDay={};
@@ -4866,6 +4910,8 @@ function computePayrollForEntity(idx){
       }
       row.days.push(dayData);
     }
+    row.outsideDays=outsideByName[emp.name.toLowerCase().trim()]||[]; // FC-00066
+    row.outsideDays.forEach(o=>{row.actualHours+=o.billableH;row.actualBreakH+=o.actualBreakH;});
     row.scheduledHours=Math.round(row.scheduledHours*100)/100;
     row.expectedBreakH=Math.round((row.scheduledDays*mandBreakH)*100)/100;
     row.expectedH=Math.round((row.scheduledHours-row.expectedBreakH)*100)/100;
@@ -4898,6 +4944,7 @@ function computePayrollForEntity(idx){
       });
     }
   });
+  Object.keys(outsideByName).forEach(k=>{if(!schedNamesLower.has(k)&&!orphanMap[k])orphanMap[k]={name:outsideByName[k][0].empName,byDay:{},totalMin:0};}); // FC-00066
   const orphanRows=Object.values(orphanMap).map(o=>{
     const nameKey=o.name.toLowerCase().trim();
     const full=fullNameByKey[nameKey];
@@ -4916,6 +4963,8 @@ function computePayrollForEntity(idx){
       }
       row.days.push({dayIdx:d,shift:null,schedH:0,actual:a||null,workedH,spanH,actualBreakH:effectiveBreakH,billableH,expectedH:0,inDiff:null,outDiff:null,hoursDiff:null,status:a?'unsched':'off',breakOverrideMin:_isOverride?_ovr:null,defaultBreakMin:ent.breakMinutes||0});
     }
+    row.outsideDays=outsideByName[o.name.toLowerCase().trim()]||[]; // FC-00066
+    row.outsideDays.forEach(x=>{row.actualHours+=x.billableH;row.actualBreakH+=x.actualBreakH;});
     row.actualHours=Math.round(row.actualHours*100)/100;row.actualBreakH=Math.round(row.actualBreakH*100)/100;
     row.otH=Math.max(0,Math.round((row.actualHours-OT_THRESHOLD)*100)/100);
     const factor=Math.pow(10,Math.max(0,Math.min(6,row.rounding)));
@@ -4969,6 +5018,11 @@ function _weekExclusionSummary(){
 // and exports. Unchecked people are left out, and every place that leaves them out says who —
 // loudly when they have hours or pay this week, because that is money not being paid.
 function _isInPayroll(entId,empName){return isRosterActive(entId,empName)}
+// FC-00066: a person set inactive in the run that also pays them a day from outside the week is
+// being given their final pay — they stay on this run's report, marked "(final pay)".
+function _hasOutsidePay(r){return!!(r&&r.outsideDays&&r.outsideDays.length);}
+function _paysThisRun(entId,r){return _isInPayroll(entId,r.schedName||r.name)||_hasOutsidePay(r);}
+function _isFinalPay(entId,r){return!_isInPayroll(entId,r.schedName||r.name)&&_hasOutsidePay(r);}
 function _inactiveRowPay(e,r){
   const empName=r.schedName||r.name;
   if(!r.isFlat&&wageBlank[wKey(e.id,empName)])return 0;
@@ -4982,7 +5036,7 @@ function _inactiveExclusionSummary(){
     const {results,orphanRows}=computePayrollForEntity(i);
     results.concat(orphanRows).concat(getFlatWageRows(entName)).forEach(r=>{
       const empName=r.schedName||r.name;
-      if(_isInPayroll(e.id,empName))return;
+      if(_paysThisRun(e.id,r))return;
       list.push({entityName:entName,empName,hours:r.isFlat?0:Math.round((r.actualHours||0)*100)/100,pay:roundDeposit(_inactiveRowPay(e,r))});
     });
   });
@@ -5464,7 +5518,7 @@ function _allEntityPreviewHtml(){
   nonEmpty.forEach(({entityIdx,entityName,results,orphanRows})=>{
     const ent=entities[entityIdx];
     const flatExtras=getFlatWageRows(entityName);
-    let allRows=results.concat(orphanRows).concat(flatExtras).filter(r=>_isInPayroll(ent.id,r.schedName||r.name)); // FC-00035
+    let allRows=results.concat(orphanRows).concat(flatExtras).filter(r=>_paysThisRun(ent.id,r)); // FC-00035, FC-00066
     if(allRows.length===0)return;
     // Mirror the user's display-sort choice into the all-entity preview so what they see matches export order.
     if(payrollSortMode[ent.id]==='paytype')allRows=sortRowsByPayType(ent.id,allRows);
@@ -5495,7 +5549,7 @@ function _allEntityPreviewHtml(){
       const rowCls=r.isOrphan?' class="orphan"':'';
       const entityCell=(i===0)?`<td class="entity-col" rowspan="${spanCount}">${escHtml(entityName)}</td>`:'';
       const diffStr=(actualTotal!=null&&Math.abs(diff)>=0.005)?(diff>0?'+':'')+_fmtUsd(diff):'—';
-      html+=`<tr${rowCls}>${entityCell}<td class="name-col">${escHtml((exportNameMode('payroll')==='saved'?r.name:_prevNm(ent.id,r.schedName||r.name))||'(unnamed)')}${r.isOrphan?' <span style="font-size:10px;color:var(--red)">(orphan)</span>':''}${r.isFlat?' <span style="font-size:10px;color:var(--text3)">(flat)</span>':''}</td><td class="num">${hrs!=null?hrs.toFixed(2):'—'}</td><td class="num">${rate}</td><td class="num">${actualTotal!=null?_fmtUsd(actualTotal):'—'}</td><td>${methodLbl}</td><td class="num">${dep>0?_fmtUsd(dep):'—'}</td><td class="num">${cash>0?_fmtUsd(cash):'—'}</td><td class="num">${finalPay>0?_fmtUsd(finalPay):'—'}</td><td class="num" style="color:var(--text3);font-size:11px">${diffStr}</td></tr>`;
+      html+=`<tr${rowCls}>${entityCell}<td class="name-col">${escHtml(((exportNameMode('payroll')==='saved'?r.name:_prevNm(ent.id,r.schedName||r.name))||'(unnamed)')+(_isFinalPay(ent.id,r)?' (final pay)':''))}${r.isOrphan?' <span style="font-size:10px;color:var(--red)">(orphan)</span>':''}${r.isFlat?' <span style="font-size:10px;color:var(--text3)">(flat)</span>':''}</td><td class="num">${hrs!=null?hrs.toFixed(2):'—'}</td><td class="num">${rate}</td><td class="num">${actualTotal!=null?_fmtUsd(actualTotal):'—'}</td><td>${methodLbl}</td><td class="num">${dep>0?_fmtUsd(dep):'—'}</td><td class="num">${cash>0?_fmtUsd(cash):'—'}</td><td class="num">${finalPay>0?_fmtUsd(finalPay):'—'}</td><td class="num" style="color:var(--text3);font-size:11px">${diffStr}</td></tr>`;
     });
     const subDiff=roundDeposit(entFinal-entPay);
     const subDiffStr=Math.abs(subDiff)>=0.005?(subDiff>0?'+':'')+_fmtUsd(subDiff):'—';
@@ -5879,7 +5933,9 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
     // show a subtle gray "actuals-only" pill instead of treating every row as a surprise.
     const rowCls=r.isOrphan?(noSchedule?' class="orphan-row-quiet"':' class="orphan-row"'):'';
     const leftOutPill=rowActive?'':` <span class="left-out-pill" title="Active is unchecked: this person is not in this week's preview or exports" style="display:inline-block;padding:1px 7px;border-radius:10px;background:${(r.actualHours>0||(r.isFlat&&r.flatAmount>0))?'#FEE2E2;color:#991B1B':'#F4F3EE;color:#78716C'};font-size:10px;font-weight:600">left out of export</span>`;
-    const actualsOnlyPill=leftOutPill+((r.isOrphan&&noSchedule)?' <span class="actuals-only-pill" style="display:inline-block;padding:1px 7px;border-radius:10px;background:var(--surface2,#f0efe9);color:var(--text3);font-size:10px;font-weight:600;letter-spacing:0.3px">actuals-only</span>':'');
+    const _fp=_isFinalPay(ent.id,r);
+    const _outPill=_hasOutsidePay(r)?` <span class="outside-pay-pill" title="Days from outside this pay week paid in this run (Actuals Intake → Pay in this run)" style="display:inline-block;padding:1px 7px;border-radius:10px;background:#EDE9FE;color:#5B21B6;font-size:10px;font-weight:600">+ ${escHtml(r.outsideDays.map(o=>_isoDayLabel(o.iso)+' '+fmtHmm(o.billableH)).join(', '))} outside week</span>`+(_fp?' <span class="final-pay-pill" title="Inactive, and paid a day from outside the week in this run: on the report as (final pay)" style="display:inline-block;padding:1px 7px;border-radius:10px;background:#FEF3C7;color:#92400E;font-size:10px;font-weight:600">final pay</span>':''):'';
+    const actualsOnlyPill=(_fp?'':leftOutPill)+_outPill+((r.isOrphan&&noSchedule)?' <span class="actuals-only-pill" style="display:inline-block;padding:1px 7px;border-radius:10px;background:var(--surface2,#f0efe9);color:var(--text3);font-size:10px;font-weight:600;letter-spacing:0.3px">actuals-only</span>':'');
     html+=`<tr${rowCls}${rowActive?'':' style="opacity:0.6"'}><td class="name-cell" style="padding:8px 6px">${inlineEditableNameHtml(ent.id,keyName,'payroll',()=>renderPayroll())}${actualsOnlyPill}
       <button class="btn btn-small" onclick="openRenameEmployeeModal(${ent.id},'${escJs(keyName)}')" title="Rename Employee" style="margin-left:6px;font-size:10px;padding:2px 6px">Rename Employee</button>${_dupFlagHtml(ent.id,keyName)}</td>`;
     html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
@@ -6228,6 +6284,7 @@ function updateKeyStatusBadge(){
 function openSettings(){
   document.getElementById('settingsOverlay').style.display='flex';
   document.getElementById('apiKeyInput').value=_prefGet('pv26_api_key')||'';
+  {const pi=document.getElementById('ocrParallelInput');if(pi)pi.value=String(ocrParallel());} // FC-00068
   updateKeyStatusBadge();
   const hf=document.getElementById('hoursFmtInput');if(hf)hf.value=hoursFormat(); // FC-00049
   // Migrate legacy single-model value if present
@@ -6256,6 +6313,7 @@ function saveSettings(){
     if(tcCustom)_prefSet('pv26_tc_model_custom',tcCustom);else _prefRemove('pv26_tc_model_custom');
     if(ecCustom)_prefSet('pv26_ec_model_custom',ecCustom);else _prefRemove('pv26_ec_model_custom');
     _prefSet('pv26_auto_escalate',document.getElementById('autoEscalateInput').checked?'1':'0');
+    {const pi=document.getElementById('ocrParallelInput');if(pi&&String(pi.value)!==String(ocrParallel())&&!setOcrParallel(pi.value,true))showToast('Images read at once: enter a whole number from 1 to 10. Kept '+ocrParallel()+'.','err');} // FC-00068
     // Clear legacy value so it doesn't override the new per-source values
     _prefRemove('pv26_model');
     updateKeyStatusBadge();
@@ -6624,6 +6682,32 @@ function schedLabelToIso(label){
 // out transient 404/429/503 blips on the Gemini classification/OCR endpoints.
 const OCR_RETRY_DELAY_MS = 12000;
 const OCR_MAX_AUTO_ATTEMPTS = 3;
+// FC-00068: how many images are sent to Gemini at the same time, for OCR and for typing images on
+// the sort screen. A browser preference (like the API key): 1 to 10, default 3. A run keeps the
+// number it started with.
+const OCR_PARALLEL_PREF='pv26_ocr_parallel',OCR_PARALLEL_DEFAULT=3,OCR_PARALLEL_MIN=1,OCR_PARALLEL_MAX=10;
+function ocrParallel(){const v=parseInt(_prefGet(OCR_PARALLEL_PREF),10);return v>=OCR_PARALLEL_MIN&&v<=OCR_PARALLEL_MAX?v:OCR_PARALLEL_DEFAULT;}
+function _parseOcrParallel(v){const t=String(v==null?'':v).trim();if(!/^\d+$/.test(t))return null;const n=parseInt(t,10);return n>=OCR_PARALLEL_MIN&&n<=OCR_PARALLEL_MAX?n:null;}
+function setOcrParallel(v,quiet){
+  const n=_parseOcrParallel(v);
+  if(n==null){if(!quiet)showToast('Images read at once: enter a whole number from '+OCR_PARALLEL_MIN+' to '+OCR_PARALLEL_MAX+'. Kept '+ocrParallel()+'.','err');_syncOcrParallelInputs();return false;}
+  if(n===OCR_PARALLEL_DEFAULT)_prefRemove(OCR_PARALLEL_PREF);else _prefSet(OCR_PARALLEL_PREF,String(n));
+  _syncOcrParallelInputs();
+  if(!quiet)showToast('Images read at once: '+n+(_ocrRunActive()?' (from the next run; this one keeps its number)':''),'ok');
+  return true;
+}
+let _ocrParDraft=null,_ocrParFocus=null; // review fix: the bars redraw on every tick; keep the box being typed in
+function _ocrParallelInputHtml(where){
+  const v=(_ocrParFocus&&_ocrParFocus===where&&_ocrParDraft!=null)?_ocrParDraft:String(ocrParallel());
+  return`<label class="wd-par" title="How many images are sent to Gemini at the same time (1–${OCR_PARALLEL_MAX}). More is faster until Google starts limiting requests.">Images read at once <input type="number" class="ocr-par-input" data-where="${where||''}" min="${OCR_PARALLEL_MIN}" max="${OCR_PARALLEL_MAX}" step="1" value="${escHtml(v)}" onfocus="_ocrParFocus=this.getAttribute('data-where');_ocrParDraft=this.value" oninput="_ocrParDraft=this.value" onblur="_ocrParFocus=null;_ocrParDraft=null" onchange="setOcrParallel(this.value)"></label>`;
+}
+function _restoreOcrParFocus(where,host){
+  if(_ocrParFocus!==where||!host||!host.querySelector)return;
+  try{const el=host.querySelector('.ocr-par-input[data-where="'+where+'"]');if(el&&el.focus){el.focus();const n=String(el.value||'').length;if(el.setSelectionRange)try{el.setSelectionRange(n,n);}catch(_){}}}catch(_){}
+}
+function _syncOcrParallelInputs(){try{const v=String(ocrParallel());document.querySelectorAll('.ocr-par-input').forEach(el=>{el.value=v;});const s=document.getElementById('ocrParallelInput');if(s)s.value=v;}catch(_){}}
+// A Gemini answer that means "too many requests at once" (HTTP 429 / quota).
+function _isRateLimitErr(err){return/\b429\b|RESOURCE_EXHAUSTED|too many requests|rate.?limit|quota/i.test(String((err&&err.message)||err||''));}
 
 function renderOcrFileList(idx, jobs){
   const el=document.getElementById('ocrFileList_'+idx);if(!el)return;
@@ -6909,12 +6993,12 @@ let _ocrRun=null;
 function _queuedCount(i){const it=(entities[i]&&entities[i].intake)||{};return(it.timecardFiles||[]).length+(it.easyclockFiles||[]).length+(it.mixedFiles||[]).length;}
 function _ocrRunActive(){return!!(_ocrRun&&!_ocrRun.finished);}
 function _ocrRunPlan(list){
-  _ocrRun={finished:false,ents:list.filter(x=>x.total>0).map(x=>({idx:x.idx,total:x.total,done:0,errs:0,state:'waiting'}))};
+  _ocrRun={finished:false,parallel:ocrParallel(),ents:list.filter(x=>x.total>0).map(x=>({idx:x.idx,total:x.total,done:0,errs:0,state:'waiting'}))}; // FC-00068: one number for the whole run
   _renderOcrRunBar();
 }
 function _ocrRunEnt(idx){return _ocrRun&&_ocrRun.ents.find(e=>e.idx===idx);}
 function _ocrRunStart(idx,total){
-  if(!_ocrRunActive())_ocrRun={finished:false,ents:[]};
+  if(!_ocrRunActive())_ocrRun={finished:false,parallel:ocrParallel(),ents:[]};
   let e=_ocrRunEnt(idx);
   if(!e){e={idx,total,done:0,errs:0,state:'waiting'};_ocrRun.ents.push(e);}
   e.total=total;e.done=0;e.errs=0;e.state='running';
@@ -6935,6 +7019,7 @@ function _ocrRunFinish(){
   _renderOcrRunBar();
 }
 function closeOcrRunBar(){if(_ocrRunActive())return;_ocrRun=null;_renderOcrRunBar();}
+function _ocrRunRateLimited(){if(!_ocrRun)_ocrRun={finished:false,ents:[]};if(!_ocrRun.rateLimited){_ocrRun.rateLimited=true;_renderOcrRunBar();}}
 function _ocrRunHtml(){
   const r=_ocrRun;if(!r||!r.ents.length)return'';
   const nm=i=>escHtml((entities[i]&&entities[i].name)||('Entity '+(i+1)));
@@ -6952,12 +7037,14 @@ function _ocrRunHtml(){
   if(errs)line+=` · <span class="ocr-run-err">${errs} failed (${r.ents.filter(e=>e.errs).map(e=>nm(e.idx)+' '+e.errs).join(', ')})</span>`;
   const sk=r.ents.filter(e=>e.state==='skipped');
   if(sk.length)line+=` · not started: ${sk.map(e=>nm(e.idx)).join(', ')}`;
+  if(r.rateLimited)line+=` · <span class="ocr-run-err ocr-rate-note">Gemini is limiting requests — try fewer at once</span>`; // FC-00068
+  line+=_ocrParallelInputHtml('ocr');
   const chips=r.ents.map(e=>`<span class="ocr-run-chip ${e.state}">${e.state==='done'?(e.errs?'⚠':'✓'):e.state==='running'?'●':e.state==='skipped'?'–':'○'} ${nm(e.idx)} ${e.done}/${e.total}</span>`).join('');
   return`<div class="ocr-run${r.finished?' finished':''}${errs?' has-err':''}"><div class="ocr-run-line">${line}${r.finished?'<button class="mini-btn" onclick="closeOcrRunBar()" title="Close" style="margin-left:auto">✕</button>':''}</div><div class="ocr-run-track"><div class="ocr-run-fill" style="width:${pct}%"></div></div><div class="ocr-run-chips">${chips}</div></div>`;
 }
 function _renderOcrRunBar(){
   if(typeof document==='undefined')return;
-  const el=document.getElementById('ocrRunBar');if(el)el.innerHTML=_ocrRunHtml();
+  const el=document.getElementById('ocrRunBar');if(el){el.innerHTML=_ocrRunHtml();_restoreOcrParFocus('ocr',el);}
 }
 
 function runOcrForEntity(idx){
@@ -7011,7 +7098,7 @@ async function _runOcrForEntityImpl(idx){
     }
   };
   renderOcrFileList(idx,jobs);updateBar();
-  const CONCURRENCY=3;
+  const CONCURRENCY=(_ocrRun&&_ocrRun.parallel)||ocrParallel(); // FC-00068: fixed for the whole run
   showToast(`Starting OCR · ${total} image${total===1?'':'s'} (${CONCURRENCY} at a time)`,'ok');
 
   async function runOne(job){
@@ -7054,6 +7141,7 @@ async function _runOcrForEntityImpl(idx){
         job.detail=`${rows.length} row${rows.length===1?'':'s'} extracted`+(attempt>1?` (attempt ${attempt})`:'');
         break; // success — exit retry loop
       } catch(err){
+        if(_isRateLimitErr(err))_ocrRunRateLimited(); // FC-00068
         if(attempt<MAX_ATTEMPTS){
           // Show countdown spinner before retrying
           job.status='retrying';
@@ -7974,7 +8062,14 @@ function renderReviewTableHtml(ent,idx){
   // FC-00051: a scheduled day with no approved punches would go unpaid without anyone noticing.
   if(activeKey!=='__unrecognized__'){
     const miss=scheduledNoPunchDays(ent,activeKey);
-    if(miss.length)html+=`<div class="sched-no-punch" style="margin-top:6px;padding:5px 8px;border-radius:6px;background:#FEF2F2;color:var(--red);font-size:12px;font-weight:600">Scheduled, no approved punches: ${miss.map(_isoDayLabel).map(escHtml).join(', ')}</div>`;
+    const _pbl=paidBeforeRowsFor(ent).filter(x=>reviewBucketKey(x.row,ent)===activeKey); // FC-00066
+    if(_pbl.length)html+=`<div class="paid-before-note" style="margin-top:6px;padding:5px 8px;border-radius:6px;background:#FFFBEB;color:#92400E;font-size:12px;font-weight:600">Not paid again (already paid in an earlier run): ${_pbl.map(x=>escHtml(_isoDayLabel(x.date)+' · paid in the '+x.run+' run')).join(' · ')}</div>`;
+    // FC-00069: each missing day in its own box, with that day's scheduled shift; a click goes to the day.
+    if(miss.length){
+      const _se=(ent.employees||[]).find(e=>e&&e.name===activeKey);
+      const chips=miss.map(iso=>{const di=_dayIdxOfIso(iso);const sh=_se&&di!=null?String(_se.shifts[di]||'').trim():'';return`<a href="#" class="snp-chip" data-iso="${escHtml(iso)}" onclick="scrollToReviewDay('${escHtml(iso)}');return false" title="Go to ${escHtml(_isoDayLabel(iso))}">${escHtml(_isoDayLabel(iso))}${sh?`<span class="snp-shift">${escHtml(sh.replace(/\s*-\s*/,' – '))}</span>`:''}</a>`;}).join('');
+      html+=`<div class="sched-no-punch" style="margin-top:6px;padding:6px 8px;border-radius:6px;background:#FEF2F2;color:var(--red);font-size:12px;font-weight:600">Scheduled, no approved punches · ${miss.length} day${miss.length===1?'':'s'}<div class="snp-chips">${chips}</div></div>`;
+    }
   }
 
   // FC-00048: Unrecognized rows grouped by the name OCR read — one button per group, so two new
@@ -8085,7 +8180,15 @@ function renderReviewTableHtml(ent,idx){
     const supBadge=r._superseded?'<span class="new-badge" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1" title="An approved manual entry for the same employee and date overlaps this row, so its overlapping punches are not paid.">⤳ replaced by manual entry</span>':'';
     const msBadge=(r._merged?'<span class="new-badge" style="background:#F5F3FF;color:#5B21B6;border-color:#C4B5FD" title="Made by merging rows by hand. Values unchanged; check and approve.">⧉ merged</span>':'')+(r._split?'<span class="new-badge" style="background:#F5F3FF;color:#5B21B6;border-color:#C4B5FD" title="Made by splitting a multi-pair row by hand. Values unchanged; check and approve.">⇹ split</span>':'');
     const leftOutTag=(!r.approved&&r.leftOut)?`<span class="new-badge left-out-tag" style="background:#F1F5F9;color:#475569;border-color:#CBD5E1" title="Left out of pay when exporting (FC-00049). It is not paid.">Left out of pay</span> <a href="#" class="undo-left-out" onclick="setRowLeftOut('${escHtml(escJs(r.id))}',false);return false" style="font-size:10px">Undo leave out</a>`:'';
-    html+=`<td class="flag-cell">${leftOutTag}${renderFlagPills(r.flags)}${_punctPillsHtml(punctualityFlags(r,ent,_pg))}${r._newSinceUpload?'<span class="new-badge" title="Added in a later upload for this employee — not part of the original batch">🆕 new</span>':''}${editBadge}${supBadge}${msBadge}</td>`;
+    // FC-00066: outside the week → "Pay in this run"; matched to an earlier run → not paid again.
+    let payOutTag='';
+    const _pbr=paidBeforeRecord(r,ent);
+    if(_pbr)payOutTag=`<span class="new-badge paid-before-tag" style="background:#FEF3C7;color:#92400E;border-color:#FCD34D" title="This day was paid in an earlier run (settings file: ${escHtml(PAID_OUT_LABEL)}). It is not paid again.">Paid in the ${escHtml(_pbr.run)} run · not paid again</span> <a href="#" class="pay-anyway" onclick="setRowPaidBeforeOk('${escHtml(escJs(r.id))}',true);return false" title="Pay it in this run after all (logged; undo puts it back)">Pay it anyway</a> `;
+    else if(r.paidBeforeOk)payOutTag=`<a href="#" class="unpay-anyway" onclick="setRowPaidBeforeOk('${escHtml(escJs(r.id))}',false);return false" title="It was paid in an earlier run: leave it out again">↺ leave out again (paid earlier)</a> `;
+    else if(_isOutsideWeek(r,ent)&&_rowPairList(r).length&&_canPayOutside(r,ent))payOutTag=r.payOutside
+      ?`<span class="new-badge pay-outside-on" style="background:#EDE9FE;color:#5B21B6;border-color:#C4B5FD" title="Paid in this run with its real date; the settings file remembers it so a later run does not pay it again${r.approved?'':' (approve it to pay it)'}">Paid in this run${r.approved?'':' · approve it'}</span> <a href="#" class="pay-outside-off" onclick="setRowPayOutside('${escHtml(escJs(r.id))}',false);return false">undo</a> `
+      :`<button class="mini-btn pay-outside-btn" onclick="setRowPayOutside('${escHtml(escJs(r.id))}',true)" title="Pay this day in this run with its real date (final pay, a late card). The settings file remembers it so the next run cannot pay it twice.">Pay in this run</button> `;
+    html+=`<td class="flag-cell">${payOutTag}${leftOutTag}${renderFlagPills(r.flags)}${_punctPillsHtml(punctualityFlags(r,ent,_pg))}${r._newSinceUpload?'<span class="new-badge" title="Added in a later upload for this employee — not part of the original batch">🆕 new</span>':''}${editBadge}${supBadge}${msBadge}</td>`;
     // Per-row approve/unapprove button
     html+=`<td class="actions-cell" style="width:110px">`;
     if(_rowPairList(r).length>=2)html+=`<button class="mini-btn" onclick="splitRow(${idx},'${r.id}')" title="Split into one row per in/out pair (same date)" style="margin-right:4px">⇹ Split</button>`;
@@ -8116,7 +8219,7 @@ function renderReviewTableHtml(ent,idx){
       const noWeek=!_reviewWeekFromSchedule(ent);
       html+=noWeek
         ?`<tr class="day-head day-out"><td colspan="${_ncols}"><b>Other dates</b> · the schedule has no dates, so payroll pays these too and adds each to the same weekday above (load the schedule to set the pay week)</td></tr>`
-        :`<tr class="day-head day-out"><td colspan="${_ncols}"><b>Outside this pay week</b> · not paid this week</td></tr>`;
+        :`<tr class="day-head day-out"><td colspan="${_ncols}"><b>Outside this pay week</b> · not paid this week unless you press <b>Pay in this run</b> on a row</td></tr>`;
       outRows.forEach(_rowHtml);
     }
   }else{
@@ -8162,8 +8265,8 @@ function _intakeHours(idx,personKey){
   let paid=[],all=[];
   try{
     actualsMode='separate';
-    paid=run(rows.filter(r=>r&&r.approved===true));
-    all=run(rows.filter(r=>r&&(r.approved===true||!r.leftOut)));
+    paid=run(rows.filter(r=>r&&r.approved===true&&!paidBeforeRecord(r,ent)));
+    all=run(rows.filter(r=>r&&(r.approved===true||!r.leftOut)&&!paidBeforeRecord(r,ent)));
   }finally{
     ent.actualDays=saved;actualsMode=savedMode;
     if(hadFlag)ent._actualsFromReview=savedFlag;else delete ent._actualsFromReview;
@@ -8184,8 +8287,19 @@ function _weekHoursHtml(ph){
   const pend=_r2(ph.allWeek-ph.paidWeek);
   return`<span class="emp-week-hrs" title="Hours with the payroll rules: span minus the larger of the break minimum and the actual gap">Week: <b>${escHtml(fmtHrsLong(ph.paidWeek))}</b> approved${Math.abs(pend)>=0.005?` · <span class="pend">${escHtml(fmtHrsLong(ph.allWeek))} once every row is approved</span>`:''}</span>`;
 }
+// FC-00069: a missing-day box scrolls to that day's row on the person's tab and outlines it briefly.
+function scrollToReviewDay(iso){
+  try{
+    const td=document.querySelector(`tr.day-head td[data-iso="${iso}"]`);
+    const el=td&&td.parentNode;
+    if(!el)return false;
+    if(el.scrollIntoView)el.scrollIntoView({block:'center',inline:'nearest',behavior:'smooth'});
+    if(el.classList){el.classList.add('day-flash');setTimeout(()=>{try{el.classList.remove('day-flash');}catch(_){}},1800);}
+    return true;
+  }catch(_){return false;}
+}
 function _dayHeadHtml(iso,dh,shift,ncols,ignored){
-  let h=`<tr class="day-head"><td colspan="${ncols}"><b>${escHtml(_isoDayLabel(iso))}</b>`;
+  let h=`<tr class="day-head"><td colspan="${ncols}" data-iso="${escHtml(iso)}"><b>${escHtml(_isoDayLabel(iso))}</b>`;
   if(ignored)h+='<span class="dh-hrs">time cards ignored</span>';
   else if(dh){
     h+=`<span class="dh-hrs">${escHtml(fmtHrsLong(dh.paid))} approved</span>`;
@@ -8672,7 +8786,7 @@ function syncActualsFromReview(){
     const rows=ent.intake.reviewRows;
     // Approval gate: only approved review rows enter payroll. Unapproved/low-confidence/
     // name-unsure/outside-week rows must be explicitly approved before they pay out.
-    const approvedRows=rows.filter(r=>r&&r.approved===true);
+    const approvedRows=rows.filter(r=>r&&r.approved===true&&!paidBeforeRecord(r,ent)); // FC-00066: paid in an earlier run → not again
     // Guard against wiping xlsx-loaded actualDays: the .xlsx upload path writes directly
     // to ent.actualDays without populating reviewRows. If there are zero approved review
     // rows for this entity, preserve any pre-existing actualDays rather than overwriting
@@ -8694,6 +8808,7 @@ function _actualDaysFromRows(ent,approvedRows,markRows){
     const rows=markRows||[];
     const out=[];
     const schedNames=ent.employees.map(e=>e.name).filter(Boolean);
+    const _wk=_weekIsoSet(ent); // FC-00066: outside the week, a day chosen to pay is kept apart from one that is not
     approvedRows.forEach(r=>{
       if(!r.empName||!r.date)return;
       const d=new Date(r.date+'T00:00:00');if(isNaN(d))return;
@@ -8723,14 +8838,15 @@ function _actualDaysFromRows(ent,approvedRows,markRows){
       const pad=n=>String(n).padStart(2,'0');
       const iso=`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
       // Merge with any existing row with same empName+date (e.g., EasyClocking row per punch-pair)
-      const existing=out.find(x=>x.empName.toLowerCase()===effectiveName.toLowerCase()&&x.date===iso);
+      const po=_wk.size===7&&!_wk.has(iso)&&!!r.payOutside;
+      const existing=out.find(x=>x.empName.toLowerCase()===effectiveName.toLowerCase()&&x.date===iso&&!!x.payOutside===po);
       if(existing){
         pairs.forEach(p=>existing.pairs.push(p));
         // Prefer the longer full-name form when merging (e.g., OCR row may include First+Last)
         const candidateFull=(r.rawOcrName||r.empName||'').trim();
         if(candidateFull.split(/\s+/).length>(existing.fullName||'').split(/\s+/).filter(Boolean).length)existing.fullName=candidateFull;
       }
-      else out.push({empName:effectiveName,fullName:(r.rawOcrName||r.empName||'').trim(),entityName:ent.name||'',date:iso,dayIdx:d.getDay(),pairs});
+      else out.push({empName:effectiveName,fullName:(r.rawOcrName||r.empName||'').trim(),entityName:ent.name||'',date:iso,dayIdx:d.getDay(),pairs,payOutside:po});
     });
     // FC-00029: MN supersedes overlapping TC/EC. Within one employee+date, any OCR pair that
     // overlaps a manual pair is dropped; non-overlapping pairs from every source still add.
@@ -8778,6 +8894,126 @@ function _confirmBreaksOrBail(){
 // export first lists every such row; each one is approved or left out, then the export runs.
 // Rows of an ignored employee ("Ignore Time Cards") and rows outside the week never count.
 function _weekIsoSet(ent){return new Set((ent&&ent.dateLabels||[]).map(schedLabelToIso).filter(Boolean));}
+// ================================================================
+// FC-00066 — pay a day from outside the pay week, and never pay it twice
+// ================================================================
+// A review row dated outside the loaded week can be paid in this run with its real date
+// (row.payOutside). Every such day is written to the settings file (Tool Settings rows
+// "Paid outside the pay week · <ID> · <date>"); a later run that loads that file leaves a
+// matching row (same person, same date, overlapping punches) out on its own, with one-click undo
+// (row.paidBeforeOk). The records live in session.toolSettings, so snapshot and undo carry them.
+const PAID_OUT_PREFIX='paidOut:';
+const PAID_OUT_LABEL='Paid outside the pay week';
+const PAID_OUT_KEEP_DAYS=60;
+function _runLabel(ent){const a=[..._weekIsoSet(ent)].sort();return a.length===7?_fmtIsoShort(a[0])+'–'+_fmtIsoShort(a[6]):'';}
+function _isOutsideWeek(r,ent){const wk=_weekIsoSet(ent);return!!(r&&r.date&&wk.size===7&&!wk.has(r.date));}
+function _rowPairsMin(r){
+  const out=[];
+  [1,2,3].forEach(n=>{const a=parseClockTime(r['clockIn'+n]),b=parseClockTime(r['clockOut'+n]);if(a==null||b==null)return;let x=Math.round(a*60),y=Math.round(b*60);if(y<=x)y+=1440;out.push([x,y]);});
+  return out;
+}
+function _parsePaidOutValue(v){
+  const s=String(v==null?'':v);const pairs=[];const re=/(\d{1,2}):(\d{2})\s*[–-]\s*(\d{1,2}):(\d{2})/g;let m;
+  while((m=re.exec(s))){let a=(+m[1])*60+(+m[2]),b=(+m[3])*60+(+m[4]);if(b<=a)b+=1440;pairs.push([a,b]);}
+  const h=(s.match(/([\d.]+)\s*h\b/)||[])[1];
+  return{pairs,hours:h!=null?parseFloat(h):null,run:((s.match(/paid in the (.+?) run/i)||[])[1]||'').trim()};
+}
+function _paidOutValue(pairs,hours,run){
+  const t=m=>{m=((m%1440)+1440)%1440;return String(Math.floor(m/60)).padStart(2,'0')+':'+String(m%60).padStart(2,'0');};
+  return pairs.map(p=>t(p[0])+'–'+t(p[1])).join(', ')+' · '+(Math.round((hours||0)*100)/100).toFixed(2)+' h · paid in the '+run+' run';
+}
+function _paidOutRecords(){
+  const ts=session.toolSettings||{};
+  return Object.keys(ts).filter(k=>k.startsWith(PAID_OUT_PREFIX)&&ts[k]).map(k=>{
+    const rest=k.slice(PAID_OUT_PREFIX.length),i=rest.lastIndexOf('|');
+    return Object.assign({key:k,id:rest.slice(0,i),iso:rest.slice(i+1)},_parsePaidOutValue(ts[k]));
+  }).filter(x=>x.id&&/^\d{4}-\d{2}-\d{2}$/.test(x.iso));
+}
+// The person's employee ID (a session number not yet written to a file counts too: the settings
+// file this run exports carries it, and it is permanent from then on). Unrecognized rows have none,
+// and no record is created just to look one up.
+function _rowPersonId(r,ent){
+  const key=reviewBucketKey(r,ent);if(!key||key==='__unrecognized__')return'';
+  const rec=_resolveRecordNoMint(ent.id,key); // review fix: never mints an ID (a new one could not match a file record)
+  return rec&&rec.id?rec.id:'';
+}
+// The earlier-run record a row matches (same employee ID, same date, overlapping punches), or null.
+function paidBeforeRecord(r,ent){
+  if(!r||!r.date||r.paidBeforeOk||!ent)return null;
+  const ts=session.toolSettings||{};
+  if(!Object.keys(ts).some(k=>k.startsWith(PAID_OUT_PREFIX)))return null;
+  const mine=_rowPairsMin(r);if(!mine.length)return null;
+  const id=_rowPersonId(r,ent);if(!id)return null;
+  const run=_runLabel(ent);
+  return _paidOutRecords().find(x=>x.id===id&&x.iso===r.date&&x.run!==run&&x.pairs.some(p=>mine.some(q=>q[0]<p[1]&&p[0]<q[1])))||null;
+}
+function paidBeforeRowsFor(ent){
+  const rows=(ent&&ent.intake&&ent.intake.reviewRows)||[];
+  const out=[];
+  rows.forEach(r=>{const rec=r&&r.approved?paidBeforeRecord(r,ent):null;if(rec)out.push({name:_reviewRowPersonName(r,ent),date:r.date,minutes:_rowWorkedMinutes(r),run:rec.run,row:r});});
+  return out;
+}
+function _afterPayFlagChange(h,quiet){
+  if(quiet||_simulating)return;
+  syncActualsFromReview();
+  if(currentTab==='intake')refreshReviewTable(entities.indexOf(h.ent));
+  if(currentTab==='payroll')renderPayroll();
+  scheduleDynamicRecompute();
+}
+// Review fix: only a recognized person whose time cards are not ignored can be paid this way.
+function _canPayOutside(r,ent){
+  const k=reviewBucketKey(r,ent);
+  if(!k||k==='__unrecognized__')return false;
+  return!(ent.intake&&ent.intake.ignoredEmployees&&ent.intake.ignoredEmployees[k]);
+}
+function setRowPayOutside(id,on,quiet){
+  const h=findReviewRow(id);if(!h)return false;
+  const was=!!h.row.payOutside;on=!!on;if(was===on)return false;
+  if(on&&!_canPayOutside(h.row,h.ent)){if(!quiet)showToast('Match this row to a person first (and stop ignoring their time cards) to pay it in this run.','err');return false;}
+  if(on)h.row.payOutside=true;else delete h.row.payOutside;
+  _record({type:'reviewPayOutside',screen:'intake',target:{kind:'reviewRow',entity:h.ent.id,id,field:'payOutside'},from:was,to:on,meta:_rowMeta(h.row,h.ent)});
+  _afterPayFlagChange(h,quiet);return true;
+}
+function setRowPaidBeforeOk(id,on,quiet){
+  const h=findReviewRow(id);if(!h)return false;
+  const was=!!h.row.paidBeforeOk;on=!!on;if(was===on)return false;
+  if(on)h.row.paidBeforeOk=true;else delete h.row.paidBeforeOk;
+  _record({type:'reviewPaidBefore',screen:'intake',target:{kind:'reviewRow',entity:h.ent.id,id,field:'paidBeforeOk'},from:was,to:on,meta:_rowMeta(h.row,h.ent)});
+  _afterPayFlagChange(h,quiet);return true;
+}
+// This run's paid outside days, one per person and date: [{id,iso,pairs(min),hours,run}].
+function _paidOutThisRun(){
+  const out=[];
+  // Review fix: the settings file may be downloaded from Actuals Intake before payroll has been
+  // rebuilt from the rows; bring it up to date first so no day paid this run is missed.
+  if(entities.some(e=>((e.intake&&e.intake.reviewRows)||[]).some(r=>r&&r.payOutside)))syncActualsFromReview();
+  entities.forEach((ent,i)=>{
+    const run=_runLabel(ent);if(!run)return;
+    const c=computePayrollForEntity(i);
+    c.results.concat(c.orphanRows).forEach(r=>{
+      (r.outsideDays||[]).forEach(o=>{
+        const nm=r.schedName||r.name;
+        const rec=_resolveRecordNoMint(ent.id,nm)||ensureRosterRecord(ent.id,nm);
+        if(!rec||!rec.id)return;
+        const pairs=(o.actual.pairs||[]).map(p=>[Math.round(p.in*60),Math.round(p.outAdj*60)]);
+        out.push({id:rec.id,iso:o.iso,pairs,hours:o.billableH,run});
+      });
+    });
+  });
+  return out;
+}
+// Settings-file rows: the earlier records still inside PAID_OUT_KEEP_DAYS of this week, then this run's.
+function _paidOutSettingsRows(){
+  const starts=entities.map(e=>[..._weekIsoSet(e)].sort()[0]).filter(Boolean).sort();
+  const cutoff=starts.length?_isoAddDays(starts[0],-PAID_OUT_KEEP_DAYS):'';
+  const by=new Map();
+  const runs=new Set(entities.map(_runLabel).filter(Boolean));
+  // Review fix: a record of this run (e.g. from re-importing this week's own file) is not carried;
+  // this run's days are written from the rows below, so undoing a toggle really removes it.
+  _paidOutRecords().forEach(x=>{if((!cutoff||x.iso>=cutoff)&&!runs.has(x.run))by.set(x.id+'|'+x.iso,[PAID_OUT_LABEL+' · '+x.id+' · '+x.iso,(session.toolSettings||{})[x.key]]);});
+  _paidOutThisRun().forEach(x=>by.set(x.id+'|'+x.iso,[PAID_OUT_LABEL+' · '+x.id+' · '+x.iso,_paidOutValue(x.pairs,x.hours,x.run)]));
+  return[...by.keys()].sort().map(k=>by.get(k));
+}
 function _ignoredNameSet(ent){
   const ig=(ent&&ent.intake&&ent.intake.ignoredEmployees)||{};
   return new Set(Object.keys(ig).filter(k=>ig[k]).map(k=>k.toLowerCase().trim()));
@@ -8816,12 +9052,13 @@ function unpaidReviewRows(scope){
     const wk=_weekIsoSet(ent),ign=_ignoredNameSet(ent);
     rows.forEach(r=>{
       if(!r||r.approved||r.leftOut)return;
-      if(wk.size&&r.date&&!wk.has(r.date))return;
+      if(wk.size&&r.date&&!wk.has(r.date)&&!r.payOutside)return; // FC-00066: a day chosen to pay in this run is asked about too
       if(!_rowPairList(r).length)return; // no punches at all ("did not work"): nothing would be paid
+      if(paidBeforeRecord(r,ent))return; // FC-00066: already paid in an earlier run, left out on its own
       const name=_reviewRowPersonName(r,ent);
       if(ign.has(name.toLowerCase().trim())||ign.has((r.empName||'').toLowerCase().trim()))return;
       const unrec=reviewBucketKey(r,ent)==='__unrecognized__';
-      if(!unrec&&!_isInPayroll(ent.id,name))return; // Active unchecked: not paid anyway
+      if(!unrec&&!_isInPayroll(ent.id,name)&&!r.payOutside)return; // Active unchecked: not paid anyway (FC-00066: unless this is their final pay)
       out.push({entIdx:ei,entity:ent.name||('Entity '+(ei+1)),name,row:r,minutes:_rowWorkedMinutes(r),unrec});
     });
   });
@@ -8836,8 +9073,11 @@ function leftOutRowsFor(ent){
 }
 function _leftOutNoteText(ent){
   const lo=leftOutRowsFor(ent);
-  if(!lo.length)return'';
-  return'Left out of pay: '+lo.map(x=>x.name+' · '+_isoDayLabel(x.date)+' · '+fmtHmm(x.minutes/60)).join('; ');
+  const pb=paidBeforeRowsFor(ent); // FC-00066
+  const parts=[];
+  if(lo.length)parts.push('Left out of pay: '+lo.map(x=>x.name+' · '+_isoDayLabel(x.date)+' · '+fmtHmm(x.minutes/60)).join('; '));
+  if(pb.length)parts.push('Not paid again: '+pb.map(x=>x.name+' · '+_isoDayLabel(x.date)+' · '+fmtHmm(x.minutes/60)+' (paid in the '+x.run+' run)').join('; '));
+  return parts.join(' · ');
 }
 function setRowLeftOut(id,on,quiet){
   const h=findReviewRow(id);if(!h)return false;
@@ -9078,10 +9318,11 @@ function entityStats(idx){
   const people=[];
   results.concat(orphanRows).forEach(r=>{
     const key=r.schedName||r.name;
-    if(!_isInPayroll(ent.id,key))return;
+    if(!_paysThisRun(ent.id,r))return;
     const hourly=!r.isFlat&&r.wage>0;
+    const _outH=(r.outsideDays||[]).reduce((a,o)=>a+(o.billableH||0),0); // FC-00066: Stats compare with the schedule; outside days are not in it
     const s={name:key,display:r.name,orphan:!!r.isOrphan,isFlat:!!r.isFlat,rate:hourly?r.wage:null,
-      expected:r.expectedH||0,worked:r.actualHours||0,schedDays:r.scheduledDays||0,workedSchedDays:0,missedDays:0,otherDays:0,
+      expected:r.expectedH||0,worked:Math.round(((r.actualHours||0)-_outH)*100)/100,schedDays:r.scheduledDays||0,workedSchedDays:0,missedDays:0,otherDays:0,
       lateDays:0,late5Days:0,lateMin:0,earlyDays:0,earlyMin:0,earlyMax:0,stayDays:0,stayMin:0,
       expBreak:r.expectedBreakH||0,actBreak:r.actualBreakH||0,otH:r.otH||0};
     (r.days||[]).forEach(d=>{
@@ -9240,8 +9481,8 @@ function entityLaborCost(idx){
   const data=_collectExportData().find(d=>d.entityId===ent.id);
   const days=[...Array(LC_DAYS)].map(()=>({hours:0,people:0,cost:0,hourlyCost:0,hourlyHours:0,sched:0}));
   const grid=Array.from({length:24},()=>Array.from({length:LC_DAYS+1},()=>({cost:0,people:new Set()})));
-  const fixed=[],semis=[];
-  let spreadTotal=0,fixedTotal=0;
+  const fixed=[],semis=[],outside=[];
+  let spreadTotal=0,fixedTotal=0,outsideTotal=0;
   ((data&&data.rows)||[]).forEach(r=>{
     const name=r._empName;
     if(r.isSemi){semis.push({name,amount:r.semiAmount||0,weekly:semiWeeklyCost(r.semiAmount),daily:semiDailyCost(r.semiAmount),paid:!!r.semiPaid,pay:r._breakdown.actualFinal||0});return;}
@@ -9250,9 +9491,14 @@ function entityLaborCost(idx){
     const mins=[...Array(LC_DAYS)].map((_,d)=>Math.round(((ds[d]&&ds[d].billableH)||0)*60));
     const hourly=!r.isFlat&&r.wage>0;
     if(hourly)ds.forEach((d,i)=>{if(d&&d.shift&&i<LC_DAYS)days[i].sched+=Math.round((d.expectedH||0)*r.wage*100)/100;});
-    if(!mins.some(m=>m>0)){if(cents){fixed.push({name,amount:cents/100,flat:!!r.isFlat});fixedTotal+=cents;}return;}
-    const alloc=_allocCents(cents,mins);
-    spreadTotal+=cents;
+    // FC-00066: a day paid from outside the week gets its share of the pay on its own dated line.
+    const od=r.outsideDays||[];const omins=od.map(o=>Math.round((o.billableH||0)*60));
+    if(!mins.some(m=>m>0)&&!omins.some(m=>m>0)){if(cents){fixed.push({name,amount:cents/100,flat:!!r.isFlat});fixedTotal+=cents;}return;}
+    const allocAll=_allocCents(cents,mins.concat(omins));
+    const alloc=allocAll.slice(0,LC_DAYS);
+    let outC=0;od.forEach((o,j)=>{const c=allocAll[LC_DAYS+j];if(!omins[j])return;outside.push({name,iso:o.iso,hours:o.billableH||0,cost:c/100});outC+=c;});
+    outsideTotal+=outC;
+    spreadTotal+=cents-outC;
     alloc.forEach((c,d)=>{
       if(!mins[d])return;
       const day=days[d];
@@ -9283,12 +9529,12 @@ function entityLaborCost(idx){
   week.perHour=week.hourlyHours>0?Math.round(week.hourlyCost/week.hourlyHours*100)/100:null;
   week.variance=Math.round((week.hourlyCost-week.sched)*100)/100;
   week.people=new Set(((data&&data.rows)||[]).filter(r=>!r.isSemi&&(r.actualHours||0)>0).map(r=>r._empName)).size;
-  const fixedSum=fixedTotal/100;
+  const fixedSum=fixedTotal/100,outsideSum=outsideTotal/100;
   const semiWeekly=Math.round(semis.reduce((a,x)=>a+x.weekly,0)*100)/100;
   const payrollActual=Math.round(((data&&data.rows)||[]).filter(r=>!r.isSemi).reduce((a,r)=>a+(r._breakdown.actualFinal||0),0)*100)/100;
   const hasNextSun=grid.some(row=>row[LC_DAYS].cost>0);
-  return{entity:ent.name||('Entity '+(idx+1)),entityId:ent.id,days,week,grid,hasNextSun,fixed,fixedSum,semis,semiWeekly,
-    payrollActual,total:Math.round((week.cost+fixedSum+semiWeekly)*100)/100,dateLabels:(ent.dateLabels||[]).slice()};
+  return{entity:ent.name||('Entity '+(idx+1)),entityId:ent.id,days,week,grid,hasNextSun,fixed,fixedSum,semis,semiWeekly,outside,outsideSum,
+    payrollActual,total:Math.round((week.cost+fixedSum+outsideSum+semiWeekly)*100)/100,dateLabels:(ent.dateLabels||[]).slice()};
 }
 const _money=v=>v==null?'—':_fmtUsd(Number(v));
 function _lcDayHeaders(lc){return DAY_SHORT.map((d,i)=>d+(lc.dateLabels[i]?' '+lc.dateLabels[i].replace(/^(\w{3}) (\d{1,2}) \d{4}$/,'$1 $2'):''));}
@@ -9308,9 +9554,10 @@ function renderLaborCostPanel(idx){
   line('Actual (hourly)',d=>d.hourlyCost?_money(d.hourlyCost):'—',_money(lc.week.hourlyCost));
   line('Variance',d=>(d.variance>0?'+':'')+_money(d.variance),(lc.week.variance>0?'+':'')+_money(lc.week.variance));
   h+='</tbody></table></div>';
+  if(lc.outside.length)h+='<div class="labor-outside" style="font-size:12px;margin:6px 0">'+lc.outside.map(x=>`Outside pay week, paid this run: <b>${escHtml(x.name)}</b> ${escHtml(_isoDayLabel(x.iso))} · ${escHtml(fmtHrs(x.hours))} · ${_money(x.cost)}`).join('<br>')+'</div>'; // FC-00066
   if(lc.fixed.length)h+='<div class="labor-fixed" style="font-size:12px;margin:6px 0">'+lc.fixed.map(x=>`Flat, no hours this week: <b>${escHtml(x.name)}</b> ${_money(x.amount)}`).join('<br>')+'</div>';
   if(lc.semis.length)h+='<div class="labor-semi" style="font-size:12px;margin:6px 0">'+lc.semis.map(x=>`Semi-monthly: <b>${escHtml(x.name)}</b> ${_money(x.amount)} per half-month → cost ${_money(x.weekly)} / week · ${_money(x.daily)} / day (paid this run: ${_money(x.pay)})`).join('<br>')+'</div>';
-  h+=`<div class="labor-total" style="font-size:13px;margin:8px 0;font-weight:600">Hourly and flat: ${_money(lc.week.cost+lc.fixedSum)} (= payroll Actual ${_money(lc.payrollActual)}${lc.semis.length?' without semi-monthly pay':''})${lc.semis.length?` · Semi-monthly cost: ${_money(lc.semiWeekly)}`:''} · Labor cost this week: ${_money(lc.total)}</div>`;
+  h+=`<div class="labor-total" style="font-size:13px;margin:8px 0;font-weight:600">Hourly and flat: ${_money(lc.week.cost+lc.fixedSum+lc.outsideSum)} (= payroll Actual ${_money(lc.payrollActual)}${lc.semis.length?' without semi-monthly pay':''})${lc.semis.length?` · Semi-monthly cost: ${_money(lc.semiWeekly)}`:''} · Labor cost this week: ${_money(lc.total)}</div>`;
   const cols=hdr.slice();if(lc.hasNextSun)cols.push('Sun (next week)');
   h+='<h4 style="margin:12px 0 4px">Cost by hour of day</h4><div class="sched-table-wrap" style="display:block"><table class="sched labor-hour-grid"><thead><tr><th></th>'+cols.map(x=>`<th>${escHtml(x)}</th>`).join('')+'</tr></thead><tbody>';
   for(let hr=0;hr<24;hr++){
@@ -9363,6 +9610,7 @@ function _writeLaborCostSheet(ewb,data){
     const vr=put('var','Variance (actual − scheduled)',()=>null,lc.week.variance,'money',null);
     for(let i=0;i<=LC_DAYS;i++){const C=_xlCol(i+1),c=vr.getCell(i+2);const v=i<LC_DAYS?lc.days[i].variance:lc.week.variance;c.value={formula:C+rowsAt.act+'-'+C+rowsAt.sched,result:v};c.numFmt=XL_FMT_MONEY_SIGNED;}
     const extraRows=[];
+    lc.outside.forEach(x=>{const r=ws.addRow(['Outside pay week, paid this run: '+x.name+' · '+_isoDayLabel(x.iso)+' · '+fmtHrs(x.hours)]);money(r,LC_DAYS+2,x.cost);extraRows.push(r.number);}); // FC-00066
     lc.fixed.forEach(x=>{const r=ws.addRow(['Flat, no hours: '+x.name]);money(r,LC_DAYS+2,x.amount);extraRows.push(r.number);});
     lc.semis.forEach(x=>{const r=ws.addRow(['Semi-monthly: '+x.name+' (per half-month '+_money(x.amount)+'; per day '+_money(x.daily)+'; paid this run '+_money(x.pay)+')']);money(r,LC_DAYS+2,x.weekly);extraRows.push(r.number);});
     const tr=ws.addRow(['Labor cost this week']);
@@ -9434,11 +9682,27 @@ function _entityFolderOf(paths){
 }
 // FC-00055: `opts.entIdx` = the drop came from one entity's Mixed / Auto-Classify box: every image
 // belongs to that entity whatever folder it sits in, and the same sort screen opens for it.
+// FC-00067: the sort screen opens the moment something is dropped, with a bar that always says
+// whether the tool is working (with a count that moves) or waiting for the owner (and for what).
+function _wdOpening(scope){
+  _weekDrop={items:[],skipped:[],dups:[],folders:[],scope:scope!=null?scope:null,stage:'open',checked:0,total:0};
+  _renderWeekDrop(true);
+  return _weekDrop;
+}
+async function _wdOpen(scope,make){
+  const wd=_wdOpening(scope);
+  let list=[];
+  try{list=await make();}catch(e){if(_weekDrop===wd){_weekDrop=null;_renderWeekDrop(false);}throw e;}
+  if(_weekDrop!==wd)return null; // cancelled while opening
+  return weekDropAddFiles(list,scope!=null?{entIdx:scope}:undefined);
+}
 async function weekDropAddFiles(list,opts){
   opts=opts||{};
   const scope=(opts.entIdx!=null&&entities[opts.entIdx])?+opts.entIdx:null;
   list=(list||[]).filter(x=>x&&x.file);
-  if(!list.length){showToast(scope!=null?'No images found in what was dropped':'No files found in that folder','err');return null;}
+  if(!list.length){if(_weekDrop&&_weekDrop.stage==='open'){_weekDrop=null;_renderWeekDrop(false);}showToast(scope!=null?'No images found in what was dropped':'No files found in that folder','err');return null;}
+  const wd0={items:[],skipped:[],dups:[],folders:[],scope,stage:'check',checked:0,total:list.length};
+  _weekDrop=wd0;_renderWeekDrop(true);
   const folders=_entityFolderOf(list.map(x=>x.path||x.file.webkitRelativePath||x.file.name));
   const known=new Set();
   // Images already in this session (queued or OCR'd) are skipped, so a second drop never doubles punches.
@@ -9449,6 +9713,8 @@ async function weekDropAddFiles(list,opts){
   }
   const items=[],skipped=[],dups=[];
   for(let i=0;i<list.length;i++){
+    if(_weekDrop!==wd0)return null; // cancelled while checking
+    wd0.checked=i;if(i%2===0||i===list.length-1)_renderWeekDrop(true);
     const {file}=list[i];const name=file.name||'';
     const isImg=(file.type||'').startsWith('image/')||_isImageName(name);
     if(!isImg){skipped.push(name);continue;}
@@ -9457,18 +9723,21 @@ async function weekDropAddFiles(list,opts){
     if(sha)known.add(sha);
     items.push({id:'wd'+i+'_'+Math.random().toString(36).slice(2,7),file,name,folder:folders[i],entIdx:scope!=null?scope:folderEntityIdx(folders[i]),kind:null,status:'pending',sha});
   }
-  _weekDrop={items,skipped,dups,folders:[...new Set(items.map(x=>x.folder))],scope};
+  if(_weekDrop!==wd0)return null;
+  _weekDrop={items,skipped,dups,folders:[...new Set(items.map(x=>x.folder))],scope,stage:'look',lookTotal:items.filter(it=>!it.kind).length};
   _renderWeekDrop(true);
   await weekDropClassifyAll();
   return _weekDrop;
 }
 async function _classifyOne(it,apiKey){
   for(let a=1;a<=3;a++){
+    if(a>1){it._retry=true;_renderWeekDrop(true);} // FC-00067: the bar says an image is being retried
     try{
       const k=_classifyImpl?await _classifyImpl(it.file):await classifyTimecardImage(it.file,apiKey);
-      if(k==='TC'||k==='EC')return k;
+      if(k==='TC'||k==='EC'){delete it._retry;return k;}
     }catch(_){if(a<3)await new Promise(r=>setTimeout(r,_classifyImpl?0:2000));}
   }
+  delete it._retry;
   return null;
 }
 async function weekDropClassifyAll(){
@@ -9477,7 +9746,7 @@ async function weekDropClassifyAll(){
   if(!apiKey&&!_classifyImpl){wd.items.forEach(it=>{if(!it.kind){it.status='unsure';}});wd.note='No Gemini API key: sort the images by hand, or add the key in Settings and drop the folder again.';_renderWeekDrop(true);return;}
   const queue=wd.items.filter(it=>!it.kind);
   const run=async()=>{while(queue.length){const it=queue.shift();it.status='classifying';_renderWeekDrop(true);const k=await _classifyOne(it,apiKey);if(_weekDrop!==wd)return;if(it.byHand){if(it.status==='classifying')it.status=it.kind?'done':'unsure';}else if(k){it.kind=k;it.status='done';}else it.status='unsure';_renderWeekDrop(true);}};
-  await Promise.all([run(),run(),run()]);
+  await Promise.all(Array.from({length:Math.max(1,Math.min(ocrParallel(),queue.length))},run)); // FC-00068
 }
 // FC-00062: 'TC', 'EC' or 'UNSURE' (the owner wants to look again: Start OCR waits for it).
 function weekDropSetKind(id,kind){
@@ -9494,7 +9763,7 @@ function weekDropMapFolder(folder,idx){
   _renderWeekDrop(true);
 }
 function weekDropRemove(id){if(!_weekDrop)return;_weekDrop.items=_weekDrop.items.filter(x=>x.id!==id);_renderWeekDrop(true);}
-function weekDropCancel(){_weekDrop=null;_renderWeekDrop(false);}
+function weekDropCancel(){_weekDrop=null;_renderWeekDrop(false);} // FC-00067: also stops an open/check in progress
 function weekDropBlockers(){
   const wd=_weekDrop;if(!wd)return['Nothing dropped'];
   const b=[];
@@ -9539,14 +9808,70 @@ function _weekDropSummaryHtml(wd){
   let h='<div class="wd-sum">';
   groups.forEach(gi=>{
     const its=wd.items.filter(it=>it.entIdx===gi),n=k=>its.filter(it=>_wdState(it)===k).length;
-    h+=`<div class="wd-sum-ent"><b>${escHtml(entities[gi].name||'Entity '+(gi+1))}</b><span class="wd-pill tc">${n('TC')} Timecard</span><span class="wd-pill ec">${n('EC')} EasyClocking</span>${n('UNSURE')?`<span class="wd-pill un">${n('UNSURE')} Unsure</span>`:''}</div>`;
+    h+=`<div class="wd-sum-ent"><b>${escHtml(entities[gi].name||'Entity '+(gi+1))}</b><span class="wd-pill tc">${n('TC')} Timecard</span><span class="wd-pill ec">${n('EC')} EasyClocking</span>${n('UNSURE')?`<span class="wd-pill un" role="button" onclick="weekDropShowMe(${gi})" title="Show these images">${n('UNSURE')} Unsure</span>`:''}</div>`;
   });
   if(looking)h+=`<div class="wd-sum-ent wd-looking">Looking at ${looking} image${looking===1?'':'s'}…</div>`;
   return h+'</div>';
 }
+// FC-00067: the bar at the top of the sort screen. Working → step + count + fill; done → green
+// Ready, or amber Waiting for you with each need named and a Show me button.
+function weekDropProgress(){
+  const wd=_weekDrop;if(!wd)return null;
+  if(wd.stage==='open')return{state:'working',step:'open',label:'Opening the folder or zip…',done:0,total:0};
+  if(wd.stage==='check')return{state:'working',step:'check',label:`Checking for images already in this session · ${wd.checked} of ${wd.total}`,done:wd.checked,total:wd.total};
+  const live=wd.items.filter(it=>it.entIdx!==-2);
+  const looking=live.filter(it=>_wdState(it)==='looking');
+  if(looking.length){
+    const total=Math.max(wd.lookTotal||0,looking.length);
+    const done=Math.max(0,total-looking.length);
+    const groups=[...new Set(live.map(it=>it.entIdx))].sort((a,b)=>a-b);
+    const ents=groups.map(gi=>{const its=live.filter(it=>it.entIdx===gi);return{idx:gi,name:gi>=0&&entities[gi]?(entities[gi].name||'Entity '+(gi+1)):'(folder not matched yet)',done:its.filter(it=>_wdState(it)!=='looking').length,total:its.length};});
+    const retrying=looking.filter(it=>it._retry).length;
+    return{state:'working',step:'look',label:`Looking at the images · ${done} of ${total}`,done,total,ents,retrying};
+  }
+  const needs=[];
+  if(wd.note&&!_prefGet('pv26_api_key')&&!_classifyImpl)needs.push({kind:'key',text:'no Gemini key: sort by hand'});
+  const unmapped=[...new Set(live.filter(it=>it.entIdx===-1).map(it=>it.folder))];
+  if(unmapped.length)needs.push({kind:'folder',text:`${unmapped.length} folder${unmapped.length===1?' needs':'s need'} an entity`});
+  const un=live.filter(it=>it.entIdx>=0&&!it.kind);
+  if(un.length){const per=[...new Set(un.map(it=>it.entIdx))].sort((a,b)=>a-b).map(gi=>escHtml((entities[gi]&&entities[gi].name)||'Entity '+(gi+1)));needs.push({kind:'unsure',text:`${un.length} image${un.length===1?' needs':'s need'} a type (${per.join(', ')})`});}
+  if(_actionRunning())needs.push({kind:'ocr',text:'an OCR run is still going'});
+  if(!live.length)needs.push({kind:'empty',text:'no images to read'});
+  return needs.length?{state:'waiting',label:'Waiting for you',needs}:{state:'ready',label:'Ready — press Start OCR'};
+}
+function _weekDropBarHtml(){
+  const p=weekDropProgress();if(!p)return'';
+  let line,fill='';
+  if(p.state==='working'){
+    line=`<b>Working</b> · ${escHtml(p.label)}`+(p.retrying?` · <span class="wd-retry">retrying ${p.retrying} image${p.retrying===1?'':'s'}</span>`:'');
+    fill=p.total?`<div class="wd-bar-fill" style="width:${Math.round(p.done/p.total*100)}%"></div>`:'<div class="wd-bar-fill indeterminate"></div>';
+  }else if(p.state==='ready'){
+    line=`<b>✓ ${escHtml(p.label)}</b>`;fill='<div class="wd-bar-fill" style="width:100%"></div>';
+  }else{
+    const showMe=p.needs.some(n=>n.kind==='unsure'||n.kind==='folder')?' <button class="mini-btn wd-show-me" onclick="weekDropShowMe()">Show me</button>':'';
+    line=`<b>● ${escHtml(p.label)}</b> · ${p.needs.map(n=>n.text).join(' · ')}${showMe}`;fill='<div class="wd-bar-fill" style="width:100%"></div>';
+  }
+  const ents=p.ents&&p.ents.length>1?`<div class="wd-bar-ents">${p.ents.map(e=>`${escHtml(e.name)} ${e.done} of ${e.total}`).join(' · ')}</div>`:'';
+  return`<div class="wd-bar ${p.state}" data-state="${p.state}"><div class="wd-bar-line">${line}${_ocrParallelInputHtml('wd')}</div><div class="wd-bar-track">${fill}</div>${ents}</div>`;
+}
+// Scrolls to the first image (of entity `gi`, if given) or folder that needs a decision and outlines it.
+function weekDropShowMe(gi){
+  const wd=_weekDrop;if(!wd)return null;
+  let target=null;
+  const un=wd.items.find(it=>it.entIdx>=0&&!it.kind&&(gi==null||it.entIdx===gi)&&_wdState(it)!=='looking');
+  if(un)target={sel:`.wd-item[data-id="${un.id}"]`,id:un.id};
+  else if(wd.items.some(it=>it.entIdx===-1))target={sel:'.wd-map',id:null};
+  if(!target)return null;
+  try{
+    const el=document.querySelector(target.sel);
+    if(el){if(el.scrollIntoView)el.scrollIntoView({block:'center',inline:'nearest',behavior:'smooth'});if(el.classList){el.classList.add('wd-changed');setTimeout(()=>{try{el.classList.remove('wd-changed');}catch(_){}},1800);}}
+  }catch(_){}
+  return target;
+}
 function _weekDropHtml(){
   const wd=_weekDrop;if(!wd)return'';
-  let h='';
+  let h=_weekDropBarHtml(); // FC-00067
+  if(wd.stage==='open'||wd.stage==='check')return h+'<div class="actions wd-actions"><button class="btn" onclick="weekDropCancel()">Cancel</button></div>'; // review fix: can always be closed
   if(wd.note)h+=`<div class="payroll-warning" style="margin-bottom:8px">${escHtml(wd.note)}</div>`;
   const unmapped=[...new Set(wd.items.filter(it=>it.entIdx===-1).map(it=>it.folder))];
   if(unmapped.length){
@@ -9572,7 +9897,7 @@ function _weekDropHtml(){
   if(wd.skipped.length)h+=`<div style="font-size:11px;color:var(--text3)">Not images, skipped: ${wd.skipped.map(escHtml).join(', ')}</div>`;
   const bl=weekDropBlockers();
   const dis=bl.length?'disabled style="opacity:0.45;cursor:not-allowed"':'';
-  h+=`<div class="actions wd-actions"><span style="font-size:12px;color:var(--amber)">${bl.map(escHtml).join(' · ')}</span><button class="btn" onclick="weekDropCancel()">Cancel</button>${wd.scope!=null?`<button class="btn" onclick="weekDropStartOcr(true)" ${dis} title="Put the images on the Timecard and EasyClocking lists; press Run OCR when ready">Add to the lists</button>`:''}<button class="btn btn-primary" onclick="weekDropStartOcr()" ${dis}>Start OCR</button></div>`;
+  h+=`<div class="actions wd-actions"><span class="wd-blockers" style="font-size:12px;color:var(--amber)" title="${escHtml(bl.join(' · '))}"></span><button class="btn" onclick="weekDropCancel()">Cancel</button>${wd.scope!=null?`<button class="btn" onclick="weekDropStartOcr(true)" ${dis} title="Put the images on the Timecard and EasyClocking lists; press Run OCR when ready">Add to the lists</button>`:''}<button class="btn btn-primary" onclick="weekDropStartOcr()" ${dis}>Start OCR</button></div>`;
   return h;
 }
 function _wdSnap(body){
@@ -9613,6 +9938,7 @@ function _renderWeekDrop(open){
   const panel=body&&body.parentElement;
   const snap=_wdSnap(body),top=panel?panel.scrollTop:0;
   body.innerHTML=_weekDropHtml();
+  _restoreOcrParFocus('wd',body);
   ov.style.display='flex';
   if(panel&&top)panel.scrollTop=top;
   _wdFlip(body,snap);
@@ -9657,15 +9983,17 @@ async function _expandZips(list){
   for(const z of zips)list=list.concat(await _filesFromZip(z.file));
   return list.filter(x=>!/\.zip$/i.test(x.file.name));
 }
-async function weekDropFromDataTransfer(dt){return weekDropAddFiles(await _listFromDataTransfer(dt));}
+async function weekDropFromDataTransfer(dt){return _wdOpen(null,()=>_listFromDataTransfer(dt));}
 async function weekDropFromInput(files){
-  return weekDropAddFiles(await _expandZips(Array.from(files||[]).map(f=>({file:f,path:f.webkitRelativePath||f.name}))));
+  const arr=Array.from(files||[]);
+  return _wdOpen(null,()=>_expandZips(arr.map(f=>({file:f,path:f.webkitRelativePath||f.name}))));
 }
 // FC-00055: the Mixed / Auto-Classify box takes images, a zip or a whole folder; every image is
 // looked at and the sort screen shows what each one is before anything is read.
-async function mixedDropFromDataTransfer(idx,dt){return weekDropAddFiles(await _listFromDataTransfer(dt),{entIdx:idx});}
+async function mixedDropFromDataTransfer(idx,dt){return _wdOpen(idx,()=>_listFromDataTransfer(dt));}
 async function mixedDropFromInput(idx,files){
-  return weekDropAddFiles(await _expandZips(Array.from(files||[]).map(f=>({file:f,path:f.webkitRelativePath||f.name}))),{entIdx:idx});
+  const arr=Array.from(files||[]);
+  return _wdOpen(idx,()=>_expandZips(arr.map(f=>({file:f,path:f.webkitRelativePath||f.name}))));
 }
 function _weekDropZoneHtml(){
   return `<div class="intake-drop week-drop" id="weekFolderDrop" style="border-color:var(--blue);background:rgba(37,99,235,0.03);margin-bottom:14px;min-height:70px">
@@ -9765,7 +10093,7 @@ function _collectExportData(){
     const {results,orphanRows}=computePayrollForEntity(idx);
     const flatExtras=getFlatWageRows(entName);
     // FC-00035: Active unchecked = left out of this week's preview and exports.
-    const allRows=results.concat(orphanRows).concat(flatExtras).filter(r=>_isInPayroll(e.id,r.schedName||r.name));
+    const allRows=results.concat(orphanRows).concat(flatExtras).filter(r=>_paysThisRun(e.id,r)); // FC-00066: final pay stays in
     if(allRows.length===0)return;
     const enriched=allRows.map(r=>{
       const empName=r.schedName||r.name;
@@ -9786,7 +10114,7 @@ function _collectExportData(){
       }else{
         breakdown=_computeBothBreakdown(totalRounded,getSplitMeta(e.id,empName));
       }
-      return Object.assign({},r,{_empName:empName,_breakdown:breakdown,_entityId:e.id,_entityName:entName,_totalPay:totalPay,_wageBlank:wageBlankFlag});
+      return Object.assign({},r,{_empName:empName,_breakdown:breakdown,_entityId:e.id,_entityName:entName,_totalPay:totalPay,_wageBlank:wageBlankFlag,_finalPay:_isFinalPay(e.id,r)});
     });
     out.push({entityName:entName,entityId:e.id,rows:enriched});
   });
@@ -9953,7 +10281,7 @@ function _columnsFor(kind,nameKey){
   const hasActuals=entities.some(e=>e.actualDays&&e.actualDays.length>0);
   // FC-00045: names print as chosen for this export (the Full report's sections use its choice).
   const _nmf=_makeNameFormatter(nameKey||_DL_KEY_FOR_KIND[kind]||'payroll');
-  const _nm=r=>_nmf(r._entityId,r._empName);
+  const _nm=r=>_nmf(r._entityId,r._empName)+(r._finalPay?' (final pay)':''); // FC-00066
   if(kind==='cashOnly'){
     return {
       headers:['Entity','Employee','Method','Hours','Rate','Total','Cash Portion'],
@@ -10479,6 +10807,13 @@ function _writeHoursDetailSheet(ewb,data){
         maxPairs=Math.max(maxPairs,pairs.length);
         days.push({entityName,entityId,r,dayIdx:di,iso:(ent&&ent.dateLabels&&ent.dateLabels[di])?schedLabelToIso(ent.dateLabels[di]):'',pairs,minBreak:d.defaultBreakMin||0,set:d.breakOverrideMin,billable:d.billableH||0});
       });
+      // FC-00066: days from outside the week paid in this run, on their real date, marked.
+      (r.outsideDays||[]).forEach(o=>{
+        const pairs=((o.actual&&o.actual.pairs)||[]).filter(p=>p&&p.outAdj>p.in).slice().sort((a,b)=>a.in-b.in);
+        if(!pairs.length)return;
+        maxPairs=Math.max(maxPairs,pairs.length);
+        days.push({entityName,entityId,r,dayIdx:o.dayIdx,iso:o.iso,pairs,minBreak:o.defaultBreakMin||0,set:null,billable:o.billableH||0,outside:true});
+      });
     });
   });
   const per=_exportPeriodStr();
@@ -10488,6 +10823,7 @@ function _writeHoursDetailSheet(ewb,data){
   const hdr=['Entity','Employee','Date','Day'];
   for(let k=1;k<=maxPairs;k++)hdr.push('In '+k,'Out '+k,'+1');
   const cMin=hdr.length;hdr.push('Break min (min)','Break set (min)','Span','Worked','Break','Hours');
+  const anyOut=days.some(x=>x.outside);if(anyOut)hdr.push('Note'); // FC-00066
   const hr=ws.addRow(hdr);hr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};c.fill=_fc12Fill('FFE8E8E4');c.alignment={horizontal:'center'};});
   ws.views=[{state:'frozen',ySplit:4}];
   const colIn=k=>4+(k-1)*3,colOut=k=>5+(k-1)*3,colOff=k=>6+(k-1)*3; // 0-based
@@ -10520,6 +10856,7 @@ function _writeHoursDetailSheet(ewb,data){
     [cSpan,cWork,cBrk,cHrs].forEach(c=>{row.getCell(c+1).numFmt='0.00';});
     row.eachCell(c=>{c.font=Object.assign({name:'Arial',size:10},c.font&&c.font.bold?{bold:true}:{});});
     row.getCell(cHrs+1).font={name:'Arial',size:10,bold:true};
+    if(x.outside)row.getCell(cHrs+2).value='Outside pay week · paid in this run';
     const key=x.entityId+'|'+_aliasNorm(x.r._empName);
     if(!cur||cur.key!==key){cur={key,first:n,last:n};map.set(key,cur);}else cur.last=n;
   });
@@ -10527,6 +10864,7 @@ function _writeHoursDetailSheet(ewb,data){
   ws.getColumn(1).width=14;ws.getColumn(2).width=20;ws.getColumn(3).width=14;ws.getColumn(4).width=11;
   for(let k=1;k<=maxPairs;k++){ws.getColumn(colIn(k)+1).width=10;ws.getColumn(colOut(k)+1).width=10;ws.getColumn(colOff(k)+1).width=4;}
   [cMin,cSet].forEach(c=>{ws.getColumn(c+1).width=10;});[cSpan,cWork,cBrk,cHrs].forEach(c=>{ws.getColumn(c+1).width=8;});
+  if(anyOut)ws.getColumn(cHrs+2).width=32;
   return map;
 }
 const DAYS_LONG_EN=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
@@ -10756,7 +11094,7 @@ function _gatherActualsIntakeRows(){
         source:r.source||'',
         image:r.originalName||'',
         confidence:typeof r.confidence==='number'?r.confidence:'',
-        flags:(r.flags||[]).slice(),
+        flags:(r.flags||[]).slice().concat(r.payOutside&&_isOutsideWeek(r,ent)?['Outside pay week · paid in the '+_runLabel(ent)+' run']:[]).concat((()=>{const p=paidBeforeRecord(r,ent);return p?['Not paid again · paid in the '+p.run+' run']:[];})()), // FC-00066
         suggested,
         rowId:r.id||'',
         ocr:(r._ocr&&r._ocrSource)?{s:r._ocrSource,v:r._ocr}:null,
@@ -11021,7 +11359,11 @@ function _ingestActualsIntakeRows(rows,colMap){
     recomputeRowFlags(newRow,ent);
     // Re-attach exported flag text that wasn't auto-computed (e.g., manual notes)
     if(flagsStr){
-      const exportedFlags=flagsStr.split(/;\s*/).filter(Boolean);
+      let exportedFlags=flagsStr.split(/;\s*/).filter(Boolean);
+      // FC-00066 (review fix): the export marks a day paid outside the week; reading it back turns
+      // the toggle on again. "Not paid again" is recomputed from the settings file, never stored.
+      if(exportedFlags.some(f=>/^Outside pay week · paid in the /.test(f)))newRow.payOutside=true;
+      exportedFlags=exportedFlags.filter(f=>!/^(Outside pay week · paid in the |Not paid again · paid in the )/.test(f));
       exportedFlags.forEach(f=>{if(!newRow.flags.includes(f))newRow.flags.push(f);});
       newRow.needsReview=newRow.flags.length>0;
     }

@@ -42,7 +42,7 @@ test('test_group_order_and_summary', async () => {
   const html = api._weekDropHtml();
   const at = (s) => html.indexOf(s);
   assert.ok(at('Unsure — pick a type · 1') < at('Timecard photos · 2') && at('Timecard photos · 2') < at('EasyClocking screenshots · 1'), 'Unsure, then Timecard, then EasyClocking');
-  assert.match(html, /<div class="wd-sum-ent"><b>ALPHA ONE<\/b><span class="wd-pill tc">2 Timecard<\/span><span class="wd-pill ec">1 EasyClocking<\/span><span class="wd-pill un">1 Unsure<\/span><\/div>/);
+  assert.match(html, /<div class="wd-sum-ent"><b>ALPHA ONE<\/b><span class="wd-pill tc">2 Timecard<\/span><span class="wd-pill ec">1 EasyClocking<\/span><span class="wd-pill un" role="button" onclick="weekDropShowMe\(0\)" title="Show these images">1 Unsure<\/span><\/div>/); // FC-00067: the pill goes to the images
 });
 
 test('test_toggle_moves_the_image_and_marks_it', async () => {
