@@ -96,7 +96,7 @@ test('test_header_repeats_entity_block_not_split', async () => {
 
 test('test_removed_reports_absent_from_downloads_and_payroll_tab', () => {
   const api = setup();
-  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'timecards', 'settings', 'snapshot']);
+  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'timecards', 'accountant', 'settings', 'snapshot']); // FC-00074: the accountant file card
   assert.deepEqual(Object.keys(api.DOWNLOADS.find(d => d.key === 'timecards').formats), ['xlsx'], 'the Timecards PDF is gone');
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   for (const f of ['exportCashExcel()', 'exportDepositPdf()', 'exportTimecardExcel()', 'exportPayrollCalcPdf()', 'exportFullExcel()', 'onclick="exportManager()"']) {
@@ -113,7 +113,11 @@ test('test_kept_exports_unchanged', async () => {
   await api.exportCombinedExcel();
   const ws = api.__lastExcelWorkbook.worksheets[0];
   // FC-00065: no H:MM column on the payroll report.
-  assert.deepEqual(ws.rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Rate', 'Actual Total', 'Deposit', 'Cash', 'Rounded Final', 'Diff']);
+  // FC-00070/FC-00071: Over time after Hours; Rounded Final and Diff only when included.
+  assert.deepEqual(ws.rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Cash']);
+  api.setReportFinalDiff(true);
+  await api.exportCombinedExcel();
+  assert.deepEqual(api.__lastExcelWorkbook.worksheets[0].rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Cash', 'Rounded Final', 'Diff']);
   await api.exportActualsIntakeExcel();
   assert.ok(api.__lastExcelWorkbook.worksheets.length >= 1);
 });
@@ -143,5 +147,5 @@ test('test_old_settings_and_snapshot_with_removed_kinds_load', async () => {
   const res = b.openSnapshotData(snap, 'old');
   assert.ok(res === undefined || res === true || (res && res.ok !== false), 'opens');
   b._syncDownloads();
-  assert.deepEqual(b.DOWNLOADS.filter(d => Object.keys(d.formats).some(f => b.downloadFileNames(d.key).length)).map(d => d.key).sort(), ['payroll', 'settings', 'snapshot', 'timecards']);
+  assert.deepEqual(b.DOWNLOADS.filter(d => Object.keys(d.formats).some(f => b.downloadFileNames(d.key).length)).map(d => d.key).sort(), ['accountant', 'payroll', 'settings', 'snapshot', 'timecards']);
 });

@@ -81,10 +81,12 @@ test('test_preview_renders_expected_row_count', () => {
   assert.ok(html.length > 0, 'expected non-empty preview HTML');
 
   // 4 employees (Avery, Beacon, Devon, Emery) across 3 entities.
-  // N + 3 subtotal + 2 blank-separator + 1 grand + 1 header + 1 title = N + 8 rows.
+  // N + 3 subtotal + 2 blank-separator + 1 grand + 1 header + 1 title + 1 pay-dates line (FC-00073) = N + 9 rows.
   const N = 4;
   const rowCount = (html.match(/<tr\b/g) || []).length;
-  assert.equal(rowCount, N + 8, `expected ${N + 8} rows (N=${N} data + 3 subtotal + 2 blank + 1 grand + 1 header + 1 title)`);
+  const payDateRows = (html.match(/fc13-note-row[^>]*><td[^>]*>Pay dates · /g) || []).length;
+  assert.equal(payDateRows, 1, 'the pay dates line under the title');
+  assert.equal(rowCount, N + 9, `expected ${N + 9} rows (N=${N} data + 3 subtotal + 2 blank + 1 grand + 1 header + 1 title + 1 pay dates)`);
 
   const titleRows = (html.match(/fc13-title-row/g) || []).length;
   const hdrRows = (html.match(/fc13-hdr-row/g) || []).length;

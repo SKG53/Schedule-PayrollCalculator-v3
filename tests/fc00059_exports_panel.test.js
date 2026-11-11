@@ -116,7 +116,7 @@ test('test_batch_zip_with_entity_reports', async () => {
   await api.downloadZip();
   assert.equal(saved.length, 1);
   assert.deepEqual(Object.keys(zips[0].files).sort(), [
-    'Hefner_0809to0815_AllEmployeesPayroll.xlsx',
+    'Hefner_0809to0815_AllEmployeesPayroll.xlsx', 'Nirvana_Hefner_0809to0815_AccountantFile.xlsx',
     'Nirvana_Hefner_0809to0815_AllEmployeesPayroll.pdf', 'Nirvana_Hefner_0809to0815_AllEmployeesPayroll.xlsx',
     'Nirvana_Hefner_0809to0815_AllEmployeesPayroll_Settings.xlsx', 'Nirvana_Hefner_0809to0815_AllEmployeesTimecards.xlsx'].sort());
 });
@@ -133,7 +133,8 @@ test('test_one_preview_in_export_format', () => {
   assert.equal(cy.cells[C.hours], '4.25', 'decimal hours');
   assert.ok(!m.headers.includes('H:MM'), 'no H:MM column (FC-00065)');
   const sub = m.rows.filter(r => r.kind === 'subtotal');
-  assert.ok(sub.every(r => r.cells[C.hours] && r.cells[C.final]), 'hours and rounded final are totalled');
+  assert.ok(sub.every(r => r.cells[C.hours] && r.cells[C.total]), 'hours and actual total are totalled');
+  assert.equal(C.final, undefined, 'FC-00071: no Rounded Final unless included');
   // The preview can show one entity's report instead.
   api.setPreviewKey('payroll:1');
   const m1 = api._fc13PreviewModel();

@@ -38,6 +38,7 @@ function setup() {
   set(0, 'Falcon', 16.25, 'both'); api.splitAmounts[api.wKey(0, 'Falcon')] = { deposit: 40.5, typed: true, isWhole: false };
   set(0, 'Gravel', 13.33, 'both'); // no deposit typed: all cash
   set(1, 'Harbor', 21.07, 'cash');
+  api.setReportFinalDiff(true); // FC-00071: these tests check the Rounded Final and Diff formulas too
   return api;
 }
 
@@ -68,10 +69,14 @@ test('test_combined_rows_are_formulas_that_reproduce_tool_values', async () => {
   for (const name of ['Ann', 'Ben', 'Dee', 'Ermine', 'Falcon', 'Gravel', 'Harbor']) {
     const r = rowFor(name), b = data.find(x => x._empName === name)._breakdown;
     const L = (k) => String.fromCharCode(64 + C[k]);
-    assert.match(r[C.total].value.formula, new RegExp('^ROUND\\(' + L('hours') + '\\d+\\*' + L('rate') + '\\d+,2\\)$'), name + ' Actual Total = hours x rate');
+    // FC-00070: a Deposit row adds half its Over time (0 at 40 h or less).
+    const H = b.method === 'deposit' ? '\\(' + L('hours') + '\\d+\\+0\\.5\\*' + L('ot') + '\\d+\\)' : L('hours') + '\\d+';
+    assert.match(r[C.total].value.formula, new RegExp('^ROUND\\(' + H + '\\*' + L('rate') + '\\d+,2\\)$'), name + ' Actual Total = hours x rate');
     assert.match(r[C.hours].value.formula, /^ROUND\(SUM\('Hours'!/, name + ' Hours come from the Hours sheet');
     assert.equal(xlNum(r[C.total]), b.actualFinal);
-    assert.equal(xlNum(r[C.deposit]), b.deposit, name + ' deposit');
+    // FC-00071: a Contract Check payment sits in its own column.
+    assert.equal(xlNum(r[C.deposit]), b.method === 'contract' ? 0 : b.deposit, name + ' deposit');
+    if (b.method === 'contract') assert.equal(xlNum(r[C.contract]), b.deposit, name + ' contract check');
     assert.equal(xlNum(r[C.cash]), b.cash, name + ' cash');
     assert.equal(xlNum(r[C.final]), b.roundedFinal, name + ' rounded final');
     assert.equal(typeof r[C.rate].value, 'number', name + ' rate is a number so the formula can use it');

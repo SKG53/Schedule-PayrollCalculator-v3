@@ -45,13 +45,15 @@ test('test_lists_every_export_with_defaults', () => {
   // FC-00050: the unused reports and the accountant placeholder are gone.
   // FC-00059: one card per report; every entity also has its own payroll report (not in the batch by default).
   api._syncDownloads();
-  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'payroll:0', 'payroll:1', 'timecards', 'settings', 'snapshot']);
+  // FC-00074: the accountant file is back as its own card, in the batch by default.
+  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'payroll:0', 'payroll:1', 'timecards', 'accountant', 'settings', 'snapshot']);
   const ticks = Object.fromEntries(api.DOWNLOADS.map(d => [d.key, Object.keys(d.formats).filter(f => api.downloadFileNames(d.key).some(n => n.endsWith('.' + f))).join('+')]));
-  assert.deepEqual(ticks, { payroll: 'xlsx+pdf', 'payroll:0': '', 'payroll:1': '', timecards: 'xlsx', settings: 'xlsx', snapshot: 'json' });
+  assert.deepEqual(ticks, { payroll: 'xlsx+pdf', 'payroll:0': '', 'payroll:1': '', timecards: 'xlsx', accountant: 'xlsx', settings: 'xlsx', snapshot: 'json' });
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
   for (const t of ['Payroll report — combined', 'Payroll report — NIRVANA 11TH', 'Payroll report — ZION', 'Reviewed timecards', 'Settings file', 'Snapshot', 'Download batch as files', 'Download batch as one zip', "exportCardNow('payroll','xlsx')", "exportCardNow('payroll','pdf')"]) assert.ok(html.includes(t), t);
-  for (const t of ['Accountant file', 'Cash-only report', 'Manager schedule report', 'Time Card Data', 'Full report']) assert.ok(!html.includes(t), t + ' removed');
+  for (const t of ['Cash-only report', 'Manager schedule report', 'Time Card Data', 'Full report']) assert.ok(!html.includes(t), t + ' removed');
+  assert.ok(html.includes('Accountant file'), 'FC-00074: the accountant file card');
 });
 
 test('test_file_names_follow_convention', () => {
@@ -94,7 +96,7 @@ test('test_status_reports_unapproved_and_exclusions', () => {
 test('test_download_selected_writes_each_file', async () => {
   const { api, saved } = setup();
   const files = await api.downloadSelected();
-  assert.deepEqual(saved, [STEM + '_AllEmployeesPayroll.xlsx', STEM + '_AllEmployeesPayroll.pdf', STEM + '_AllEmployeesTimecards.xlsx', STEM + '_AllEmployeesPayroll_Settings.xlsx', STEM + '_Snapshot.json']);
+  assert.deepEqual(saved, [STEM + '_AllEmployeesPayroll.xlsx', STEM + '_AllEmployeesPayroll.pdf', STEM + '_AllEmployeesTimecards.xlsx', STEM + '_AccountantFile.xlsx', STEM + '_AllEmployeesPayroll_Settings.xlsx', STEM + '_Snapshot.json']);
   assert.ok(files.every(f => f.data), 'every file has content');
   assert.equal(JSON.parse(files.find(f => f.name.endsWith('.json')).data).schema, 'SPCalcSessionSnapshot');
   assert.equal(api.hasUnsavedChanges(), false, 'a downloaded snapshot counts as saved');
@@ -110,17 +112,17 @@ test('test_zip_contains_ticked_files_only', async () => {
   const out = await api.downloadZip();
   assert.equal(out.name, STEM + '_All.zip');
   assert.deepEqual(saved, [STEM + '_All.zip'], 'one file saved');
-  assert.deepEqual(Object.keys(zips[0].files), [STEM + '_AllEmployeesPayroll.xlsx', STEM + '_AllEmployeesTimecards.xlsx', STEM + '_AllEmployeesPayroll_Settings.xlsx']);
+  assert.deepEqual(Object.keys(zips[0].files), [STEM + '_AllEmployeesPayroll.xlsx', STEM + '_AllEmployeesTimecards.xlsx', STEM + '_AccountantFile.xlsx', STEM + '_AllEmployeesPayroll_Settings.xlsx']);
   // Ticks are part of the snapshot.
   const snap = await api.buildSnapshot();
   assert.equal(snap.parts.downloadTicks.payroll.pdf, false);
 });
 
 test('test_accountant_line_removed', () => {
-  // FC-00050: the accountant placeholder comes back as its own card once the format is agreed.
+  // FC-00050: the accountant placeholder came back as its own card once the format was agreed (FC-00074).
   const { api } = setup();
   api.setDownloadTick('accountant', 'xlsx', true);
-  assert.deepEqual(api.downloadFileNames('accountant'), []);
+  assert.deepEqual(api.downloadFileNames('accountant'), [STEM + '_AccountantFile.xlsx']);
   api.renderDownloadsPanel();
-  assert.doesNotMatch(api.__sandbox.document.getElementById('downloadsHost').innerHTML, /Accountant file|coming soon/);
+  assert.doesNotMatch(api.__sandbox.document.getElementById('downloadsHost').innerHTML, /coming soon/);
 });

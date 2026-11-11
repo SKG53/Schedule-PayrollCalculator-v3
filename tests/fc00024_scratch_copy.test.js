@@ -80,7 +80,7 @@ test('test_preview_panel_offers_copy_and_renders_editable_scratch', () => {
   assert.doesNotMatch(readOnly, /contenteditable/);
   // Every non-blank scratch cell is editable.
   const scratch = api._fc24GetScratch();
-  const expected = scratch.rows.filter(r => r.kind !== 'blank').reduce((n, r) => n + r.cells.length, 0);
+  const expected = scratch.rows.filter(r => r.kind !== 'blank' && r.kind !== 'note').reduce((n, r) => n + r.cells.length, 0); // FC-00073: the pay dates line is not edited
   const scratchHtml = api._fc24ScratchPanelHtml();
   assert.equal((scratchHtml.match(/contenteditable="true"/g) || []).length, expected);
 });
@@ -105,6 +105,7 @@ test('test_editing_copy_leaves_real_data_untouched', () => {
 
 test('test_export_copy_excel_matches_cells', async () => {
   const api = setup();
+  api.setReportFinalDiff(true); // FC-00071: this copy has the Rounded Final and Diff columns
   api._fc24MakeCopy();
   const s = api._fc24GetScratch();
   const ann = rowIndex(s, 'data', 'Ann');
@@ -122,8 +123,9 @@ test('test_export_copy_excel_matches_cells', async () => {
 
   const ws = api.__lastExcelWorkbook.worksheets[0];
   assert.equal(ws.rows[1][1].value, 'EDITED TITLE');
-  const hdr = ws.rows[3];
-  assert.deepEqual(hdr.slice(1).map(c => c.value), s.rows[1].cells);
+  assert.match(ws.rows[3][1].value, /^Pay dates · /, 'FC-00073: the pay dates line');
+  const hdr = ws.rows[4];
+  assert.deepEqual(hdr.slice(1).map(c => c.value), s.rows.find(r => r.kind === 'hdr').cells);
   const data = ws.rows.find(r => r && r[2] && r[2].value === 'Ann Edited');
   assert.ok(data, 'edited row written');
   assert.equal(data[C.hours + 1].value, 7.5); assert.equal(data[C.hours + 1].numFmt, '0.00');
@@ -156,11 +158,12 @@ test('test_export_copy_pdf_matches_cells', async () => {
   assert.equal(saved.length, 1);
   assert.match(saved[0], /_Edited_Copy\.pdf$/);
   const call = api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1];
-  assert.deepEqual(call.options.head[0], s.rows[1].cells);
+  assert.deepEqual(call.options.head[0], s.rows.find(r => r.kind === 'hdr').cells);
   const bodyRows = s.rows.filter(r => r.kind !== 'title' && r.kind !== 'hdr');
   assert.equal(call.options.body.length, bodyRows.length);
   const benBody = call.options.body.find(r => r[1] === 'Ben');
   assert.equal(benBody[5], '$999.99');
+  assert.equal(call.options.columnStyles[api.COMBINED_HEADERS.indexOf('Hours')].halign, 'right');
 });
 
 test('test_refresh_and_discard_copy', () => {

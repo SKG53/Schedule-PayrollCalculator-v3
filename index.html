@@ -606,6 +606,14 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
 .fc13-subtotal-row td{font-weight:700}
 .fc13-blank-row td{border:none;background:transparent;padding:2px}
 .fc13-grand-row td{font-weight:700}
+.acct-panel{margin-top:16px;border-top:1px solid var(--border);padding-top:12px}
+.acct-dates{display:flex;flex-wrap:wrap;gap:16px;margin:6px 0;font-size:13px}
+.acct-src{font-size:11px;color:var(--text3)}
+.acct-load{margin:6px 0}
+.acct-check .dl-warn,.acct-info{margin:3px 0;font-size:12px}
+.acct-table{margin-top:8px;font-size:12px}
+.acct-table input.acct-name{width:170px}.acct-table input.acct-note{width:260px}
+.fc13-execSub-row td,.fc13-execGrand-row td,.fc13-allGrand-row td{font-weight:700}
 .fc24-scratch-panel{border-color:#B45309;border-style:dashed}
 .fc24-scratch-badge{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:#B45309;background:#FFF7ED;border:1px solid #B45309;border-radius:10px;padding:2px 8px}
 .fc24-note{font-size:12px;color:var(--text2);margin-bottom:8px}
@@ -1576,6 +1584,7 @@ function _applyRecordMirror(entId,empName,field,value){
   else if(field==='aliases')rec.aliases=Array.isArray(value)?value.slice():[];
   else if(field==='final_pass_method')rec.final_pass_method=(value||'').toString();
   else if(field==='notes')rec.notes=(value||'').toString();
+  else if(ACCT_FIELDS.includes(field)){if(value===undefined)delete rec[field];else rec[field]=(value||'').toString();} // FC-00073
 }
 function getAliases(entId,empName){return rosterAliases[wKey(entId,empName)]||[]}
 // FC-00036: case, periods and repeated spaces never make two people out of one —
@@ -1720,8 +1729,9 @@ function hasAnyBreakOverrides(entId){
 function clearAllBreakOverridesForEntity(entId){
   Object.keys(breakOverrides).forEach(k=>{const id=k.split('|')[0];const rec=_recordForId(id);if(rec&&rec.entity===entId)_withSessionMutation(()=>delete breakOverrides[k])});
 }
-// Pay-type sort order: Cash first, then Cash+Deposit (both), then Deposit, then Contract Check last.
-const PAYTYPE_SORT_ORDER={cash:0,both:1,deposit:2,contract:3};
+// Pay-type sort order: Cash first, then Cash+Deposit (both), then Deposit, then Contract Check.
+// FC-00072: Executive PR (a fixed weekly amount the accountant pays) sorts after everyone.
+const PAYTYPE_SORT_ORDER={cash:0,both:1,deposit:2,contract:3,exec:4};
 function _payTypeRankForRow(entId,row){
   const empName=row.schedName||row.name;
   const m=getPayMethod(entId,empName);
@@ -1736,7 +1746,7 @@ function sortRowsByPayType(entId,rows){
 }
 
 // User-facing label for the 'both' pay method. Internal enum stays 'both'.
-function methodLabel(method){return method==='cash'?'Cash':method==='deposit'?'Deposit':method==='contract'?'Contract Check':'Deposit + Cash'}
+function methodLabel(method){return method==='cash'?'Cash':method==='deposit'?'Deposit':method==='contract'?'Contract Check':method==='exec'?'Executive PR':'Deposit + Cash'}
 
 function getPayMethod(entId,empName){return payMethod[wKey(entId,empName)]||'deposit'}
 function setPayMethod(entId,empName,method){
@@ -1796,8 +1806,9 @@ function computePayBreakdown(row,entId){
     const cash=roundCash(total);
     return{method,total,deposit:0,cash,final:cash,roundedFinal:cash,actualFinal:total,roundingDiff:roundDeposit(cash-total)};
   }
-  if(method==='deposit'||method==='contract'){
+  if(method==='deposit'||method==='contract'||method==='exec'){
     // Contract Check: same math treatment as Deposit — full amount, 2dp rounding, no split.
+    // FC-00072: Executive PR is paid by the accountant's deposit run, so it is a deposit too.
     const deposit=roundDeposit(total);
     return{method,total,deposit,cash:0,final:deposit,roundedFinal:deposit,actualFinal:total,roundingDiff:0};
   }
@@ -1966,6 +1977,7 @@ function _captureState(){
     fileIdMax:_cloneState(session._fileIdMax||null),
     toolSettings:_cloneState(session.toolSettings||{}),
     pendingSettings:_cloneState(session.pendingSettings||[]),
+    acctFile:typeof _acctFile==='undefined'?null:_cloneState(_acctFile), // FC-00075: Undo of a load forgets the file too
     stores:{},
     startedAt:session.startedAt,
     ui:{nextEntityId,activeEntityIdx,activePayrollEntityIdx,activePayrollSubTab:_cloneState(activePayrollSubTab),currentTab,currentView,flagView,activeEmp}
@@ -1989,6 +2001,7 @@ function _refill(obj,src){
 }
 function _restoreState(st,opts){
   st=_cloneState(st);
+  if('acctFile' in st)_acctFile=st.acctFile||null; // FC-00075
   const withUi=!!(opts&&opts.ui);
   entities.length=0;
   st.entities.forEach(e=>entities.push(e));
@@ -2233,7 +2246,7 @@ function _historyField(e){
   if(e.type==='reviewMerge'||e.type==='reviewSplit')return(e.meta&&e.meta.date)||'';
   if(e.type==='reviewApproveBulk')return((e.meta&&e.meta.count)||0)+' row'+((e.meta&&e.meta.count)===1?'':'s');
   if(e.type==='breakOverride')return DAY_SHORT[t.day]||'';
-  if(e.type==='rosterFieldSet')return t.field||'';
+  if(e.type==='rosterFieldSet')return({acct_name:'Accountant name',acct_type:'Employment type',acct_section:'Accountant section',acct_note:'Accountant note'})[t.field]||t.field||''; // FC-00073
   if(e.type==='toolSetting')return _toolSettingLabel(t.field||'');
   if(e.type==='revert'){const o=session.log.find(x=>x.id===e.originalId);return o?('#'+o.seq+' '+_historyKind(o)):'';}
   return'';
@@ -2600,8 +2613,8 @@ function _onBeforeUnload(e){
 // file labels). Kept in session state (so Undo and the snapshot carry them) and written to
 // the settings file's "Tool Settings" sheet.
 // ================================================================
-const TOOL_SETTING_DEFAULTS={wowHours:8,wowPayPct:25};
-const TOOL_SETTING_LABELS={wowHours:'Week-over-week hours swing',wowPayPct:'Week-over-week pay swing %'};
+const TOOL_SETTING_DEFAULTS={wowHours:8,wowPayPct:25,reportFinalDiff:'Leave out',acctSections:''};
+const TOOL_SETTING_LABELS={wowHours:'Week-over-week hours swing',wowPayPct:'Week-over-week pay swing %',reportFinalDiff:'Payroll report · Rounded Final and Diff columns',acctSections:'Accountant file · sections'}; // FC-00071, FC-00074
 function getToolSetting(key){
   const v=session.toolSettings&&session.toolSettings[key];
   return v===undefined||v===null||v===''?TOOL_SETTING_DEFAULTS[key]:v;
@@ -2612,6 +2625,7 @@ function setToolSetting(key,val,screen){
     if(isNaN(n)||n<0){showToast(TOOL_SETTING_LABELS[key]+' must be a number of 0 or more','err');return false;}
     val=n;
   }
+  if(key==='reportFinalDiff')val=/^(incl|yes|true|on|1)/i.test(String(val==null?'':val).trim())?'Include':'Leave out'; // FC-00071
   const from=getToolSetting(key);
   if(from===val)return false;
   if(!session.toolSettings)session.toolSettings={};
@@ -2623,10 +2637,12 @@ function _toolSettingLabel(k){
   if(TOOL_SETTING_LABELS[k])return TOOL_SETTING_LABELS[k];
   if(String(k).startsWith('names:'))return _nameSettingLabel(k);
   if(String(k).startsWith('label:')){const e=entities.find(x=>_aliasNorm(x.name||'')===k.slice(6));return'File label · '+(e?e.name:k.slice(6));}
+  const pdk=/^payDate:(deposit|cash)\|(\d{4}-\d{2}-\d{2})$/.exec(String(k)); // FC-00073
+  if(pdk)return'Pay date · '+PAY_DATE_KINDS[pdk[1]]+' · week of '+_fmtIsoShort(pdk[2]);
   return k;
 }
 function _toolSettingsRows(){
-  const rows=Object.keys(TOOL_SETTING_DEFAULTS).map(k=>[TOOL_SETTING_LABELS[k],getToolSetting(k)]);
+  const rows=Object.keys(TOOL_SETTING_DEFAULTS).filter(k=>k!=='acctSections'||getToolSetting(k)).map(k=>[TOOL_SETTING_LABELS[k],getToolSetting(k)]); // FC-00074: sections only once known
   // FC-00040: file labels, one row per entity that has one set.
   Object.keys(session.toolSettings||{}).filter(k=>k.startsWith('label:')).sort().forEach(k=>rows.push([_toolSettingLabel(k),session.toolSettings[k]]));
   // FC-00045: name display, written as words a person can read and edit.
@@ -2769,7 +2785,7 @@ function loadLastWeekSnapshotFile(file){
   r.readAsText(file);
 }
 function clearLastWeek(){_wowLast=null;renderWowPanel();}
-const _WOW_METHOD={deposit:'Deposit',cash:'Cash',both:'Deposit + Cash',contract:'Contract Check'};
+const _WOW_METHOD={deposit:'Deposit',cash:'Cash',both:'Deposit + Cash',contract:'Contract Check',exec:'Executive PR'};
 function weekOverWeek(){
   if(!_wowLast)return null;
   // This week is read from a copy too (with actuals re-synced), so the check never touches it.
@@ -3123,11 +3139,12 @@ function _personFields(st,id,includeBreaks){
   const sp=S.splitAmounts[id];
   const f={rate:S.wageBlank[id]?'(blank)':(typeof S.wageRates[id]==='number'?S.wageRates[id]:null),type:typeof S.flatWages[id]==='number'?((S.semiMonthly||{})[id]?'Semi-monthly':'Flat'):'Hourly',
     flat:typeof S.flatWages[id]==='number'?S.flatWages[id]:null,method:S.payMethod[id]||'deposit',deposit:sp?sp.deposit:null,typedAs:sp?(sp.isWhole?'whole':'decimal'):null,
-    active:S.rosterActive[id]!==false,aliases:(S.rosterAliases[id]||[]).join(', '),notes:rec.notes||'',finalPass:rec.final_pass_method||''};
+    active:S.rosterActive[id]!==false,aliases:(S.rosterAliases[id]||[]).join(', '),notes:rec.notes||'',finalPass:rec.final_pass_method||'',
+    acctName:rec.acct_name||'',acctType:rec.acct_type||'',acctSection:rec.acct_section||'',acctNote:rec.acct_note||''}; // FC-00073
   if(includeBreaks)for(let d=0;d<7;d++){const v=S.breakOverrides[id+'|'+d];f['break'+d]=v==null?'Actual':v;}
   return f;
 }
-const _STAGE_FIELD_LABEL={rate:'Rate',type:'Type',flat:'Flat amount',method:'Pay method',deposit:'Deposit amount',typedAs:'Deposit typed as',active:'Active',aliases:'Aliases',notes:'Notes',finalPass:'Final pass method',palette:'Palette',defaultBreak:'Default break (min)'};
+const _STAGE_FIELD_LABEL={rate:'Rate',type:'Type',flat:'Flat amount',method:'Pay method',deposit:'Deposit amount',typedAs:'Deposit typed as',active:'Active',aliases:'Aliases',notes:'Notes',finalPass:'Final pass method',palette:'Palette',defaultBreak:'Default break (min)',acctName:'Accountant name',acctType:'Employment type',acctSection:'Accountant section',acctNote:'Accountant note'};
 for(let d=0;d<7;d++)_STAGE_FIELD_LABEL['break'+d]=DAY_SHORT[d]+' break';
 // Which session log types count as a hand edit of each preview field.
 function _handEditedFields(id){
@@ -3144,6 +3161,10 @@ function _handEditedFields(id){
     else if(t==='rosterAliasAdd'||t==='rosterAliasRemove'||(t==='rosterFieldSet'&&f==='aliases'))out.add('aliases');
     else if(t==='rosterFieldSet'&&f==='notes')out.add('notes');
     else if(t==='rosterFieldSet'&&f==='final_pass_method')out.add('finalPass');
+    else if(t==='rosterFieldSet'&&f==='acct_name')out.add('acctName');
+    else if(t==='rosterFieldSet'&&f==='acct_type')out.add('acctType');
+    else if(t==='rosterFieldSet'&&f==='acct_section')out.add('acctSection');
+    else if(t==='rosterFieldSet'&&f==='acct_note')out.add('acctNote');
     else if(t==='breakOverride')out.add('break'+e.target.day);
   });
   return out;
@@ -3413,6 +3434,7 @@ function _syncDownloads(){
   });
   list.push(
     {key:'timecards',label:'Reviewed timecards',desc:'Every punch row with its approval, times as real Excel times — re-importable on Actuals Intake.',formats:{xlsx:true},suffix:'AllEmployeesTimecards',run:{xlsx:()=>exportActualsIntakeExcel(),pdf:()=>exportActualsIntakePdf()}},
+    {key:'accountant',label:'Accountant file',desc:'The accountant\'s weekly file in their layout: everyone paid by deposit, by entity, with the deposit pay date. Check it against the accountant\'s own file below.',formats:{xlsx:true},suffix:'AccountantFile',run:{xlsx:()=>exportAccountantFile()}}, // FC-00074
     {key:'settings',label:'Settings file',desc:'Every employee\'s ID, name, aliases, rate, pay method and Active, plus tool settings and file labels. Load it first next week.',formats:{xlsx:true},suffix:'AllEmployeesPayroll_Settings',run:{xlsx:()=>exportPayrollSettingsExcel(_settingsWithBreaks())}},
     {key:'snapshot',label:'Snapshot',desc:'The whole session in one file, to reopen every screen exactly as it is now.',formats:{json:true},suffix:'Snapshot'}
   );
@@ -3509,6 +3531,8 @@ function _downloadStatusInner(key,sc){
       else if(r.semiByHand)semiNotes.push(r._empName+': '+(r.semiPaid?'paid':'not paid')+' this run, set by hand (the rule says '+(info.paid?'paid':'not paid')+')');}));
     if(semiNotes.length)reasons.push('Semi-monthly: '+semiNotes.join('; '));
     const uc=_unconfirmedNames();if(uc.length)reasons.push('Not on the schedule and not confirmed: '+uc.join(', ')+' (add them as new employees or match them to someone)'); // FC-00049
+  }else if(key==='accountant'){
+    _acctStatusReasons().forEach(x=>reasons.push(x)); // FC-00074
   }else if(key==='timecards'){
     if(!entities.some(e=>e.intake&&(e.intake.reviewRows||[]).length))reasons.push('No punch rows yet');
     unapproved();
@@ -3541,9 +3565,9 @@ function _buildFiles(list,cont){
 async function _buildFilesNow(list,cont){
   _syncDownloads();
   const files=[];
-  const pay=list.filter(x=>_isPayrollKey(x.key));
+  const pay=list.filter(x=>_isPayrollKey(x.key)||x.key==='accountant'); // FC-00074: the accountant file pays the same rows
   if(pay.length){
-    const ids=[...new Set([].concat(...pay.map(x=>_scopeOfKey(x.key)||[])))];
+    const ids=[...new Set([].concat(...pay.map(x=>x.key==='accountant'?_payrollEntityIds():(_scopeOfKey(x.key)||[]))))];
     const ok=await _withExportScope(ids,()=>_payrollGateOk(cont));
     if(!ok)return null;
     if(!await _withExportScope(ids,()=>_confirmBreaksOrBail()))return null;
@@ -3646,12 +3670,16 @@ function _downloadsHtmlInner(){
     }
     const btns=Object.keys(d.formats).map(f=>`<button class="btn ${f==='xlsx'?'btn-green':''}" onclick="exportCardNow('${escJs(d.key)}','${f}')" ${d.disabled?'disabled':''}>${f==='json'?'Save snapshot':_FMT_LABEL[f]}</button>`).join('');
     const ticks=Object.keys(d.formats).map(f=>`<label class="dl-fmt"><input type="checkbox" ${_dlTick(d.key,f)?'checked':''} onchange="setDownloadTick('${escJs(d.key)}','${f}',this.checked)"> ${_FMT_LABEL[f]}</label>`).join(' ');
-    const extra=d.key==='settings'?`<label class="dl-fmt" style="display:block;margin-top:4px"><input type="checkbox" id="settingsIncludeBreaksToggle" ${_settingsBreaksPref?'checked':''} onchange="setSettingsBreaksPref(this.checked)"> Include per-day breaks</label>`:'';
+    const extra=d.key==='settings'?`<label class="dl-fmt" style="display:block;margin-top:4px"><input type="checkbox" id="settingsIncludeBreaksToggle" ${_settingsBreaksPref?'checked':''} onchange="setSettingsBreaksPref(this.checked)"> Include per-day breaks</label>`
+      :(d.key==='payroll'||d.key.startsWith('payroll:'))?`<label class="dl-fmt" style="display:block;margin-top:4px"><input type="checkbox" class="final-diff-toggle" ${reportShowsFinalDiff()?'checked':''} onchange="setReportFinalDiff(this.checked)"> Include Rounded Final and Diff columns</label>` // FC-00071
+      :d.key==='accountant'?`<div class="dl-desc acct-card-dates">${escHtml(_payDatesLine()||'Pay dates: no schedule dates yet')}</div>`:'';
     h+=`<div class="exp-card${d.key.startsWith('payroll:')?' exp-card-entity':''}" data-key="${escHtml(d.key)}"><div class="exp-title">${escHtml(d.label)}</div><div class="dl-desc">${escHtml(d.desc)}</div>${ents}${d.key==='payroll'?_lineNameSelectHtml('payroll'):''}${names.length?'<div class="dl-files">'+names.map(escHtml).join('<br>')+'</div>':''}${extra}<div class="exp-btns">${btns}</div><div class="exp-batch">In batch: ${ticks}</div>`;
     if(st)h+=st.ok?'<div class="dl-ok">✓ Ready</div>':'<div class="dl-warn">⚠ '+st.reasons.map(escHtml).join('<br>⚠ ')+'</div>';
     h+='</div>';
   });
-  h+='</div><div class="dl-actions"><span style="font-size:12px;color:var(--text3)">Batch: everything ticked "in batch" above</span><button class="btn btn-green" onclick="downloadSelected()">Download batch as files</button><button class="btn btn-primary" onclick="downloadZip()">Download batch as one zip</button></div></div>';
+  h+='</div><div class="dl-actions"><span style="font-size:12px;color:var(--text3)">Batch: everything ticked "in batch" above</span><button class="btn btn-green" onclick="downloadSelected()">Download batch as files</button><button class="btn btn-primary" onclick="downloadZip()">Download batch as one zip</button></div>';
+  h+=_acctPanelHtml(); // FC-00073 to FC-00075
+  h+='</div>';
   return h;
 }
 let _settingsBreaksPref=false;
@@ -4763,6 +4791,25 @@ function setSemiPaidForRow(rowIdx,on){
   renderPayrollEntityContent(item.entityIdx);
 }
 
+// FC-00070: a Deposit person (hourly, pay method Deposit only) is paid 1.5× for the hours over 40 in
+// the entity's week. Pay = rate × (hours + ½ × hours over 40), rounded like every other pay
+// (the employee's rounding digits, then cents). Hours stay the total worked; row.otPaidH is the
+// part over 40 that was paid at 1.5× (0 for everyone else: Cash, Deposit + Cash, Contract Check,
+// Executive PR, Flat). Same as the accountant's file: Hours × rate + Over time × rate × 1.5.
+function _applyDepositOt(row,entId,empName){
+  row.otPaidH=0;
+  if(!row||row.isFlat||!(row.wage>0))return row;
+  if(getPayMethod(entId,empName)!=='deposit')return row;
+  // Review fix: a day paid from outside the week (FC-00066) is paid straight time and never
+  // counts toward this week's 40 hours.
+  const outside=Math.round((row.outsideDays||[]).reduce((a,o)=>a+(o.billableH||0),0)*100)/100;
+  row.otOutsideH=outside;
+  const ot=Math.max(0,Math.round((row.actualHours-outside-OT_THRESHOLD)*100)/100);
+  if(!(ot>0))return row;
+  row.otPaidH=ot;
+  row.pay=_xround((row.actualHours+ot*0.5)*row.wage,Math.max(0,Math.min(6,row.rounding)));
+  return row;
+}
 function computePayrollForEntity(idx){
   const ent=entities[idx];
   const entNameLower=(ent.name||'').toLowerCase().trim();
@@ -4923,6 +4970,7 @@ function computePayrollForEntity(idx){
     // Flat-wage override
     const _fk=wKey(ent.id,emp.name);
     if(flatWages[_fk]!=null){row.isFlat=true;row.flatAmount=flatWages[_fk];row.pay=flatWages[_fk];_applySemi(row,ent.id,emp.name);}
+    _applyDepositOt(row,ent.id,emp.name); // FC-00070
     row.avgInDiff=row.inDiffs.length?Math.round(row.inDiffs.reduce((a,b)=>a+b,0)/row.inDiffs.length):null;
     row.avgOutDiff=row.outDiffs.length?Math.round(row.outDiffs.reduce((a,b)=>a+b,0)/row.outDiffs.length):null;
     return row;
@@ -4971,6 +5019,7 @@ function computePayrollForEntity(idx){
     row.pay=_xround(row.actualHours*row.wage,Math.max(0,Math.min(6,row.rounding))); // FC-00061: rounds like Excel ROUND
     const _ofk=wKey(ent.id,o.name);
     if(flatWages[_ofk]!=null){row.isFlat=true;row.flatAmount=flatWages[_ofk];row.pay=flatWages[_ofk];_applySemi(row,ent.id,o.name);}
+    _applyDepositOt(row,ent.id,o.name); // FC-00070
     return row;
   });
 
@@ -5211,14 +5260,18 @@ function _fc13PreviewModelInner(){
 
   const rows=[];
   rows.push({kind:'title',entityId:null,cells:[titleFull],bgs:[''],tips:[tdTitle]});
+  const _pdl=_payDatesLine(); // FC-00073
+  if(_pdl)rows.push({kind:'note',entityId:null,cells:[_pdl],bgs:[''],tips:['Set on the Accountant file card (Exports)']});
   rows.push({kind:'hdr',entityId:null,cells:spec.headers.slice(),bgs:fill('#E8E8E4'),tips:fill(tdAuto)});
 
   const grandVals={};(spec.totals||[]).forEach(t=>{grandVals[t.col]=0;});
   let renderedEntityCount=0;
   const unconf=new Set(_unconfirmedNamesRaw().map(x=>x.entityId+'|'+_aliasNorm(x.name)));
+  const execVals={};(spec.totals||[]).forEach(t=>{execVals[t.col]=0;});let execCount=0; // FC-00072
   data.forEach(({entityName,entityId,rows:entRows})=>{
     let filtered=_filterRowsForKind(entRows,'combined');
-    if(filtered.length===0)return;
+    const execRows=_execRowsOf(entRows,spec);
+    if(filtered.length===0&&!execRows.length)return;
     filtered=filtered.slice().sort(spec.sortFn);
     // Blank separator row BEFORE every entity after the first, matching the reference
     // report's layout (separators sit between entities, not trailing after the last one).
@@ -5228,7 +5281,7 @@ function _fc13PreviewModelInner(){
     renderedEntityCount++;
     const previewEnt=entities.find(e=>e.id===entityId);
     const pal=_paletteForEntity(previewEnt);
-    filtered.forEach(r=>{
+    const dataRow=r=>{
       const vals=spec.rowFn(r);
       // FC-00059 (from the all-entity preview): someone paid off the schedule whom nobody has
       // confirmed is flagged here, on screen only; the files never print it.
@@ -5239,13 +5292,26 @@ function _fc13PreviewModelInner(){
         bgs:vals.map((c,ci)=>argbToCss((ci+1)===cashColIdx?pal.cash:pal.body)),
         tips:vals.map((c,ci)=>ci===1?tdName:(ci===0?tdEntity:tdEdit))
       });
-    });
-    // Entity subtotal row — the same totals the Excel and PDF write.
-    const entVals=_sectionTotals(spec,filtered);
-    const subVals=fill('');
-    subVals[0]=entityName+' subtotal';
-    (spec.totals||[]).forEach(t=>{subVals[t.col]=_totalCellText(t,entVals[t.col]);grandVals[t.col]+=entVals[t.col];});
-    rows.push({kind:'subtotal',entityId,cells:subVals,bgs:fill(argbToCss(pal.subtotal)),tips:fill(tdAuto)});
+    };
+    if(filtered.length){
+      filtered.forEach(dataRow);
+      // Entity subtotal row — the same totals the Excel and PDF write.
+      const entVals=_sectionTotals(spec,filtered);
+      const subVals=fill('');
+      subVals[0]=entityName+' subtotal';
+      (spec.totals||[]).forEach(t=>{subVals[t.col]=_totalCellText(t,entVals[t.col]);grandVals[t.col]+=entVals[t.col];});
+      rows.push({kind:'subtotal',entityId,cells:subVals,bgs:fill(argbToCss(pal.subtotal)),tips:fill(tdAuto)});
+    }
+    // FC-00072: the entity's Executive PR block and its own subtotal.
+    if(execRows.length){
+      rows.push({kind:'section',entityId,cells:[EXEC_PR_LABEL+' — '+entityName],bgs:['#E8E8E4'],tips:[tdAuto]});
+      execRows.forEach(dataRow);
+      const ev=_sectionTotals(spec,execRows);
+      const sv=fill('');sv[0]=entityName+' '+EXEC_PR_LABEL+' subtotal';
+      (spec.totals||[]).forEach(t=>{sv[t.col]=_totalCellText(t,ev[t.col]);execVals[t.col]+=ev[t.col];});
+      rows.push({kind:'execSub',entityId,cells:sv,bgs:fill(argbToCss(pal.subtotal)),tips:fill(tdAuto)});
+      execCount++;
+    }
     const lo=_leftOutNoteText(previewEnt);
     if(lo)rows.push({kind:'note',entityId,cells:[lo],bgs:[''],tips:[tdAuto]});
   });
@@ -5256,6 +5322,13 @@ function _fc13PreviewModelInner(){
   grandValsOut[0]='GRAND TOTAL';
   (spec.totals||[]).forEach(t=>{grandValsOut[t.col]=_totalCellText(t,Math.round(grandVals[t.col]*100)/100);});
   rows.push({kind:'grand',entityId:null,cells:grandValsOut,bgs:fill(argbToCss(FC14_PRESETS.Plain.grand)),tips:fill(tdAuto)});
+  if(execCount){
+    [['execGrand','EXECUTIVE PR TOTAL',t=>execVals[t.col]],['allGrand','TOTAL WITH EXECUTIVE PR',t=>grandVals[t.col]+execVals[t.col]]].forEach(([k,lab,val])=>{
+      const c=fill('');c[0]=lab;
+      (spec.totals||[]).forEach(t=>{c[t.col]=_totalCellText(t,Math.round(val(t)*100)/100);});
+      rows.push({kind:k,entityId:null,cells:c,bgs:fill(argbToCss(FC14_PRESETS.Plain.grand)),tips:fill(tdAuto)});
+    });
+  }
 
   return{headers:spec.headers.slice(),numCols:spec.numCols.slice(),colW:COMBINED_XL_WIDTHS.slice(),rows};
 }
@@ -5277,6 +5350,8 @@ function _fc13ModelTableHtml(model,editable){
       html+=`<tr class="fc13-blank-row"><td colspan="${n}" title="${escHtml(row.tips[0])}">&nbsp;</td></tr>`;
     }else if(row.kind==='note'){
       html+=`<tr class="fc13-note-row"><td colspan="${n}" style="font-style:italic;font-size:10px;color:#555">${escHtml(row.cells[0])}</td></tr>`;
+    }else if(row.kind==='section'){ // FC-00072: the Executive PR block's label
+      html+=`<tr class="fc13-section-row"><td colspan="${n}" style="font-weight:700;background:${row.bgs[0]||'#E8E8E4'}">${escHtml(row.cells[0])}</td></tr>`;
     }else{
       html+=`<tr class="fc13-${row.kind==='data'?'data':row.kind}-row">`+row.cells.map((v,ci)=>{
         const isNum=model.numCols.indexOf(ci)>=0;
@@ -5364,16 +5439,18 @@ function _fc24ScratchPanelHtml(){
 // Turns an edited cell's text back into the same wrapper the real writers use, so currency
 // and hours cells in the scratch .xlsx stay numeric with the usual number formats (CLAUDE.md
 // rule 6). Anything that isn't a plain number ('—', 'flat', free text) is written as text.
-function _fc24CellFromText(text,ci,numCols){
+function _fc24CellFromText(text,ci,numCols,hdrCells){
   const t=(text||'').trim();
   if(numCols.indexOf(ci)<0)return t;
+  // FC-00071: the copy keeps the columns it was made with, so its own header names the columns.
+  const h=(hdrCells&&hdrCells[ci])||COMBINED_HEADERS[ci]||'';
   // FC-00059: H:MM cells read "h:mm" back into an Excel duration.
-  if(COMBINED_COLS.hmm!=null&&ci===COMBINED_COLS.hmm){const m=/^(-?)(\d+):(\d{2})$/.exec(t);if(!m)return t;const mins=(+m[2])*60+(+m[3]);return _numCell((m[1]?-1:1)*mins/1440,'[h]:mm',t);}
+  if(h==='H:MM'){const m=/^(-?)(\d+):(\d{2})$/.exec(t);if(!m)return t;const mins=(+m[2])*60+(+m[3]);return _numCell((m[1]?-1:1)*mins/1440,'[h]:mm',t);}
   const raw=t.replace(/[$,\s]/g,'');
   if(!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(raw))return t;
   const v=parseFloat(raw);
-  if(ci===COMBINED_COLS.hours)return xlHours(v);        // Hours
-  if(ci===COMBINED_COLS.diff)return xlMoneySigned(v);  // Diff
+  if(h==='Hours'||h==='Over time')return xlHours(v);  // Hours, Over time
+  if(h==='Diff')return xlMoneySigned(v);              // Diff
   return xlMoney(v);
 }
 function _fc24CssToArgb(css){return /^#[0-9a-f]{6}$/i.test(css||'')?'FF'+css.slice(1).toUpperCase():null}
@@ -5392,7 +5469,8 @@ async function _fc24ExportScratchExcel(){
   const paint=(cell,row,ci)=>{const a=_fc24CssToArgb(row.bgs[ci-1]);if(a)cell.fill=_fc12Fill(a);};
   // FC-00033: data rows keep the values typed into the copy; subtotal and grand rows become
   // SUM formulas over the rows they close, so further edits in Excel still add up.
-  let blockStart=0,blockEnd=0;const subNums=[];
+  let blockStart=0,blockEnd=0;const subNums=[],execNums=[];let grandNum=0,execGrandNum=0;
+  const hdrCells=hdr?hdr.cells:m.headers;
   m.rows.forEach(row=>{
     if(row.kind==='title'){
       const t=ws.addRow([row.cells[0]]);
@@ -5411,23 +5489,31 @@ async function _fc24ExportScratchExcel(){
       ws.addRow([]);
     }else if(row.kind==='note'){
       const nr=ws.addRow([row.cells[0]]);nr.getCell(1).font={name:'Arial',italic:true,size:9,color:{argb:'FF555555'}};ws.mergeCells(nr.number,1,nr.number,n);
+    }else if(row.kind==='section'){ // FC-00072
+      const nr=ws.addRow([row.cells[0]]);nr.getCell(1).font={name:'Arial',bold:true,size:10};paint(nr.getCell(1),row,1);ws.mergeCells(nr.number,1,nr.number,n);
     }else{
-      const vals=row.cells.map((t,ci)=>_fc24CellFromText(t,ci,m.numCols));
+      const vals=row.cells.map((t,ci)=>_fc24CellFromText(t,ci,m.numCols,hdrCells));
       const r=ws.addRow(vals.map(_cellValue));
+      const isSub=row.kind==='subtotal'||row.kind==='execSub';
       if(row.kind==='data'){if(!blockStart)blockStart=r.number;blockEnd=r.number;}
-      else if(row.kind==='subtotal'||row.kind==='grand'){
+      else if(isSub||row.kind==='grand'||row.kind==='execGrand'||row.kind==='allGrand'){
         vals.forEach((v,ci)=>{
           if(!_isNumCell(v))return;
           const L=_xlCol(ci);
           let f;
-          if(COMBINED_COLS.hmm!=null&&ci===COMBINED_COLS.hmm)f='ROUND('+_xlCol(COMBINED_COLS.hours)+r.number+'*60,0)/1440';
-          else if(row.kind==='subtotal'&&blockStart)f='SUM('+L+blockStart+':'+L+blockEnd+')';
+          if(hdrCells[ci]==='H:MM'&&hdrCells.indexOf('Hours')>=0)f='ROUND('+_xlCol(hdrCells.indexOf('Hours'))+r.number+'*60,0)/1440';
+          else if(isSub&&blockStart)f='SUM('+L+blockStart+':'+L+blockEnd+')';
           else if(row.kind==='grand'&&subNums.length)f='SUM('+subNums.map(n=>L+n).join(',')+')';
+          else if(row.kind==='execGrand'&&execNums.length)f='SUM('+execNums.map(n=>L+n).join(',')+')';
+          else if(row.kind==='allGrand'&&grandNum&&execGrandNum)f='SUM('+L+grandNum+','+L+execGrandNum+')'; // review fix: a blank total cell is text; SUM skips it
           if(f)r.getCell(ci+1).value={formula:f,result:v.v};
         });
         if(row.kind==='subtotal'){subNums.push(r.number);blockStart=0;blockEnd=0;}
+        if(row.kind==='execSub'){execNums.push(r.number);blockStart=0;blockEnd=0;}
+        if(row.kind==='grand')grandNum=r.number;
+        if(row.kind==='execGrand')execGrandNum=r.number;
       }
-      const bold=row.kind!=='data',grand=row.kind==='grand';
+      const bold=row.kind!=='data',grand=row.kind==='grand'||row.kind==='execGrand'||row.kind==='allGrand';
       r.eachCell((cell,ci)=>{
         cell.font={name:'Arial',bold,size:grand?11:10};
         cell.alignment=align(ci);
@@ -5437,7 +5523,7 @@ async function _fc24ExportScratchExcel(){
       });
     }
   });
-  COMBINED_XL_WIDTHS.forEach((w,i)=>{ws.getColumn(i+1).width=w});
+  hdrCells.forEach((h,i)=>{ws.getColumn(i+1).width=_combinedWidthOf(h,false)});
   const fname=_exportFilenameBase('combined')+'_Edited_Copy.xlsx';
   downloadBlob(await ewb.xlsx.writeBuffer(),fname);
   showToast(`Exported ${fname}`,'ok');
@@ -5455,12 +5541,12 @@ async function _fc24ExportScratchPdf(){
   const n=hdr?hdr.cells.length:m.headers.length;
   doc.setFont('helvetica','bold');doc.setFontSize(14);
   doc.text(titleRow?titleRow.cells[0]:'',pageW/2,36,{align:'center'});
-  const bodyRows=m.rows.filter(r=>r.kind==='data'||r.kind==='subtotal'||r.kind==='blank'||r.kind==='grand'||r.kind==='note');
-  const body=bodyRows.map(r=>r.kind==='blank'?new Array(n).fill(''):(r.kind==='note'?[{content:r.cells[0],colSpan:n,styles:{fontStyle:'italic',fontSize:7,textColor:[85,85,85]}}]:r.cells.slice()));
+  const bodyRows=m.rows.filter(r=>r.kind!=='title'&&r.kind!=='hdr');
+  const body=bodyRows.map(r=>r.kind==='blank'?new Array(n).fill(''):(r.kind==='note'?[{content:r.cells[0],colSpan:n,styles:{fontStyle:'italic',fontSize:7,textColor:[85,85,85]}}]:(r.kind==='section'?[{content:r.cells[0],colSpan:n,styles:{fontStyle:'bold'}}]:r.cells.slice())));
   const columnStyles={};
   m.numCols.forEach(ci=>{columnStyles[ci]={halign:'right'}});
   // FC-00059: scaled to the page width like the payroll PDF (FC-00050), so the copy fits too.
-  const _w=_columnsFor('combined').widths,_sum=_w.reduce((a,b)=>a+b,0)||1,_avail=pageW-60;
+  const _w=(hdr?hdr.cells:m.headers).map(h=>_combinedWidthOf(h,true)),_sum=_w.reduce((a,b)=>a+b,0)||1,_avail=pageW-60; // FC-00071: the copy's own columns
   _w.forEach((w,i)=>{columnStyles[i]=Object.assign({},columnStyles[i]||{},{cellWidth:w*_avail/_sum,overflow:'linebreak'})});
   doc.autoTable({
     head:[hdr?hdr.cells.slice():m.headers.slice()],
@@ -5941,7 +6027,7 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
     html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
     html+=`<td style="text-align:center;padding:6px"><input type="checkbox" ${rowActive?'checked':''} onchange="setRowActive(${i},this.checked)" title="${rowActive?'Active — in this week\'s export and loads with the next schedule':'Unchecked — left out of this week\'s export and the next schedule'}" style="width:15px;height:15px;cursor:pointer"></td>`;
     html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrsCell(r.actualBreakH)}</td>`;
-    html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrsCell(r.actualHours)}</td>`;
+    html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrsCell(r.actualHours)}${r.otPaidH>0?`<div class="ot-paid-note" title="Deposit: the hours over 40 are paid at 1.5× (FC-00070)" style="font-size:10px;color:#92400E;font-weight:600">${fmtHrsCell(r.otPaidH)} over 40 at 1.5×</div>`:''}</td>`;
 
     const typeToggleHtml=`<div class="type-toggle"><button class="${r.isFlat?'':'selected'}" onclick="setRowType(${i},'hourly')" title="Compute pay as wage × hours">Hourly</button><button class="${r.isFlat&&!r.isSemi?'selected':''}" onclick="setRowType(${i},'flat')" title="Use a flat dollar amount">Flat</button><button class="${r.isSemi?'selected':''}" onclick="setRowType(${i},'semi')" title="A flat amount per half-month, paid in the run whose week holds the 1st or the 15th (FC-00052)">Semi-monthly</button></div>`;
 
@@ -5982,12 +6068,13 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
       <button class="${method==='cash'?'selected':''}" onclick="setPayMethodForRow(${i},'cash')" title="Cash only — rounds to whole dollar">Cash</button>
       <button class="${method==='both'?'selected':''}" onclick="setPayMethodForRow(${i},'both')" title="Split — type deposit, cash auto-calcs. Whole-dollar deposit keeps whole; cash rounds to nearest dollar.">Deposit + Cash</button>
       <button class="${method==='contract'?'selected':''}" onclick="setPayMethodForRow(${i},'contract')" title="Contract Check — non-cash payment, rounds to 2 decimals like Deposit">Contract Check</button>
+      <button class="${method==='exec'?'selected':''}" onclick="setPayMethodForRow(${i},'exec')" title="Executive PR — a fixed weekly amount the accountant pays by deposit (Flat). Printed in its own Executive PR block under the entity.">Executive PR</button>
     </div></td>`;
 
     // Deposit column
     if(wageBlankFlag){
       html+=`<td class="num-cell" style="color:var(--text3)">—</td>`;
-    }else if(method==='deposit'||method==='contract'){
+    }else if(method==='deposit'||method==='contract'||method==='exec'){
       html+=`<td class="num-cell">${_fmtUsd(breakdown.deposit)}</td>`;
     }else if(method==='both'){
       const meta=getSplitMeta(ent.id,keyName);
@@ -6179,7 +6266,13 @@ function setRowNotes(rowIdx,val){
 function setPayMethodForRow(rowIdx,method){
   const item=_flatRows[rowIdx];if(!item)return;
   const ent=entities[item.entityIdx];
+  const was=getPayMethod(ent.id,_rowKey(item));
   setPayMethod(ent.id,_rowKey(item),method);
+  // FC-00072: Executive PR is a fixed weekly amount — the row becomes Flat so the amount can be typed.
+  const isFlatNow=flatWages[wKey(ent.id,_rowKey(item))]!=null;
+  if(method==='exec'&&!isFlatNow){toggleFlat(rowIdx);return;}
+  // Review fix: leaving Executive PR goes back to Hourly (choose Flat again if it really is flat).
+  if(was==='exec'&&method!=='exec'&&isFlatNow&&!semiMonthly[wKey(ent.id,_rowKey(item))]){toggleFlat(rowIdx);return;}
   renderPayrollEntityContent(item.entityIdx);
 }
 
@@ -7864,6 +7957,8 @@ function addNewEmployee(entIdx,name,fromSpelling,extra){
     const k=wKey(ent.id,rec.canonical_name);
     if(extra.rate!=null)dispatch({type:'wage',screen:'intake',target:{kind:'employee',entity:ent.id,id:k,field:'wage'},from:wageRates[k],to:extra.rate,meta:{empName:rec.canonical_name}});
     if(extra.method)dispatch({type:'payMethod',screen:'intake',target:{kind:'employee',entity:ent.id,id:k,field:'payMethod'},from:payMethod[k]||'deposit',to:extra.method,meta:{empName:rec.canonical_name}});
+    // FC-00072: an Executive PR person is a fixed weekly amount (Flat), so they show on Payroll with no punches.
+    if(extra.method==='exec'&&flatWages[k]==null)dispatch({type:'flatWage',screen:'intake',target:{kind:'employee',entity:ent.id,id:k,field:'flatWage'},from:null,to:+(extra.flat||0),meta:{empName:rec.canonical_name,displayName:rec.canonical_name}});
     ent.intake.activeEmpTab=rec.canonical_name;
   });
   if(currentTab==='intake'){refreshReviewTable(entIdx);}
@@ -7916,7 +8011,7 @@ function _newEmpHtml(){
     <label>First name<input id="newEmpFirst" type="text" value="${escHtml(d.first)}" oninput="setNewEmpField('first',this.value)" onkeydown="if(event.key==='Enter')createNewEmployeeFromDialog()"></label>
     <label>Last name<input id="newEmpLast" type="text" value="${escHtml(d.last)}" placeholder="${escHtml(_entityFileLabel(ent))}" oninput="setNewEmpField('last',this.value)" onkeydown="if(event.key==='Enter')createNewEmployeeFromDialog()"></label>
     <label>Wage / hour <span style="color:var(--text3);font-weight:400">(optional)</span><input id="newEmpRate" type="number" step="0.01" min="0" value="${escHtml(d.rate)}" oninput="setNewEmpField('rate',this.value)"></label>
-    <label>Pay method <span style="color:var(--text3);font-weight:400">(optional)</span><select id="newEmpMethod" onchange="setNewEmpField('method',this.value)"><option value="">— set on Payroll —</option>${['cash','deposit','contract'].map(m=>`<option value="${m}" ${d.method===m?'selected':''}>${escHtml(methodLabel(m))}</option>`).join('')}</select></label>
+    <label>Pay method <span style="color:var(--text3);font-weight:400">(optional)</span><select id="newEmpMethod" onchange="setNewEmpField('method',this.value)"><option value="">— set on Payroll —</option>${['cash','deposit','contract','exec'].map(m=>`<option value="${m}" ${d.method===m?'selected':''}>${escHtml(methodLabel(m))}</option>`).join('')}</select></label>
   </div>`;
   h+=`<div id="newEmpPreview" style="margin-top:12px;font-size:13px">${_newEmpPreviewHtml()}</div>`;
   if(!loaded)h+='<div style="font-size:11px;color:var(--amber);margin-top:6px">No settings file loaded yet: the ID is shown as it will be numbered now and is confirmed when last week\'s settings file is loaded.</div>';
@@ -9478,7 +9573,7 @@ function _allocCents(totalCents,weights){
 }
 function entityLaborCost(idx){
   const ent=entities[idx];if(!ent)return null;
-  const data=_collectExportData().find(d=>d.entityId===ent.id);
+  const data=_withoutExec(_collectExportData()).find(d=>d.entityId===ent.id); // FC-00072: Executive PR is not hourly labor
   const days=[...Array(LC_DAYS)].map(()=>({hours:0,people:0,cost:0,hourlyCost:0,hourlyHours:0,sched:0}));
   const grid=Array.from({length:24},()=>Array.from({length:LC_DAYS+1},()=>({cost:0,people:new Set()})));
   const fixed=[],semis=[],outside=[];
@@ -10107,14 +10202,15 @@ function _collectExportData(){
       }else if(method==='cash'){
         const c=roundCash(totalRounded);
         breakdown={method,total:totalRounded,deposit:0,cash:c,final:c,roundedFinal:c,actualFinal:totalRounded,roundingDiff:roundDeposit(c-totalRounded)};
-      }else if(method==='deposit'||method==='contract'){
-        // Contract Check: same math treatment as Deposit — full amount lands in the deposit column.
+      }else if(method==='deposit'||method==='contract'||method==='exec'){
+        // Contract Check: same math treatment as Deposit — full amount lands in the deposit column
+        // (FC-00071: the payroll report shows it in its own Contract Check column).
         const d=roundDeposit(totalRounded);
         breakdown={method,total:totalRounded,deposit:d,cash:0,final:d,roundedFinal:d,actualFinal:totalRounded,roundingDiff:0};
       }else{
         breakdown=_computeBothBreakdown(totalRounded,getSplitMeta(e.id,empName));
       }
-      return Object.assign({},r,{_empName:empName,_breakdown:breakdown,_entityId:e.id,_entityName:entName,_totalPay:totalPay,_wageBlank:wageBlankFlag,_finalPay:_isFinalPay(e.id,r)});
+      return Object.assign({},r,{_empName:empName,_breakdown:breakdown,_entityId:e.id,_entityName:entName,_totalPay:totalPay,_wageBlank:wageBlankFlag,_finalPay:_isFinalPay(e.id,r),_exec:method==='exec'}); // FC-00072
     });
     out.push({entityName:entName,entityId:e.id,rows:enriched});
   });
@@ -10122,16 +10218,18 @@ function _collectExportData(){
 }
 
 function _filterRowsForKind(rows,kind){
+  // FC-00072: Executive PR rows print in their own block under each entity (_execRowsOf).
+  if(kind==='combined')return rows.filter(r=>!r._exec);
   // Contract Check is a non-cash payment: included in Deposit-Only, skipped in Cash-Only.
   if(kind==='cashOnly')return rows.filter(r=>r._breakdown.method==='cash'||r._breakdown.method==='both');
-  if(kind==='depositOnly')return rows.filter(r=>r._breakdown.method==='deposit'||r._breakdown.method==='both'||r._breakdown.method==='contract');
+  if(kind==='depositOnly')return rows.filter(r=>r._breakdown.method==='deposit'||r._breakdown.method==='both'||r._breakdown.method==='contract'||r._breakdown.method==='exec');
   return rows;
 }
 
 // Pay-type ordering for exports: Cash → Cash + Deposit (both) → Deposit → Contract Check.
 // Cash goes first so cash-out totals are easy to read at the top of every section; Contract Check sorts last.
 function _paytypeExportSortFn(a,b){
-  const order={cash:0,both:1,deposit:2,contract:3};
+  const order={cash:0,both:1,deposit:2,contract:3,exec:4};
   const ra=order[a._breakdown.method]==null?99:order[a._breakdown.method];
   const rb=order[b._breakdown.method]==null?99:order[b._breakdown.method];
   return ra-rb;
@@ -10195,7 +10293,7 @@ function _fxCash(t,method,meta){
   return _fxBothCashDecimal(t,req);
 }
 function _fxDeposit(t,method,meta){
-  if(method==='deposit'||method==='contract')return 'ROUND('+t+',2)';
+  if(method==='deposit'||method==='contract'||method==='exec')return 'ROUND('+t+',2)';
   if(method!=='both')return '0';
   const req=+(meta.deposit||0);
   const dec='ROUND('+t+'-'+_fxBothCashDecimal(t,req)+',2)';
@@ -10213,15 +10311,23 @@ function _fxPayBlock(r,n,cols,opts){
   const hourly=!r.isFlat&&r.wage>0&&opts.hoursDrivePay;
   if(hourly){
     out[cols.rate]={v:r.wage,fmt:XL_FMT_MONEY};
-    out[cols.total]={f:_fxPay(ref(cols.hours),ref(cols.rate),r.rounding),r:b.actualFinal,fmt:XL_FMT_MONEY_DASH};
+    if(cols.ot!=null&&b.method==='deposit'){
+      // FC-00070: Over time = the hours over 40; pay = rate × (hours + ½ × over time).
+      out[cols.ot]={f:'MAX(0,ROUND('+ref(cols.hours)+(r.otOutsideH>0?'-'+r.otOutsideH:'')+'-'+OT_THRESHOLD+',2))',r:r.otPaidH||0,fmt:XL_FMT_HOURS_BLANK0}; // review fix: outside-week hours never count toward 40
+      out[cols.total]={f:_fxPay('('+ref(cols.hours)+'+0.5*'+ref(cols.ot)+')',ref(cols.rate),r.rounding),r:b.actualFinal,fmt:XL_FMT_MONEY_DASH};
+    }else if(r.otPaidH>0)out[cols.total]={v:b.actualFinal,fmt:XL_FMT_MONEY_DASH}; // review fix: a layout with no Over time column cannot restate 1.5× pay
+    else out[cols.total]={f:_fxPay(ref(cols.hours),ref(cols.rate),r.rounding),r:b.actualFinal,fmt:XL_FMT_MONEY_DASH};
   }else if(r.isFlat&&opts.flatInRate){
     out[cols.total]={f:'ROUND('+ref(cols.rate)+',2)',r:b.actualFinal,fmt:XL_FMT_MONEY_DASH};
   }else{
     out[cols.total]={v:b.actualFinal,fmt:XL_FMT_MONEY_DASH};
   }
-  if(cols.deposit!=null)out[cols.deposit]={f:_fxDeposit(T,b.method,meta),r:b.deposit,fmt:XL_FMT_MONEY_DASH};
+  // FC-00071: a Contract Check payment goes in its own column when the report has one.
+  const inContract=cols.contract!=null&&b.method==='contract';
+  if(cols.deposit!=null)out[cols.deposit]=inContract?{v:0,fmt:XL_FMT_MONEY_DASH}:{f:_fxDeposit(T,b.method,meta),r:b.deposit,fmt:XL_FMT_MONEY_DASH};
+  if(cols.contract!=null)out[cols.contract]=inContract?{f:'ROUND('+T+',2)',r:b.deposit,fmt:XL_FMT_MONEY_DASH}:{v:0,fmt:XL_FMT_MONEY_DASH};
   if(cols.cash!=null)out[cols.cash]={f:_fxCash(T,b.method,meta),r:b.cash,fmt:XL_FMT_MONEY_DASH};
-  if(cols.final!=null)out[cols.final]={f:'ROUND('+ref(cols.deposit)+'+'+ref(cols.cash)+',2)',r:b.roundedFinal,fmt:XL_FMT_MONEY_DASH};
+  if(cols.final!=null)out[cols.final]={f:'ROUND('+ref(cols.deposit)+'+'+ref(cols.cash)+(cols.contract!=null?'+'+ref(cols.contract):'')+',2)',r:b.roundedFinal,fmt:XL_FMT_MONEY_DASH};
   if(cols.diff!=null)out[cols.diff]={f:'ROUND('+ref(cols.final)+'-'+T+',2)',r:b.roundingDiff||0,fmt:XL_FMT_SIGNED_BLANK0};
   return out;
 }
@@ -10263,9 +10369,563 @@ function _totalCellText(t,v){
 function _totalFmt(t){if(t.hmmOf!=null)return XL_FMT_HMM_BLANK0;if(t.signed)return XL_FMT_SIGNED_BLANK0;return t.hours?(t.blankZero?XL_FMT_HOURS_BLANK0:XL_FMT_HOURS):(t.blankZero?XL_FMT_MONEY_BLANK0:XL_FMT_MONEY)}
 // FC-00059: the payroll report's columns, by name. FC-00065: no H:MM column on the report (the
 // owner hid it on every report); h:mm stays on screen and on the Hours sheet.
-const COMBINED_HEADERS=['Entity','Employee','Method','Hours','Rate','Actual Total','Deposit','Cash','Rounded Final','Diff'];
-const COMBINED_COLS={entity:0,employee:1,method:2,hours:3,rate:4,total:5,deposit:6,cash:7,final:8,diff:9};
-const COMBINED_XL_WIDTHS=[17,22,15,10,9,13,13.41796875,13.05078125,15,10];
+// FC-00070/FC-00071: Over time sits after Hours; Contract Check has its own column when someone on
+// the report is paid that way; Rounded Final and Diff print only when the owner includes them
+// (Tool Settings "Payroll report · Rounded Final and Diff columns", off by default). The arrays and
+// the map are filled in place by _setCombinedLayout, so every writer reads the same layout.
+const COMBINED_HEADERS=[];
+const COMBINED_COLS={};
+const COMBINED_XL_WIDTHS=[];
+const COMBINED_PDF_WIDTHS=[];
+const _COMBINED_COL_DEFS={entity:['Entity',17,100],employee:['Employee',22,130],method:['Method',15,90],hours:['Hours',10,60],ot:['Over time',10,60],rate:['Rate',9,60],total:['Actual Total',13,80],deposit:['Deposit',13.41796875,70],contract:['Contract Check',15,80],cash:['Cash',13.05078125,70],final:['Rounded Final',15,90],diff:['Diff',10,60]};
+function _setCombinedLayout(o){
+  o=o||{};
+  const keys=['entity','employee','method','hours','ot','rate','total','deposit'].concat(o.contract?['contract']:[],['cash'],o.finalDiff?['final','diff']:[]);
+  COMBINED_HEADERS.length=0;COMBINED_XL_WIDTHS.length=0;COMBINED_PDF_WIDTHS.length=0;
+  Object.keys(COMBINED_COLS).forEach(k=>delete COMBINED_COLS[k]);
+  keys.forEach((k,i)=>{const d=_COMBINED_COL_DEFS[k];COMBINED_HEADERS.push(d[0]);COMBINED_COLS[k]=i;COMBINED_XL_WIDTHS.push(d[1]);COMBINED_PDF_WIDTHS.push(d[2]);});
+  return keys;
+}
+// Width of a report column by its header (an editable copy keeps the columns it was made with).
+function _combinedWidthOf(header,pdf){const k=Object.keys(_COMBINED_COL_DEFS).find(x=>_COMBINED_COL_DEFS[x][0]===header);const d=k?_COMBINED_COL_DEFS[k]:null;return d?(pdf?d[2]:d[1]):(pdf?70:13);}
+_setCombinedLayout({});
+function reportShowsFinalDiff(){return /^incl/i.test(String(getToolSetting('reportFinalDiff')||''));}
+function setReportFinalDiff(on){
+  const ch=setToolSetting('reportFinalDiff',on?'Include':'Leave out','payroll');
+  if(!_simulating){renderDownloadsPanel();renderFc00013PreviewPanel();}
+  return ch;
+}
+
+// ================================================================
+// FC-00073 — the run's two pay dates, and each person's accountant details
+// ================================================================
+// Deposit (Deposit, the deposit part of Deposit + Cash, Executive PR) is paid on the date in the
+// accountant's file; Cash and Contract Check on the Friday after the pay week. Both can be changed
+// by hand behind a warning. Kept in session.toolSettings under the run's week, so Undo, History
+// and the snapshot carry them; never written to the settings file (a date belongs to one week).
+function _runWeekIsos(){
+  const e=entities.find(x=>x.dateLabels&&x.dateLabels[0]&&x.dateLabels[6]);
+  if(!e)return null;
+  const a=schedLabelToIso(e.dateLabels[0]),b=schedLabelToIso(e.dateLabels[6]);
+  return a&&b?{start:a,end:b}:null;
+}
+function _fridayAfter(iso){let d=_isoAddDays(iso,1);while(new Date(d+'T00:00:00').getDay()!==5)d=_isoAddDays(d,1);return d;}
+const PAY_DATE_KINDS={deposit:'Deposit',cash:'Cash and Contract Check'};
+const PAY_DATE_WARNING={
+  deposit:'This is the day the accountant pays every deposit: Deposit, the deposit part of Deposit + Cash, and Executive PR. It comes from the accountant\'s file. Change it only if the accountant changed it.',
+  cash:'This is the day Cash and Contract Check are paid: the Friday after the pay week. Change it only if pay day really moves.'
+};
+function _payDateKey(kind,run){return 'payDate:'+kind+'|'+run;}
+function payDates(){
+  const wk=_runWeekIsos();
+  if(!wk)return{run:null,end:null,deposit:null,cash:null};
+  const get=k=>{const m=/^(\d{4}-\d{2}-\d{2})\|(file|hand)$/.exec(String((session.toolSettings||{})[_payDateKey(k,wk.start)]||''));return m?{iso:m[1],src:m[2]}:null;};
+  return{run:wk.start,end:wk.end,deposit:get('deposit'),cash:get('cash')||{iso:_fridayAfter(wk.end),src:'auto'}};
+}
+function _setPayDate(kind,iso,src){
+  const wk=_runWeekIsos();if(!wk||!PAY_DATE_KINDS[kind])return false;
+  return setToolSetting(_payDateKey(kind,wk.start),iso?iso+'|'+src:'','payroll');
+}
+function _fmtPayDate(iso){
+  const m=/^(\d{4})-(\d{2})-(\d{2})$/.exec(iso||'');if(!m)return'';
+  return['Sun','Mon','Tue','Wed','Thu','Fri','Sat'][new Date(iso+'T00:00:00').getDay()]+' '+m[2]+'/'+m[3]+'/'+m[1].slice(2);
+}
+// The owner changes a pay date by hand: a warning first, then the date is kept for this run.
+function setPayDateByHand(kind,iso){
+  if(!PAY_DATE_KINDS[kind])return false;
+  iso=String(iso||'').trim();
+  if(iso&&!/^\d{4}-\d{2}-\d{2}$/.test(iso)){showToast('Pick a date','err');return false;}
+  const p=payDates();
+  if(!p.run){showToast('Load a schedule with dates first: pay dates belong to the pay week','err');return false;}
+  const cur=p[kind];
+  if((cur?cur.iso:'')===iso)return false;
+  const to=iso?_fmtPayDate(iso):(kind==='cash'?_fmtPayDate(_fridayAfter(p.end))+' (the Friday after the week)':'not set');
+  if(!confirm('⚠ '+PAY_DATE_KINDS[kind]+' pay date\n\n'+PAY_DATE_WARNING[kind]+'\n\nChange it from '+(cur?_fmtPayDate(cur.iso):'not set')+' to '+to+'?')){
+    if(!_simulating)renderDownloadsPanel();
+    return false;
+  }
+  const ok=_setPayDate(kind,iso,'hand');
+  if(!_simulating){renderDownloadsPanel();renderFc00013PreviewPanel();}
+  return ok;
+}
+function _payDatesLine(){
+  const p=payDates();if(!p.run)return'';
+  return'Pay dates · Deposit: '+(p.deposit?_fmtPayDate(p.deposit.iso):'not set')+' · Cash and Contract Check: '+_fmtPayDate(p.cash.iso);
+}
+// Each person's name, employment type, section and standing note as the accountant has them.
+// Kept on the roster record (acct_name, acct_type, acct_section, acct_note) and in the settings
+// file's Payroll Settings. acct_section is set only when the accountant files the person under
+// another entity's section than the one they work in.
+const ACCT_FIELDS=['acct_name','acct_type','acct_section','acct_note'];
+function _normAcctType(v){const t=String(v==null?'':v).trim();if(!t)return'';if(/1099/.test(t))return'1099';if(/^w-?2$/i.test(t))return'W2';return t.toUpperCase();}
+function _acctRec(entId,empName){return _resolveRecordNoMint(entId,empName);}
+function getAcctField(entId,empName,f){const r=_acctRec(entId,empName);return r&&r[f]!=null?String(r[f]):'';}
+function setAcctField(entId,empName,f,val,screen){
+  if(!ACCT_FIELDS.includes(f))return false;
+  const rec=_acctRec(entId,empName);if(!rec)return false;
+  let v=String(val==null?'':val).replace(/\s+/g,' ').trim();
+  if(f==='acct_type')v=_normAcctType(v);
+  if(f==='acct_section')v=v.toUpperCase();
+  const from=rec[f];
+  if(from!==undefined&&String(from)===v)return false;
+  dispatch({type:'rosterFieldSet',screen:screen||'payroll',target:{kind:'employee',entity:entId,id:rec.id,field:f},from,to:v,meta:{empName:rec.canonical_name}});
+  return true;
+}
+
+// ================================================================
+// FC-00074 — the accountant's weekly file, written by the tool
+// ================================================================
+// One sheet laid out like the accountant's own: Pay Period and Pay date on top, then one section
+// per entity (e.g. ALPHA VENTURES) with Employee ID, Employee Name, EMPLOYMENT TYPE, Hours (up to 40),
+// Over time, Pay Rate, Salary, Gross Total (=H+Q+R), Notes, and the hidden P–R overtime formulas.
+// Only people paid by deposit are on it: Deposit (hours), Deposit + Cash (Salary = the deposit
+// part) and Executive PR (Salary = the weekly amount). Inactive people are not.
+const ACCT_NUMFMT='_(* #,##0.00_);_(* \\(#,##0.00\\);_(* "-"??_);_(@_)';
+function _acctSectionList(){
+  return String(getToolSetting('acctSections')||'').split(/\s*;\s*/).map(x=>{const m=/^([A-Za-z0-9]{2,6})\s*=\s*(.+)$/.exec(x.trim());return m?{code:m[1].toUpperCase(),name:m[2].trim().toUpperCase()}:null;}).filter(Boolean);
+}
+function acctSectionOf(ent){
+  const hit=_acctSectionList().find(x=>x.code===_entityCodeFor(ent.id));
+  if(hit)return hit.name;
+  return((String(ent.name||'').trim().split(/\s+/)[0])||'ENTITY').toUpperCase()+' VENTURES';
+}
+// The section a person is filed under: their own (acct_section) or their entity's.
+function _acctSectionOfRec(rec){
+  if(!rec)return'';
+  if(rec.acct_section)return String(rec.acct_section).toUpperCase();
+  const ent=entities.find(e=>e.id===rec.entity);
+  return ent?acctSectionOf(ent):'';
+}
+function _acctSaveSections(pairs){ // [{entId,name}] in the file's order; other entities keep theirs
+  const list=_acctSectionList();
+  const codes=pairs.map(p=>_entityCodeFor(p.entId));
+  const out=pairs.map(p=>({code:_entityCodeFor(p.entId),name:String(p.name).toUpperCase()})).concat(list.filter(x=>!codes.includes(x.code)));
+  return setToolSetting('acctSections',out.map(x=>x.code+'='+x.name).join('; '),'payroll');
+}
+function _acctPeriodText(){const wk=_runWeekIsos();if(!wk)return'';const f=iso=>iso.slice(5,7)+'-'+iso.slice(8,10)+'-'+iso.slice(2,4);return f(wk.start)+' to '+f(wk.end);}
+// The file's rows from this run's payroll, by section.
+function acctFileModel(){
+  const prev=_exportScope;_exportScope=null;
+  let data;try{data=_collectExportData();}finally{_exportScope=prev;}
+  const bySec=new Map();
+  data.forEach(d=>{
+    const ent=entities.find(e=>e.id===d.entityId);if(!ent)return;
+    d.rows.forEach(r=>{
+      const m=r._breakdown.method;
+      if(m!=='deposit'&&m!=='both'&&m!=='exec')return;
+      const rec=_acctRec(ent.id,r._empName);
+      const hourly=m==='deposit'&&!r.isFlat;
+      const ot=hourly?(r.otPaidH||0):0;
+      const hours=hourly?_r2((r.actualHours||0)-ot):0;
+      const rate=hourly?(r._wageBlank?0:(r.wage||0)):0;
+      const salary=hourly?0:(r._breakdown.deposit||0);
+      const typed=rec?_normAcctType(rec.acct_type):'';
+      const sec=rec?_acctSectionOfRec(rec):acctSectionOf(ent);
+      if(!bySec.has(sec))bySec.set(sec,[]);
+      bySec.get(sec).push({entityId:ent.id,entityName:ent.name||'',empName:r._empName,recId:rec?rec.id:'',name:(rec&&rec.acct_name)||_savedNameFor(ent.id,r._empName),
+        kind:m==='exec'?'exec':(m==='both'?'split':(hourly?'hourly':'flat')),type:typed||'W2',typeSet:!!typed,hours,ot,rate,salary,section:sec,
+        gross:Math.round((salary+hours*rate+ot*rate*1.5)*100)/100,note:(rec&&rec.acct_note)||'',noRate:hourly&&!!r._wageBlank,method:m});
+    });
+  });
+  // Section order: the accountant's (saved from their file), then the entities' order.
+  const named=_acctSectionList().map(x=>x.name);
+  const entOrder=entities.map(acctSectionOf);
+  const rank=n=>{const i=named.indexOf(n);if(i>=0)return i;const j=entOrder.indexOf(n);return 100+(j<0?99:j);};
+  const sections=[...bySec.keys()].sort((a,b)=>rank(a)-rank(b)||a.localeCompare(b)).map(name=>{
+    const rows=bySec.get(name);
+    // Row order: the accountant's own when their file is loaded, new people after; else A–Z.
+    const fs=_acctFile&&_acctFile.sections.find(x=>_aliasNorm(x.name)===_aliasNorm(name));
+    const pos=new Map();
+    if(fs)fs.rows.forEach((x,i)=>{const mm=_acctMatchRow(name,x.name);if(mm.rec&&!pos.has(mm.rec.id))pos.set(mm.rec.id,i);});
+    rows.sort((a,b)=>{const pa=pos.has(a.recId)?pos.get(a.recId):1e6,pb=pos.has(b.recId)?pos.get(b.recId):1e6;return pa-pb||a.name.toLowerCase().localeCompare(b.name.toLowerCase());});
+    return{name,rows};
+  });
+  return{period:_acctPeriodText(),payDate:payDates().deposit,sections,bonus:_acctFile&&_acctFile.bonus?_acctFile.bonus:null};
+}
+async function exportAccountantFile(){
+  if(!_payrollGateOk(()=>exportAccountantFile()))return; // FC-00049: a payroll document asks first
+  if(!_confirmBreaksOrBail())return;
+  const M=acctFileModel();
+  if(!M.sections.length){if(!_dlCapture)alert('No one is paid by deposit this week, so there is no accountant file.');return;}
+  const wb=_xlFormulaWorkbook();
+  const ws=wb.addWorksheet('Sheet2');
+  const thin={style:'thin',color:{argb:'FF000000'}},med={style:'medium',color:{argb:'FF000000'}};
+  const gold={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFD966'}},white={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFFFFF'}};
+  const font=(b)=>({name:'Calibri',size:11,bold:!!b,color:{argb:'FF000000'}});
+  [2.28515625,12.140625,19.85546875,21.7109375,10.7109375,11.28515625,10,9.5703125,12.28515625,78.7109375].forEach((w,i)=>{ws.getColumn(i+1).width=w;});
+  [[16,15],[17,16.85546875],[18,18.7109375]].forEach(([c,w])=>{const col=ws.getColumn(c);col.width=w;col.hidden=true;});
+  // Row 1: Pay Period and Pay date.
+  const top=ws.addRow(['','Pay Period',M.period,'Pay date',M.payDate?_isoToExcelDate(M.payDate.iso):'']);
+  [2,3,4,5].forEach(c=>{const x=top.getCell(c);x.font=font(c===2||c===4);x.border={top:thin,left:thin,bottom:thin,right:thin};if(c===2||c===4)x.fill=gold;});
+  top.getCell(5).numFmt='mm-dd-yy';
+  ws.addRow([]);
+  const bands=[];
+  const align={2:'center',3:'left',4:'left',5:'right',6:'right',7:'right',8:'center',9:'center',10:'left',16:'right',17:'right',18:'right'};
+  M.sections.forEach((sec,si)=>{
+    if(si>0){ws.addRow([]);ws.addRow([]);}
+    const t=ws.addRow(['',sec.name]);
+    ws.mergeCells(t.number,2,t.number,10);
+    const tc=t.getCell(2);tc.font=font(true);tc.fill=gold;tc.alignment={horizontal:'center'};tc.border={top:med,left:med,right:med,bottom:thin};
+    const h=ws.addRow(['','Employee ID','Employee Name','EMPLOYMENT TYPE','Hours','Over time','Pay Rate','Salary','Gross Total','Notes','','','','','','Overtime rate','Regular Amount','Overtime Amount']);
+    h.eachCell((c,ci)=>{if(ci<2||(ci>10&&ci<16))return;c.font=font(true);c.fill=white;c.alignment={horizontal:align[ci]};c.border={top:thin,bottom:thin,left:ci===2?med:thin,right:ci===10?med:thin};if(ci>2&&ci<=10)c.numFmt=ACCT_NUMFMT;});
+    const first=h.number;
+    sec.rows.forEach(r=>{
+      const x=ws.addRow(['','',r.name,r.type==='1099'?1099:r.type,r.hours,r.ot,r.rate,r.salary,'',r.note]);
+      const n=x.number;
+      x.getCell(9).value={formula:'+H'+n+'+Q'+n+'+R'+n,result:r.gross};
+      x.getCell(16).value={formula:'+G'+n+'*1.5',result:Math.round(r.rate*1.5*100)/100};
+      x.getCell(17).value={formula:'+E'+n+'*G'+n,result:Math.round(r.hours*r.rate*100)/100};
+      x.getCell(18).value={formula:'+P'+n+'*F'+n,result:Math.round(r.rate*1.5*r.ot*100)/100};
+      for(let ci=2;ci<=18;ci++){
+        if(ci>10&&ci<16)continue;
+        const c=x.getCell(ci);
+        c.font=font(false);c.alignment={horizontal:align[ci]};
+        c.border={top:thin,bottom:thin,left:ci===2?med:thin,right:ci===10?med:thin};
+        c.numFmt=ci>=16?'0.00':(ci===2?'General':ACCT_NUMFMT);
+      }
+    });
+    bands.push('B'+first+':J'+(first+sec.rows.length),'P'+first+':R'+(first+sec.rows.length));
+  });
+  // The accountant's bonus block, carried over from their file as it was.
+  if(M.bonus&&M.bonus.rows&&M.bonus.rows.length){
+    ws.addRow([]);
+    let firstB=0,lastB=0;
+    const w=Math.max(4,M.bonus.width||4);
+    M.bonus.rows.forEach((vals,i)=>{
+      const x=ws.addRow(vals.map(v=>v==null?'':v));
+      if(!firstB)firstB=x.number;lastB=x.number;
+      for(let ci=2;ci<=w;ci++){
+        const c=x.getCell(ci);
+        c.font=font(i<2||/total/i.test(String(vals[2]||'')));
+        c.border={top:thin,bottom:thin,left:ci===2?med:thin,right:ci===w?med:thin};
+        c.numFmt=ci===2?'General':ACCT_NUMFMT;
+        if(i===0){c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFFFF2CC'}};c.alignment={horizontal:'center'};}
+      }
+      if(i===0){try{ws.mergeCells(x.number,2,x.number,w);}catch(_){}}
+    });
+    if(firstB)bands.push('B'+(firstB+1)+':'+_xlCol(w-1)+lastB);
+  }
+  if(typeof ws.addConditionalFormatting==='function')bands.forEach(ref=>ws.addConditionalFormatting({ref,rules:[{type:'expression',formulae:['MOD(ROW(),2)=0'],style:{fill:{type:'pattern',pattern:'solid',bgColor:{argb:'FFEDEDED'}}}}]}));
+  const fname=_fileStem()+'_AccountantFile.xlsx';
+  downloadBlob(await wb.xlsx.writeBuffer(),fname);
+  if(!_dlCapture)showToast('Exported '+fname,'ok');
+}
+
+// ================================================================
+// FC-00075 — load the accountant's file: match it, take the pay date, list every difference
+// ================================================================
+let _acctFile=null; // {fileName, period, payDate, sections:[{name, entityId, rows:[{name,type,hours,ot,rate,salary,note,skip}]}], bonus}
+_registerSnapshotPart('acctFile',()=>_acctFile?_cloneState(_acctFile):null,v=>{_acctFile=v&&typeof v==='object'?_cloneState(v):null;});
+function _acctDateIso(v){
+  const p=x=>String(x).padStart(2,'0');
+  if(typeof v==='number'&&v>20000&&v<90000){const d=new Date(Date.UTC(1899,11,30)+Math.round(v)*86400000);return d.getUTCFullYear()+'-'+p(d.getUTCMonth()+1)+'-'+p(d.getUTCDate());}
+  if(v instanceof Date&&!isNaN(v))return v.getFullYear()+'-'+p(v.getMonth()+1)+'-'+p(v.getDate());
+  const m=/^\s*(\d{1,2})[-\/](\d{1,2})[-\/](\d{2}|\d{4})\s*$/.exec(String(v==null?'':v));
+  if(m){const y=m[3].length===2?'20'+m[3]:m[3];return y+'-'+p(m[1])+'-'+p(m[2]);}
+  const i=/^\s*(\d{4})-(\d{2})-(\d{2})/.exec(String(v==null?'':v));
+  return i?i[1]+'-'+i[2]+'-'+i[3]:'';
+}
+// rows: the sheet as arrays (A = index 0), raw values. Returns the file's parts.
+function parseAccountantRows(rows){
+  const out={period:'',payDate:'',sections:[],bonus:null};
+  const txt=v=>v==null?'':String(v).replace(/\s+/g,' ').trim();
+  const num=v=>{if(typeof v==='number')return v;const t=String(v==null?'':v).replace(/[$,\s]/g,'');if(!t||t==='-')return 0;const n=parseFloat(t);return isNaN(n)?0:n;};
+  let cur=null,cols=null,lastTitle='',bonusAt=-1;
+  rows=rows||[];
+  for(let i=0;i<rows.length;i++){
+    const row=rows[i]||[];
+    const cells=row.map(txt),lc=cells.map(c=>c.toLowerCase());
+    const pp=lc.indexOf('pay period'),pd=lc.indexOf('pay date');
+    if(pp>=0&&!out.period)out.period=cells.slice(pp+1).find(c=>c&&!/^pay date$/i.test(c))||'';
+    if(pd>=0&&!out.payDate){for(let j=pd+1;j<row.length;j++){const iso=_acctDateIso(row[j]);if(iso){out.payDate=iso;break;}}}
+    if(pp>=0||pd>=0)continue;
+    const filled=cells.map((c,j)=>c?j:-1).filter(j=>j>=0);
+    if(!filled.length)continue;
+    if(lc.indexOf('employee name')>=0){
+      cols={};
+      lc.forEach((c,j)=>{
+        if(c==='employee id')cols.id=j;else if(c==='employee name')cols.name=j;else if(/employment type/.test(c))cols.type=j;
+        else if(c==='hours')cols.hours=j;else if(/^over ?time$/.test(c))cols.ot=j;else if(c==='pay rate'||c==='rate')cols.rate=j;
+        else if(c==='salary')cols.salary=j;else if(/^gross/.test(c))cols.gross=j;else if(c==='notes'||c==='note')cols.note=j;else if(/bonus/.test(c))cols.bonus=j;
+      });
+      if(cols.bonus!=null){bonusAt=i;break;}
+      cur={name:lastTitle.toUpperCase(),rows:[]};out.sections.push(cur);
+      continue;
+    }
+    // A title row: one text cell, outside the name column of the section above.
+    if(filled.length===1&&typeof row[filled[0]]==='string'&&/[A-Za-z]/.test(cells[filled[0]])&&(!cols||filled[0]!==cols.name)){
+      lastTitle=cells[filled[0]];
+      if(/bonus/i.test(lastTitle)){bonusAt=i;break;}
+      cur=null;continue;
+    }
+    if(!cur||!cols||cols.name==null)continue;
+    const name=cells[cols.name];
+    if(!name)continue; // spare rows hold zeros and formulas only
+    const rawNote=cols.note!=null?row[cols.note]:'';
+    cur.rows.push({row:i+1,name,type:_normAcctType(cols.type!=null?row[cols.type]:''),hours:num(row[cols.hours]),ot:num(row[cols.ot]),rate:num(row[cols.rate]),salary:num(row[cols.salary]),
+      note:typeof rawNote==='number'?(rawNote?String(rawNote):''):txt(rawNote)});
+  }
+  if(bonusAt>=0){
+    // Carried as it is: the title row and every row after it, each cell in its own column.
+    let last=bonusAt;for(let i=bonusAt;i<rows.length;i++)if((rows[i]||[]).some(v=>txt(v)))last=i;
+    let width=0;
+    for(let i=bonusAt;i<=last;i++){const r=rows[i]||[];for(let j=r.length-1;j>=0;j--)if(txt(r[j])){width=Math.max(width,j+1);break;}}
+    out.bonus={width,rows:rows.slice(bonusAt,last+1).map(r=>{const a=(r||[]).slice(0,width);while(a.length<width)a.push(null);return a.map(v=>v==null?null:(typeof v==='number'||typeof v==='string'?v:String(v)));})};
+  }
+  return out;
+}
+function _acctEntityForSection(name){
+  const n=_aliasNorm(name);
+  const hit=_acctSectionList().find(x=>_aliasNorm(x.name)===n);
+  if(hit){const e=entities.find(x=>_entityCodeFor(x.id)===hit.code);if(e)return e;}
+  const w=n.split(' ')[0];
+  const c=entities.filter(e=>_aliasNorm(e.name||'').split(' ')[0]===w);
+  return c.length===1?c[0]:null;
+}
+function _acctAllPeople(){return Object.values(session.roster.byId).filter(r=>r&&r.canonical_name&&entities.some(e=>e.id===r.entity));}
+// Live match of one accountant row to a person filed under that section: their saved accountant
+// name first, then their saved name or an alias. Never a guess: a suggestion only fills the box
+// the owner confirms (it may be someone from another entity's section).
+function _acctMatchRow(section,name){
+  const n=_aliasNorm(name),sec=_aliasNorm(section);
+  const all=_acctAllPeople(),c=all.filter(r=>_aliasNorm(_acctSectionOfRec(r))===sec);
+  let hit=c.filter(r=>r.acct_name&&_aliasNorm(r.acct_name)===n);
+  if(hit.length===1)return{rec:hit[0],how:'saved'};
+  hit=c.filter(r=>!r.acct_name&&(_aliasNorm(r.canonical_name)===n||(r.aliases||[]).some(a=>_aliasNorm(a)===n)));
+  if(hit.length===1)return{rec:hit[0],how:'name'};
+  const W=x=>_aliasNorm(x).split(/[^a-z0-9]+/).filter(w=>w.length>1);
+  const words=W(name);
+  const score=r=>{const cw=W(r.canonical_name).concat(...(r.aliases||[]).map(W));return words.filter(x=>cw.includes(x)).length;};
+  // Only someone not yet tied to another accountant name can be suggested.
+  const pool=all.filter(r=>!r.acct_name);
+  let best=null,bs=0,tie=false;
+  pool.forEach(r=>{const sc=score(r)+(c.includes(r)?0.5:0);if(sc>bs){best=r;bs=sc;tie=false;}else if(sc&&sc===bs)tie=true;});
+  return{rec:null,suggest:bs>=1&&!tie?best:null};
+}
+function loadAccountantFileInput(inp){const f=inp&&inp.files&&inp.files[0];if(inp)inp.value='';if(f)loadAccountantFile(f);}
+function loadAccountantFile(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,raw:true,defval:null});
+      // The sheet's used range may start after A1 (theirs starts at B1); line the cells up so
+      // index 0 is column A and row 0 is row 1, as the bonus block is written back in place.
+      const rg=ws['!ref']?XLSX.utils.decode_range(ws['!ref']):{s:{r:0,c:0}};
+      const lead=new Array(rg.s.c).fill(null);
+      const grid=new Array(rg.s.r).fill(null).map(()=>[]).concat(rows.map(r=>lead.concat(r||[])));
+      applyAccountantFile(parseAccountantRows(grid),file.name||'accountant file');
+    }catch(err){alert('Could not read the accountant\'s file: '+err.message);}
+  };
+  reader.readAsArrayBuffer(file);
+}
+// Keeps the parsed file, matches it, and takes from it what the accountant decides: the pay
+// date, each person's spelling and employment type, and (for someone never given one) the note.
+function applyAccountantFile(parsed,fileName){
+  if(!parsed||!parsed.sections.length){alert('This does not look like the accountant\'s file: no section with an "Employee Name" header was found.');return null;}
+  const f={fileName:fileName||'',period:parsed.period||'',payDate:parsed.payDate||'',bonus:parsed.bonus||null,
+    sections:parsed.sections.map(sec=>{const e=_acctEntityForSection(sec.name);return{name:sec.name,entityId:e?e.id:null,rows:sec.rows.map(r=>Object.assign({},r))};})};
+  const taken={payDate:false};
+  _withCheckpoint('Load the accountant\'s file',()=>{
+    _acctFile=f;
+    const pairs=f.sections.filter(s=>s.entityId!=null).map(s=>({entId:s.entityId,name:s.name}));
+    if(pairs.length)_acctSaveSections(pairs);
+    f.sections.forEach(sec=>sec.rows.forEach(row=>_acctTakeFromRow(sec.name,row)));
+    const p=payDates();
+    if(f.payDate&&p.run&&!(p.deposit&&p.deposit.src==='hand')&&!(p.deposit&&p.deposit.iso===f.payDate)){_setPayDate('deposit',f.payDate,'file');taken.payDate=true;}
+  });
+  if(_acctFile!==f)return null; // an OCR run was still going: nothing was loaded
+  if(!_simulating){renderDownloadsPanel();renderFc00013PreviewPanel();}
+  const c=acctCompare();
+  showToast('Loaded '+(fileName||'the accountant\'s file')+(taken.payDate?' · deposit pay date '+_fmtPayDate(f.payDate):'')+(c&&c.count?' · '+c.count+' thing'+(c.count===1?'':'s')+' to look at':' · matches'),c&&c.count?'err':'ok');
+  return f;
+}
+// From one matched row: the accountant's spelling and employment type; their note when the person
+// has never had one (after that, notes that differ are listed and the owner chooses).
+function _acctTakeFromRow(section,row){
+  const m=_acctMatchRow(section,row.name);if(!m.rec)return false;
+  const rec=m.rec,e=rec.entity,nm=rec.canonical_name;
+  if(rec.acct_name!==row.name)setAcctField(e,nm,'acct_name',row.name,'accountant');
+  if(row.type&&_normAcctType(rec.acct_type)!==row.type)setAcctField(e,nm,'acct_type',row.type,'accountant');
+  if(rec.acct_note===undefined&&row.note)setAcctField(e,nm,'acct_note',row.note,'accountant');
+  return true;
+}
+// The owner's answer for a row the tool could not match: a person (of any entity), "__exec__"
+// (add them as Executive PR with the accountant's weekly amount) or "__skip__" (leave them off).
+function acctMatchRow(si,ri,choice){
+  const sec=_acctFile&&_acctFile.sections[si],row=sec&&sec.rows[ri];
+  if(!row||!choice)return false;
+  if(choice==='__skip__'){row.skip=true;}
+  else{
+    let rec=null;
+    if(choice==='__exec__'){
+      const ent=entities.find(e=>e.id===sec.entityId);
+      if(!ent){showToast('Choose which entity '+sec.name+' is first','err');return false;}
+      rec=addNewEmployee(entities.indexOf(ent),row.name,null,{method:'exec',flat:row.salary||0});
+      if(!rec)return false;
+    }else{
+      rec=session.roster.byId[choice];
+      if(!rec||!entities.some(e=>e.id===rec.entity))return false;
+    }
+    const e=rec.entity,nm=rec.canonical_name;
+    // One person per accountant name in a section: whoever had this spelling before gives it up.
+    _acctAllPeople().forEach(o=>{if(o!==rec&&o.acct_name&&_aliasNorm(o.acct_name)===_aliasNorm(row.name)&&_aliasNorm(_acctSectionOfRec(o))===_aliasNorm(sec.name))setAcctField(o.entity,o.canonical_name,'acct_name','','accountant');});
+    setAcctField(e,nm,'acct_name',row.name,'accountant');
+    const ent=entities.find(x=>x.id===e);
+    // Filed under another entity's section (e.g. works at one store, employed by another).
+    if(ent&&_aliasNorm(acctSectionOf(ent))!==_aliasNorm(sec.name))setAcctField(e,nm,'acct_section',sec.name,'accountant');
+    else if(rec.acct_section)setAcctField(e,nm,'acct_section','','accountant');
+    if(row.type)setAcctField(e,nm,'acct_type',row.type,'accountant');
+    if(rec.acct_note===undefined&&row.note)setAcctField(e,nm,'acct_note',row.note,'accountant');
+    delete row.skip;
+  }
+  if(!_simulating){renderDownloadsPanel();renderFc00013PreviewPanel();}
+  return true;
+}
+function acctSetSectionEntity(si,entId){
+  const sec=_acctFile&&_acctFile.sections[si];if(!sec)return false;
+  const ent=entities.find(e=>String(e.id)===String(entId));if(!ent)return false;
+  sec.entityId=ent.id;
+  _acctSaveSections([{entId:ent.id,name:sec.name}]);
+  sec.rows.forEach(row=>_acctTakeFromRow(sec.name,row));
+  if(!_simulating)renderDownloadsPanel();
+  return true;
+}
+function acctUseTheirNote(si,ri){
+  const sec=_acctFile&&_acctFile.sections[si],row=sec&&sec.rows[ri];if(!row)return false;
+  const m=_acctMatchRow(sec.name,row.name);if(!m.rec)return false;
+  const ok=setAcctField(m.rec.entity,m.rec.canonical_name,'acct_note',row.note||'','accountant');
+  if(!_simulating)renderDownloadsPanel();
+  return ok;
+}
+function acctUseAllTheirNotes(){
+  let n=0;
+  (_acctFile?_acctFile.sections:[]).forEach(sec=>sec.rows.forEach(row=>{const m=_acctMatchRow(sec.name,row.name);if(m.rec&&(m.rec.acct_note||'')!==(row.note||'')&&setAcctField(m.rec.entity,m.rec.canonical_name,'acct_note',row.note||'','accountant'))n++;}));
+  if(!_simulating)renderDownloadsPanel();
+  return n;
+}
+function clearAccountantFile(){_acctFile=null;if(!_simulating){renderDownloadsPanel();renderFc00013PreviewPanel();}}
+// Everything that does not match between the accountant's file and ours.
+function acctCompare(){
+  const f=_acctFile;if(!f)return null;
+  const M=acctFileModel();
+  const ours=new Map();M.sections.forEach(s=>s.rows.forEach(r=>{if(r.recId)ours.set(r.recId,r);}));
+  const res={period:null,payDate:null,unknownSections:[],unmatched:[],rows:[],missing:[],count:0};
+  const op=_acctPeriodText(),dig=x=>String(x||'').replace(/\D+/g,'');
+  if(op&&f.period&&dig(op)!==dig(f.period))res.period={file:f.period,ours:op};
+  const pd=payDates();
+  if(f.payDate&&pd.deposit&&pd.deposit.iso!==f.payDate)res.payDate={file:f.payDate,ours:pd.deposit.iso,src:pd.deposit.src};
+  const hasHours=f.sections.some(s=>s.rows.some(r=>r.hours>0||r.ot>0));
+  const seen=new Set();
+  f.sections.forEach((sec,si)=>{
+    if(sec.entityId==null&&!_acctAllPeople().some(r=>_aliasNorm(_acctSectionOfRec(r))===_aliasNorm(sec.name)))res.unknownSections.push({si,name:sec.name});
+    sec.rows.forEach((row,ri)=>{
+      const base={si,ri,section:sec.name,name:row.name};
+      if(row.skip){res.rows.push(Object.assign(base,{kind:'skip',items:['Left off our file this week (your choice)']}));return;}
+      const m=_acctMatchRow(sec.name,row.name);
+      if(!m.rec){res.unmatched.push(Object.assign(base,{suggest:m.suggest?m.suggest.id:'',salary:row.salary,rate:row.rate}));return;}
+      seen.add(m.rec.id);
+      const o=ours.get(m.rec.id),items=[];
+      const who=m.rec.canonical_name,e=m.rec.entity;
+      if(!o){
+        const meth=getPayMethod(e,who);
+        const why=!isRosterActive(e,who)?'inactive in the tool':(meth==='deposit'||meth==='both'||meth==='exec'?'not paid this week':'paid '+methodLabel(meth)+' in the tool');
+        res.rows.push(Object.assign(base,{kind:'off',person:who,items:['On the accountant\'s file, not on ours: '+why+'. Our file leaves them off.']}));return;
+      }
+      if(o.kind==='hourly'){
+        if(Math.abs((row.rate||0)-(o.rate||0))>=0.005)items.push('Pay rate: accountant '+_fmtUsd(row.rate||0)+', tool '+(o.noRate?'none':_fmtUsd(o.rate||0)));
+        if((row.salary||0)>=0.005)items.push('Salary: accountant '+_fmtUsd(row.salary)+', tool none (hourly)');
+      }else{
+        if(Math.abs((row.salary||0)-(o.salary||0))>=0.005)items.push((o.kind==='exec'?'Weekly amount':'Salary')+': accountant '+_fmtUsd(row.salary||0)+', ours '+_fmtUsd(o.salary||0)+(o.kind==='split'?' (the deposit part of Deposit + Cash)':''));
+        if((row.rate||0)>=0.005)items.push('Pay rate: accountant '+_fmtUsd(row.rate)+', ours none ('+(o.kind==='exec'?'Executive PR':o.kind==='split'?'Deposit + Cash':'flat')+')');
+      }
+      if(row.type&&o.typeSet&&row.type!==o.type)items.push('Employment type: accountant '+row.type+', ours '+o.type);
+      if(hasHours&&(Math.abs((row.hours||0)-(o.hours||0))>=0.005||Math.abs((row.ot||0)-(o.ot||0))>=0.005))items.push('Hours: accountant '+(row.hours||0).toFixed(2)+(row.ot?' + '+row.ot.toFixed(2)+' over time':'')+', ours '+o.hours.toFixed(2)+(o.ot?' + '+o.ot.toFixed(2)+' over time':''));
+      const noteDiff=(row.note||'')!==(o.note||'');
+      if(items.length||noteDiff)res.rows.push(Object.assign(base,{kind:'diff',person:who,items,note:noteDiff?{theirs:row.note||'',ours:o.note||''}:null}));
+    });
+  });
+  M.sections.forEach(s=>s.rows.forEach(r=>{if(r.recId&&!seen.has(r.recId))res.missing.push({section:s.name,name:r.name,person:_savedNameFor(r.entityId,r.empName),kind:r.kind});}));
+  res.count=(res.period?1:0)+(res.payDate?1:0)+res.unknownSections.length+res.unmatched.length+res.rows.filter(x=>x.kind!=='skip').length+res.missing.length;
+  return res;
+}
+function _acctStatusReasons(){
+  const out=[];
+  const M=acctFileModel();
+  if(!M.sections.length){out.push('No one is paid by deposit this week');return out;}
+  const p=payDates();
+  if(!p.run)out.push('No schedule dates: the pay period is unknown');
+  else if(!p.deposit)out.push('Deposit pay date not set: load the accountant\'s file or set it below');
+  if(!_acctFile)out.push('The accountant\'s file is not loaded: nothing to check against');
+  else{const c=acctCompare();if(c&&c.count)out.push(c.count+' thing'+(c.count===1?'':'s')+' to look at against the accountant\'s file (below)');}
+  const noType=[],noRate=[],exec0=[];
+  M.sections.forEach(s=>s.rows.forEach(r=>{if(!r.typeSet)noType.push(r.name);if(r.noRate)noRate.push(r.name);if(r.kind==='exec'&&!(r.salary>0))exec0.push(r.name);}));
+  if(noType.length)out.push('Employment type not set (W2 used): '+noType.join(', '));
+  if(noRate.length)out.push('Rate missing: '+noRate.join(', '));
+  if(exec0.length)out.push('Executive PR with no weekly amount: '+exec0.join(', '));
+  return out;
+}
+// The accountant file panel on the Exports screen.
+function _acctPanelHtml(){
+  const p=payDates(),M=acctFileModel(),c=acctCompare();
+  const srcTxt=d=>!d?'not set':(d.src==='file'?'from the accountant\'s file':d.src==='hand'?'set by hand':'the Friday after the week');
+  let h='<div class="acct-panel"><div class="wow-head"><h3>Accountant file</h3><span class="wow-src">Laid out like the accountant\'s own file: everyone paid by deposit (Deposit, Deposit + Cash, Executive PR), by section. Load the accountant\'s file to check both sides and take the pay date.</span></div>';
+  h+='<div class="acct-dates">';
+  ['deposit','cash'].forEach(k=>{const d=p[k];h+=`<label class="acct-date">${escHtml(PAY_DATE_KINDS[k])} pay date <input type="date" value="${d?d.iso:''}" ${p.run?'':'disabled'} onchange="setPayDateByHand('${k}',this.value)"> <span class="acct-src">${escHtml(srcTxt(d))}${d?' · '+escHtml(_fmtPayDate(d.iso)):''}</span></label>`;});
+  h+='</div>';
+  h+=`<div class="acct-load"><label class="btn" style="font-size:12px;padding:5px 12px">${_acctFile?'Load another accountant file…':'Load the accountant\'s file…'}<input type="file" accept=".xlsx,.xls" style="display:none" onchange="loadAccountantFileInput(this)"></label>`;
+  if(_acctFile)h+=` <span class="acct-src">${escHtml(_acctFile.fileName)} · ${escHtml(_acctFile.period||'no pay period')} · pay date ${escHtml(_acctFile.payDate?_fmtPayDate(_acctFile.payDate):'none')}</span> <button class="btn" style="font-size:12px;padding:5px 12px" onclick="clearAccountantFile()">Clear</button>`;
+  h+='</div>';
+  if(c){
+    if(!c.count)h+='<div class="dl-ok acct-match">✓ The accountant\'s file matches ours</div>';
+    h+='<div class="acct-check">';
+    if(c.period)h+=`<div class="dl-warn">⚠ Pay period: accountant ${escHtml(c.period.file)}, ours ${escHtml(c.period.ours)}</div>`;
+    if(c.payDate)h+=`<div class="dl-warn">⚠ Pay date: accountant ${escHtml(_fmtPayDate(c.payDate.file))}, ours ${escHtml(_fmtPayDate(c.payDate.ours))} (${c.payDate.src==='hand'?'set by hand':'from an earlier file'})</div>`;
+    c.unknownSections.forEach(u=>{h+=`<div class="dl-warn">⚠ Section ${escHtml(u.name)}: which entity is it? <select onchange="acctSetSectionEntity(${u.si},this.value)"><option value="">— choose —</option>${entities.map(e=>`<option value="${e.id}">${escHtml(e.name||'Entity')}</option>`).join('')}</select></div>`;});
+    const people=_acctAllPeople().slice().sort((a,b)=>entities.findIndex(e=>e.id===a.entity)-entities.findIndex(e=>e.id===b.entity)||a.canonical_name.localeCompare(b.canonical_name));
+    c.unmatched.forEach(u=>{
+      const opts=people.map(r=>{const en=(entities.find(e=>e.id===r.entity)||{}).name||'';return`<option value="${escHtml(r.id)}" ${r.id===u.suggest?'selected':''}>${escHtml(r.canonical_name)} · ${escHtml(en)}${isRosterActive(r.entity,r.canonical_name)?'':' (inactive)'}${r.acct_name?' · now “'+escHtml(r.acct_name)+'”':''}</option>`;}).join('');
+      const sid=`acctPick_${u.si}_${u.ri}`;
+      h+=`<div class="dl-warn acct-unmatched">⚠ ${escHtml(u.section)} · <b>${escHtml(u.name)}</b>${u.salary?' · salary '+escHtml(_fmtUsd(u.salary)):''}${u.rate?' · rate '+escHtml(_fmtUsd(u.rate)):''}: who is this? <select id="${sid}"><option value="">— choose —</option>${opts}<option value="__exec__">Add as Executive PR (${escHtml(_fmtUsd(u.salary||0))} a week)</option><option value="__skip__">Leave off our file this week</option></select> <button class="mini-btn" onclick="acctMatchRow(${u.si},${u.ri},document.getElementById('${sid}').value)">OK</button></div>`;
+    });
+    c.rows.forEach(x=>{
+      if(x.kind==='skip'){h+=`<div class="acct-info">${escHtml(x.section)} · ${escHtml(x.name)}: ${escHtml(x.items[0])}</div>`;return;}
+      h+=`<div class="dl-warn">⚠ ${escHtml(x.section)} · <b>${escHtml(x.name)}</b>${x.person&&_aliasNorm(x.person)!==_aliasNorm(x.name)?' ('+escHtml(x.person)+')':''}: ${x.items.map(escHtml).join(' · ')}`;
+      if(x.note)h+=`${x.items.length?' · ':''}Note: accountant "${escHtml(x.note.theirs)}", ours "${escHtml(x.note.ours)}" <button class="mini-btn" onclick="acctUseTheirNote(${x.si},${x.ri})">Use theirs</button>`;
+      h+='</div>';
+    });
+    c.missing.forEach(x=>{h+=`<div class="dl-warn">⚠ ${escHtml(x.section)} · <b>${escHtml(x.name)}</b>: on our file, not on the accountant's (${x.kind==='exec'?'Executive PR':x.kind==='split'?'Deposit + Cash':'Deposit'}) — added at the end of the section</div>`;});
+    if(c.rows.some(x=>x.note))h+='<div><button class="mini-btn" onclick="acctUseAllTheirNotes()">Use all the accountant\'s notes</button></div>';
+    h+='</div>';
+  }
+  if(M.sections.length){
+    const secNames=[...new Set(M.sections.map(s=>s.name).concat(_acctSectionList().map(x=>x.name),entities.map(acctSectionOf)))];
+    h+='<table class="history-table acct-table"><thead><tr><th>Section</th><th>Employee Name</th><th>Type</th><th class="num">Hours</th><th class="num">Over time</th><th class="num">Pay Rate</th><th class="num">Salary</th><th class="num">Gross Total</th><th>Notes</th></tr></thead><tbody>';
+    let tot=0;
+    M.sections.forEach(s=>s.rows.forEach(r=>{
+      tot+=r.gross;
+      const id=escHtml(escJs(r.empName));
+      h+=`<tr><td><select title="The section the accountant files this person under" onchange="setAcctField(${r.entityId},'${id}','acct_section',this.value);renderDownloadsPanel()">${secNames.map(n=>`<option ${n===s.name?'selected':''}>${escHtml(n)}</option>`).join('')}</select></td>`+
+        `<td><input type="text" class="acct-name" value="${escHtml(r.name)}" title="The name as the accountant has it (${escHtml(r.entityName)})" onchange="setAcctField(${r.entityId},'${id}','acct_name',this.value);renderDownloadsPanel()"></td>`+
+        `<td><select onchange="setAcctField(${r.entityId},'${id}','acct_type',this.value);renderDownloadsPanel()">${['W2','1099'].map(t=>`<option ${r.type===t?'selected':''}>${t}</option>`).join('')}</select>${r.typeSet?'':' <span class="acct-src" title="Not set: W2 is used">?</span>'}</td>`+
+        `<td class="num">${r.hours?r.hours.toFixed(2):'—'}</td><td class="num">${r.ot?r.ot.toFixed(2):'—'}</td><td class="num">${r.rate?_fmtUsd(r.rate):'—'}</td><td class="num">${r.salary?_fmtUsd(r.salary):'—'}</td><td class="num">${_fmtUsd(r.gross)}</td>`+
+        `<td><input type="text" class="acct-note" value="${escHtml(r.note)}" onchange="setAcctField(${r.entityId},'${id}','acct_note',this.value);renderDownloadsPanel()"></td></tr>`;
+    }));
+    h+=`<tr class="total-row"><td colspan="7">Total</td><td class="num">${_fmtUsd(Math.round(tot*100)/100)}</td><td></td></tr></tbody></table>`;
+  }
+  h+='</div>';
+  return h;
+}
+
+// FC-00072: the Executive PR people of one entity's rows, in pay-type order (all Executive PR).
+const EXEC_PR_LABEL='Executive PR';
+function _execRowsOf(rows,spec){
+  const ex=(rows||[]).filter(r=>r._exec);
+  return spec&&spec.sortFn?ex.slice().sort(spec.sortFn):ex;
+}
+function _withoutExec(data){return(data||[]).map(d=>Object.assign({},d,{rows:(d.rows||[]).filter(r=>!r._exec)})).filter(d=>d.rows.length);}
 // Hours as an Excel duration (h:mm). The value is the decimal hours to the nearest minute, so it
 // reads exactly like the screen's h:mm.
 const XL_FMT_HMM_BLANK0='[h]:mm;-[h]:mm;""';
@@ -10314,42 +10974,52 @@ function _columnsFor(kind,nameKey){
   }
   if(kind==='combined'){
     // FC-00059: every number column has subtotals and a grand total. COMBINED_COLS names the
-    // positions for every writer.
-    const C=COMBINED_COLS;
+    // positions for every writer. FC-00070/FC-00071: Over time after Hours; Contract Check its own
+    // column when someone on this report is paid that way; Rounded Final and Diff only when included.
+    const hasContract=_collectExportData().some(d=>d.rows.some(r=>r._breakdown.method==='contract'));
+    _setCombinedLayout({contract:hasContract,finalDiff:reportShowsFinalDiff()});
+    const C=Object.assign({},COMBINED_COLS);
+    const isC=r=>C.contract!=null&&r._breakdown.method==='contract';
+    const dep=r=>isC(r)?0:(r._breakdown.deposit||0);
+    const con=r=>isC(r)?(r._breakdown.deposit||0):0;
+    const totals=[
+      {col:C.hours,val:r=>r.isFlat?0:_r2(hasActuals?(r.actualHours||0):(r.expectedH||0)),hours:true,blankZero:true},
+      {col:C.ot,val:r=>r.otPaidH||0,hours:true,blankZero:true},
+      {col:C.total,val:r=>r._breakdown.actualFinal||0},
+      {col:C.deposit,val:dep,blankZero:true}
+    ];
+    if(C.contract!=null)totals.push({col:C.contract,val:con,blankZero:true});
+    totals.push({col:C.cash,val:r=>r._breakdown.cash||0,blankZero:true});
+    if(C.final!=null)totals.push({col:C.final,val:r=>r._breakdown.roundedFinal||0},{col:C.diff,val:r=>r._breakdown.roundingDiff||0,signed:true,blankZero:true});
     return {
       headers:COMBINED_HEADERS.slice(),
-      widths:[100,130,90,60,60,80,70,70,90,60],
+      widths:COMBINED_PDF_WIDTHS.slice(),
+      xlWidths:COMBINED_XL_WIDTHS.slice(),
       cols:C,
       rowFn:(r)=>{
+        const exec=r._breakdown.method==='exec';
         const hv=r.isFlat?null:(hasActuals?(r.actualHours||0):(r.expectedH||0));
-        const hrs=hv==null?'':xlHours(hv);
-        const rate=r._wageBlank?'':(r.isFlat?'flat':(r.wage>0?xlMoney(r.wage):'—'));
-        const methodLbl=methodLabel(r._breakdown.method);
-        const diff=r._breakdown.roundingDiff||0;
-        const diffCell=Math.abs(diff)>=0.005?xlMoneySigned(diff):'';
-        return [
-          r._entityName,
-          _nm(r)+(r.isFlat?' (flat)':''),
-          methodLbl,
-          hrs,
-          rate,
-          r._wageBlank?'':(r._totalPay>0?xlMoney(r._breakdown.actualFinal):'—'),
-          r._breakdown.deposit>0?xlMoney(r._breakdown.deposit):'—',
-          r._breakdown.cash>0?xlMoney(r._breakdown.cash):'—',
-          r._breakdown.roundedFinal>0?xlMoney(r._breakdown.roundedFinal):'—',
-          diffCell
-        ];
+        const v=new Array(COMBINED_HEADERS.length).fill('');
+        v[C.entity]=r._entityName;
+        v[C.employee]=_nm(r)+(r.isFlat&&!exec?' (flat)':'');
+        v[C.method]=methodLabel(r._breakdown.method);
+        v[C.hours]=hv==null?'':xlHours(hv);
+        v[C.ot]=r.otPaidH>0?xlHours(r.otPaidH):'';
+        v[C.rate]=(r._wageBlank||exec)?'':(r.isFlat?'flat':(r.wage>0?xlMoney(r.wage):'—'));
+        v[C.total]=r._wageBlank?'':(r._totalPay>0?xlMoney(r._breakdown.actualFinal):'—');
+        v[C.deposit]=dep(r)>0?xlMoney(dep(r)):'—';
+        if(C.contract!=null)v[C.contract]=con(r)>0?xlMoney(con(r)):'—';
+        v[C.cash]=r._breakdown.cash>0?xlMoney(r._breakdown.cash):'—';
+        if(C.final!=null){
+          const diff=r._breakdown.roundingDiff||0;
+          v[C.final]=r._breakdown.roundedFinal>0?xlMoney(r._breakdown.roundedFinal):'—';
+          v[C.diff]=Math.abs(diff)>=0.005?xlMoneySigned(diff):'';
+        }
+        return v;
       },
-      fx:(r,n)=>Object.assign({},_fxPayBlock(r,n,{hours:C.hours,rate:C.rate,total:C.total,deposit:C.deposit,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals})),
-      totals:[
-        {col:C.hours,val:r=>r.isFlat?0:_r2(hasActuals?(r.actualHours||0):(r.expectedH||0)),hours:true,blankZero:true},
-        {col:C.total,val:r=>r._breakdown.actualFinal||0},
-        {col:C.deposit,val:r=>r._breakdown.deposit||0,blankZero:true},
-        {col:C.cash,val:r=>r._breakdown.cash||0,blankZero:true},
-        {col:C.final,val:r=>r._breakdown.roundedFinal||0},
-        {col:C.diff,val:r=>r._breakdown.roundingDiff||0,signed:true,blankZero:true}
-      ],
-      numCols:[C.hours,C.rate,C.total,C.deposit,C.cash,C.final,C.diff],
+      fx:(r,n)=>Object.assign({},_fxPayBlock(r,n,{hours:C.hours,ot:C.ot,rate:C.rate,total:C.total,deposit:C.deposit,contract:C.contract,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals})),
+      totals,
+      numCols:Object.keys(C).filter(k=>!['entity','employee','method'].includes(k)).map(k=>C[k]).sort((a,b)=>a-b),
       sortFn:_paytypeExportSortFn
     };
   }
@@ -10669,7 +11339,10 @@ async function _exportExcel(kind){
       secLbl.getCell(1).fill=hdrFill;
       ws.mergeCells(secLbl.number,1,secLbl.number,spec.headers.length);
     }
-    ws.addRow([]);
+    // FC-00073: the payroll report's spacer row under the title carries the run's two pay dates.
+    const _pdl=sectionKind==='combined'?_payDatesLine():'';
+    const _sp=ws.addRow(_pdl?[_pdl]:[]);
+    if(_pdl){_sp.getCell(1).font={name:'Arial',italic:true,size:10};_sp.getCell(1).alignment={horizontal:'center'};ws.mergeCells(_sp.number,1,_sp.number,spec.headers.length);}
 
     // Header row
     const hdrRow=ws.addRow(spec.headers);
@@ -10692,13 +11365,11 @@ async function _exportExcel(kind){
     const totals=spec.totals||[];
     const grandVals={};totals.forEach(t=>{grandVals[t.col]=0});
     const subRowNums=[];
-    data.forEach(({entityName,entityId,rows})=>{
-      let filtered=_filterRowsForKind(rows,sectionKind);
-      if(filtered.length===0)return;
-      if(spec.sortFn)filtered=filtered.slice().sort(spec.sortFn);
-      const entPal=_fc12Colorize?_paletteForEntity(entities.find(e=>e.id===entityId)):null;
+    const execSubNums=[],execVals={};totals.forEach(t=>{execVals[t.col]=0}); // FC-00072
+    // Data rows, then their SUM subtotal. Returns the subtotal's row number and values.
+    const writeRows=(list,entPal,subLabel)=>{
       let firstRow=0,lastRow=0;
-      filtered.forEach(r=>{
+      list.forEach(r=>{
         const vals=spec.rowFn(r);
         const row=ws.addRow(vals.map(_cellValue));
         if(!firstRow)firstRow=row.number;
@@ -10716,19 +11387,17 @@ async function _exportExcel(kind){
         });
         if(_fc12Colorize)_applyEntityPalette(row,entPal,'body',cashColIdx);
       });
-      // Entity subtotal
-      const entVals=_sectionTotals(spec,filtered);
+      // Subtotal
+      const entVals=_sectionTotals(spec,list);
       const subCells=new Array(spec.headers.length).fill('');
-      subCells[0]=entityName+' subtotal';
+      subCells[0]=subLabel;
       const sub=ws.addRow(subCells);
       totals.forEach(t=>{
         const L=_xlCol(t.col),cell=sub.getCell(t.col+1);
         if(t.hmmOf!=null)cell.value={formula:'ROUND('+_xlCol(t.hmmOf)+sub.number+'*60,0)/1440',result:Math.round(entVals[t.hmmOf]*60)/1440};
         else cell.value={formula:'SUM('+L+firstRow+':'+L+lastRow+')',result:entVals[t.col]};
         cell.numFmt=_totalFmt(t);
-        if(t.hmmOf==null)grandVals[t.col]+=entVals[t.col];
       });
-      subRowNums.push(sub.number);
       sub.eachCell((cell,ci)=>{
         cell.font={name:'Arial',bold:true,size:10};cell.fill=subtotalFill;
         cell.alignment={horizontal:spec.numCols.indexOf(ci-1)>=0?'right':'left',vertical:'middle'};
@@ -10736,6 +11405,28 @@ async function _exportExcel(kind){
       });
       if(_fc12Colorize)_applyEntityPalette(sub,entPal,'subtotal',null);
       _mergeTotalLabel(ws,sub.number,totals);
+      return{num:sub.number,vals:entVals};
+    };
+    data.forEach(({entityName,entityId,rows})=>{
+      let filtered=_filterRowsForKind(rows,sectionKind);
+      const execRows=sectionKind==='combined'?_execRowsOf(rows,spec):[]; // FC-00072
+      if(filtered.length===0&&!execRows.length)return;
+      if(spec.sortFn)filtered=filtered.slice().sort(spec.sortFn);
+      const entPal=_fc12Colorize?_paletteForEntity(entities.find(e=>e.id===entityId)):null;
+      if(filtered.length){
+        const s=writeRows(filtered,entPal,entityName+' subtotal');
+        subRowNums.push(s.num);
+        totals.forEach(t=>{if(t.hmmOf==null)grandVals[t.col]+=s.vals[t.col];});
+      }
+      // FC-00072: the entity's Executive PR people in their own block, with their own subtotal.
+      if(execRows.length){
+        const lab=ws.addRow([EXEC_PR_LABEL+' — '+entityName]);
+        lab.getCell(1).font={name:'Arial',bold:true,size:10};lab.getCell(1).fill=hdrFill;
+        ws.mergeCells(lab.number,1,lab.number,spec.headers.length);
+        const s=writeRows(execRows,entPal,entityName+' '+EXEC_PR_LABEL+' subtotal');
+        execSubNums.push(s.num);
+        totals.forEach(t=>{if(t.hmmOf==null)execVals[t.col]+=s.vals[t.col];});
+      }
       // FC-00049: rows the owner left out of pay are listed under the entity's totals.
       const _lo=_leftOutNoteText(entities.find(e=>e.id===entityId));
       if(_lo){const nr=ws.addRow([_lo]);nr.getCell(1).font={name:'Arial',italic:true,size:9,color:{argb:'FF555555'}};ws.mergeCells(nr.number,1,nr.number,spec.headers.length);}
@@ -10761,6 +11452,20 @@ async function _exportExcel(kind){
     });
     if(_fc12Colorize)_applyEntityPalette(g,FC14_PRESETS.Plain,'grand',null);
     _mergeTotalLabel(ws,g.number,totals);
+    // FC-00072: Executive PR is totalled on its own, then together with the GRAND TOTAL.
+    if(execSubNums.length){
+      const totalRow=(label,fmla,val)=>{
+        const cells=new Array(spec.headers.length).fill('');cells[0]=label;
+        const x=ws.addRow(cells);
+        totals.forEach(t=>{if(t.hmmOf!=null)return;const L=_xlCol(t.col),cell=x.getCell(t.col+1);cell.value={formula:fmla(L),result:Math.round(val(t)*100)/100};cell.numFmt=_totalFmt(t);});
+        x.eachCell((cell,ci)=>{cell.font={name:'Arial',bold:true,size:11};cell.fill=grandFill;cell.alignment={horizontal:spec.numCols.indexOf(ci-1)>=0?'right':'left',vertical:'middle'};cell.border={top:medB,bottom:medB,left:medB,right:medB};});
+        if(_fc12Colorize)_applyEntityPalette(x,FC14_PRESETS.Plain,'grand',null);
+        _mergeTotalLabel(ws,x.number,totals);
+        return x;
+      };
+      const ex=totalRow('EXECUTIVE PR TOTAL',L=>'SUM('+execSubNums.map(n=>L+n).join(',')+')',t=>execVals[t.col]);
+      totalRow('TOTAL WITH EXECUTIVE PR',L=>'SUM('+L+g.number+','+L+ex.number+')',t=>grandVals[t.col]+execVals[t.col]);
+    }
 
     // Column widths — combined mode uses the reference report's exact Excel width units;
     // other kinds keep the legacy px/6 conversion.
@@ -10778,7 +11483,7 @@ async function _exportExcel(kind){
   }else{
     await writeSection(kind);
   }
-  if(kind==='combined'){_writeStatsSheet(ewb,data);_writeLaborCostSheet(ewb,data);} // FC-00051, FC-00052
+  if(kind==='combined'){const _nx=_withoutExec(data);_writeStatsSheet(ewb,_nx);_writeLaborCostSheet(ewb,_nx);} // FC-00051, FC-00052; FC-00072: Executive PR is not hourly labor
 
   const fname=_exportFilenameBase(kind)+'.xlsx';
   downloadBlob(await ewb.xlsx.writeBuffer(),fname);
@@ -10898,6 +11603,9 @@ async function _exportPdf(kind){
   doc.text(titleText+(per?' — '+per:''),pageW/2,36,{align:'center'});
 
   let startY=56;
+  // FC-00073: the run's two pay dates under the payroll report's title.
+  const _pdl=kind==='combined'?_payDatesLine():'';
+  if(_pdl){doc.setFont('helvetica','italic');doc.setFontSize(9);doc.text(_pdl,pageW/2,50,{align:'center'});startY=60;}
 
   function writeSection(sectionKind){
     const spec=_columnsFor(sectionKind,_DL_KEY_FOR_KIND[kind]);
@@ -10927,29 +11635,40 @@ async function _exportPdf(kind){
     // and the workbook always total the same columns.
     const totals=spec.totals||[];
     const grandVals={};totals.forEach(t=>{grandVals[t.col]=0});
-    data.forEach(({entityName,entityId,rows})=>{
-      let filtered=_filterRowsForKind(rows,sectionKind);
-      if(filtered.length===0)return;
-      if(spec.sortFn)filtered=filtered.slice().sort(spec.sortFn);
-      const entPal=_fc15Colorize?_paletteForEntity(entities.find(e=>e.id===entityId)):null;
-      const b0=body.length;
-      filtered.forEach(r=>{
+    const execVals={};totals.forEach(t=>{execVals[t.col]=0});let execCount=0; // FC-00072
+    const pushRows=(list,entPal,subLabel)=>{
+      list.forEach(r=>{
         // PDF is a rendered document — unwrap the numeric cells back to display text.
         body.push(spec.rowFn(r).map(_cellText));
         rowRoles.push({role:'body',pal:entPal});
       });
-      const entVals=_sectionTotals(spec,filtered);
+      const entVals=_sectionTotals(spec,list);
       const subRow=new Array(spec.headers.length).fill({content:'',styles:{fillColor:[240,239,233],fontStyle:'bold'}});
-      subRow[0]={content:entityName+' subtotal',styles:{fillColor:[240,239,233],fontStyle:'bold'}};
+      subRow[0]={content:subLabel,styles:{fillColor:[240,239,233],fontStyle:'bold'}};
       totals.forEach(t=>{
         subRow[t.col]={content:_totalCellText(t,entVals[t.col]),styles:{fillColor:[240,239,233],fontStyle:'bold',halign:'right'}};
-        grandVals[t.col]+=entVals[t.col];
       });
       body.push(_spanTotalLabel(subRow,totals));
       // FC-00015: keep an entity's subtotal row on the same page as its data rows whenever
       // possible — autoTable's own per-row 'avoid' setting (vs. the table-wide 'avoid',
       // which would force the whole table onto one page) does exactly this.
       rowRoles.push({role:'subtotal',pal:entPal,pageBreak:'avoid'});
+      return entVals;
+    };
+    data.forEach(({entityName,entityId,rows})=>{
+      let filtered=_filterRowsForKind(rows,sectionKind);
+      const execRows=sectionKind==='combined'?_execRowsOf(rows,spec):[]; // FC-00072
+      if(filtered.length===0&&!execRows.length)return;
+      if(spec.sortFn)filtered=filtered.slice().sort(spec.sortFn);
+      const entPal=_fc15Colorize?_paletteForEntity(entities.find(e=>e.id===entityId)):null;
+      const b0=body.length;
+      if(filtered.length){const v=pushRows(filtered,entPal,entityName+' subtotal');totals.forEach(t=>{grandVals[t.col]+=v[t.col];});}
+      if(execRows.length){
+        body.push([{content:EXEC_PR_LABEL+' — '+entityName,colSpan:spec.headers.length,styles:{fontStyle:'bold',fillColor:[232,232,228]}}]);
+        rowRoles.push({role:'label',pal:null});
+        const v=pushRows(execRows,entPal,entityName+' '+EXEC_PR_LABEL+' subtotal');
+        totals.forEach(t=>{execVals[t.col]+=v[t.col];});execCount++;
+      }
       // FC-00049: rows the owner left out of pay are listed under the entity's totals.
       const _lo=_leftOutNoteText(entities.find(e=>e.id===entityId));
       if(_lo){body.push([{content:_lo,colSpan:spec.headers.length,styles:{fontStyle:'italic',textColor:[85,85,85],fontSize:7}}]);rowRoles.push({role:'note',pal:null});}
@@ -10961,9 +11680,20 @@ async function _exportPdf(kind){
     totals.forEach(t=>{
       grandRow[t.col]={content:_totalCellText(t,Math.round(grandVals[t.col]*100)/100),styles:{fillColor:[224,222,213],fontStyle:'bold',halign:'right'}};
     });
-    blocks.push([body.length,body.length+1]);
+    const g0=body.length;
     body.push(_spanTotalLabel(grandRow,totals));
     rowRoles.push({role:'grand',pal:_fc15Colorize?FC14_PRESETS.Plain:null,pageBreak:'avoid'});
+    // FC-00072: Executive PR total, then the GRAND TOTAL with it.
+    if(execCount){
+      [['EXECUTIVE PR TOTAL',t=>execVals[t.col]],['TOTAL WITH EXECUTIVE PR',t=>grandVals[t.col]+execVals[t.col]]].forEach(([lab,val])=>{
+        const row=new Array(spec.headers.length).fill({content:'',styles:{fillColor:[224,222,213],fontStyle:'bold'}});
+        row[0]={content:lab,styles:{fillColor:[224,222,213],fontStyle:'bold'}};
+        totals.forEach(t=>{row[t.col]={content:_totalCellText(t,Math.round(val(t)*100)/100),styles:{fillColor:[224,222,213],fontStyle:'bold',halign:'right'}};});
+        body.push(_spanTotalLabel(row,totals));
+        rowRoles.push({role:'grand',pal:_fc15Colorize?FC14_PRESETS.Plain:null,pageBreak:'avoid'});
+      });
+    }
+    blocks.push([g0,body.length]);
 
     // FC-00050: the table fits one landscape letter page width. Column widths keep the
     // Excel proportions and are scaled to the space between the margins.
@@ -11433,7 +12163,7 @@ async function exportPayrollPdf(){return exportCombinedPdf()}
 // FC-00014: 'Palette' is an entity-level setting, not per-employee, but the settings file is
 // per-employee-row — so every row for a given entity carries the same preset name. Appended
 // at the end so it never shifts any existing column index for older readers.
-const PAYROLL_SETTINGS_HEADERS=['Entity','Employee','Wage/hour','Type','Flat Amount','Pay Method','Deposit Amount','Deposit Typed As','Employee ID','Aliases','Active','Final Pass Method','Notes','Palette'];
+const PAYROLL_SETTINGS_HEADERS=['Entity','Employee','Wage/hour','Type','Flat Amount','Pay Method','Deposit Amount','Deposit Typed As','Employee ID','Aliases','Active','Final Pass Method','Notes','Palette','Accountant Name','Employment Type','Accountant Section','Accountant Note']; // FC-00073: the last four
 const PAYROLL_SETTINGS_SCHEMA_TAG='SPCalcPayrollSettingsV1';
 // Break-extension headers — appended only when the user opts in to "include breaks".
 // Per-day numeric (minutes) + status ('Override' or 'Actual'); plus an entity-default-break column.
@@ -11490,7 +12220,8 @@ function _gatherPayrollSettingsRows(includeBreaks){
         active:isRosterActive(ent.id,empName)?'Yes':'No',
         finalPassMethod:getFinalPassMethod(ent.id,empName),
         notes:getRosterNotes(ent.id,empName),
-        palette:getEntityPalette(ent)
+        palette:getEntityPalette(ent),
+        acctName:rec0.acct_name||'',acctType:rec0.acct_type||'',acctSection:rec0.acct_section||'',acctNote:rec0.acct_note||'' // FC-00073
       };
       if(includeBreaks){
         rec.defaultBreak=ent.breakMinutes||0;
@@ -11550,7 +12281,7 @@ async function exportPayrollSettingsExcel(includeBreaks){
   const hdr=ws.addRow(headers);
   hdr.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};c.alignment={vertical:'middle'};});
   rows.forEach(r=>{
-    const base=[r.entity,r.employee,r.wage,r.type,r.flat,r.method,r.deposit,r.depositTypedAs,r.employeeId,r.aliases,r.active,r.finalPassMethod,r.notes,r.palette];
+    const base=[r.entity,r.employee,r.wage,r.type,r.flat,r.method,r.deposit,r.depositTypedAs,r.employeeId,r.aliases,r.active,r.finalPassMethod,r.notes,r.palette,r.acctName,r.acctType,r.acctSection,r.acctNote];
     if(includeBreaks){
       base.push(r.defaultBreak);
       for(let d=0;d<7;d++){
@@ -11566,7 +12297,7 @@ async function exportPayrollSettingsExcel(includeBreaks){
     // and separators so the round-trip still parses.
     [3,5,7].forEach(ci=>{settingsRow.getCell(ci).numFmt=XL_FMT_MONEY});
   });
-  const baseW=[20,22,12,10,14,18,16,16,14,38,10,20,28,16];
+  const baseW=[20,22,12,10,14,18,16,16,14,38,10,20,28,16,24,16,20,40];
   const breakW=includeBreaks?[14,10,16,10,16,10,16,10,16,10,16,10,16,10,16]:[];
   const widths=baseW.concat(breakW);
   ws.columns.forEach((col,i)=>{col.width=widths[i]||14;});
@@ -11588,6 +12319,7 @@ function _normalizePayMethod(s){
   if(t==='cash')return 'cash';
   if(t==='deposit')return 'deposit';
   if(t==='contract check'||t==='contract'||t==='contract-check'||t==='contractcheck')return 'contract';
+  if(t==='executive pr'||t==='executive'||t==='exec'||t==='exec pr'||t==='executive payroll')return 'exec'; // FC-00072
   return null;
 }
 
@@ -11709,6 +12441,17 @@ function _ingestPayrollSettings(rows,colMap,includeBreaks){
     if(colMap['notes']!=null){
       setRosterNotes(ent.id,empName,get(row,'notes').trim());
     }
+    // FC-00073: the accountant's name, employment type, section and standing note for this person.
+    // A blank cell counts as set (the owner may have cleared it), so only a person never set takes
+    // the accountant's note when their file is loaded.
+    [['accountant name','acct_name'],['employment type','acct_type'],['accountant section','acct_section'],['accountant note','acct_note']].forEach(([col,f])=>{
+      if(colMap[col]==null)return;
+      const v=get(row,col).replace(/\s+/g,' ').trim();
+      // A blank cell for someone never set: recorded without a History line (one per person would
+      // bury the import). Only the note needs it — "cleared" is not "never given".
+      if(!v&&importedRecord[f]===undefined){if(f==='acct_note')importedRecord[f]='';return;}
+      setAcctField(ent.id,empName,f,v,'settings-import');
+    });
     // Palette (FC-00014): one preset name per entity, repeated on every employee row.
     // Valid preset name -> set session.entityPalettes[entId]; missing/invalid/absent column
     // -> leave as-is, so the entity keeps its per-code default (backward compat with files
@@ -11744,6 +12487,11 @@ function _ingestPayrollSettings(rows,colMap,includeBreaks){
     const m=_normalizePayMethod(methodRaw);
     if(m){
       setPayMethod(ent.id,empName,m);
+    }
+    // FC-00072: Executive PR is always a fixed weekly amount; a row typed Hourly still loads as Flat.
+    if(m==='exec'&&flatWages[k]==null){
+      const fn=parseFloat(flatRaw);
+      dispatch({type:'flatWage',screen:'settings-import',target:{kind:'employee',entity:ent.id,id:k,field:'flatWage'},from:null,to:isNaN(fn)?0:fn,meta:{empName,displayName:empName}});
     }
     // Deposit amount (only meaningful for 'both')
     if((m==='both'||(payMethod[k]==='both'&&!m))){
@@ -11863,7 +12611,7 @@ function collectAllFlags(allEntityResults){
   const out=[];
   allEntityResults.forEach(({entityName,results,orphanRows})=>{
     results.forEach(r=>{
-      if(r.actualHours>40)out.push({entity:entityName,emp:r.name,category:'40h+ (straight-time — no OT paid)',detail:`${r.actualHours.toFixed(2)}h worked`});
+      if(r.actualHours>40)out.push({entity:entityName,emp:r.name,category:r.otPaidH>0?'40h+ (Deposit — overtime paid at 1.5×)':'40h+ (straight-time — no OT paid)',detail:`${r.actualHours.toFixed(2)}h worked`+(r.otPaidH>0?` · ${r.otPaidH.toFixed(2)}h at 1.5×`:'')});
       if(r.scheduledHours>40)out.push({entity:entityName,emp:r.name,category:'Scheduled 40h+',detail:`${r.scheduledHours.toFixed(2)}h scheduled`});
       r.days.forEach((day,di)=>{
         if(day.status==='noshow')out.push({entity:entityName,emp:r.name,category:'No show',detail:`${DAYS[di]}: scheduled ${compactH(day.shift.start)}–${compactH(day.shift.end)}, no clock-in`});
@@ -11873,7 +12621,7 @@ function collectAllFlags(allEntityResults){
     });
     orphanRows.forEach(r=>{
       out.push({entity:entityName,emp:r.name,category:'Orphan (clocked in, not on schedule)',detail:`${r.actualHours.toFixed(2)}h across ${r.actualDaysWorked} day(s)`});
-      if(r.actualHours>40)out.push({entity:entityName,emp:r.name,category:'40h+ (straight-time — no OT paid)',detail:`${r.actualHours.toFixed(2)}h worked`});
+      if(r.actualHours>40)out.push({entity:entityName,emp:r.name,category:r.otPaidH>0?'40h+ (Deposit — overtime paid at 1.5×)':'40h+ (straight-time — no OT paid)',detail:`${r.actualHours.toFixed(2)}h worked`+(r.otPaidH>0?` · ${r.otPaidH.toFixed(2)}h at 1.5×`:'')});
     });
   });
   return out;

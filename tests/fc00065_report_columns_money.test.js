@@ -29,11 +29,12 @@ const lastPdfBody = (api) => api.__lastAutoTableCalls[api.__lastAutoTableCalls.l
 test('test_no_hmm_column_in_excel_pdf_preview', async () => {
   const api = setup();
   assert.ok(!api.COMBINED_HEADERS.includes('H:MM'));
-  assert.equal(api.COMBINED_HEADERS.length, 10);
+  api.setReportFinalDiff(true); // FC-00071
   await api.exportCombinedExcel();
+  assert.equal(api.COMBINED_HEADERS.length, 11);
   const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0];
   const hdr = ws.rows.find(r => r && r[1] && r[1].value === 'Entity').slice(1).map(c => c.value);
-  assert.deepEqual(hdr, ['Entity', 'Employee', 'Method', 'Hours', 'Rate', 'Actual Total', 'Deposit', 'Cash', 'Rounded Final', 'Diff']);
+  assert.deepEqual(hdr, ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Cash', 'Rounded Final', 'Diff']);
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, [], 'every formula still agrees');
   await api.exportCombinedPdf();
   const head = api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1].options.head[0].map(c => (c && typeof c === 'object' ? c.content : c));
@@ -51,6 +52,7 @@ test('test_money_text_has_commas_and_sign_first', async () => {
   assert.equal(api._fmtUsd(0), '$0.00');
   assert.equal(api._cellText(api.xlMoneySigned(0.13)), '+$0.13');
   assert.equal(api._cellText(api.xlMoneySigned(-0.17)), '-$0.17');
+  api.setReportFinalDiff(true); // FC-00071: the Diff column
   await api.exportCombinedPdf();
   const body = lastPdfBody(api);
   const C = api.COMBINED_COLS;
