@@ -197,7 +197,7 @@ Validate exactly three things:
 2. Each shift's computed duration against its stated Hours cell
 3. Roster completeness — roster entries with no schedule row and vice versa
 
-**Do not validate rest intervals or overtime.** Both are explicitly out of scope.
+**Do not validate rest intervals or overtime.** Both are explicitly out of scope. (Overtime *pay* for Deposit people over 40 h is a pay rule, FC-00070; it is never a flag or a validation.)
 
 ### Hours notation
 

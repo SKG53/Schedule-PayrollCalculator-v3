@@ -142,7 +142,9 @@ mistake made in this codebase.
 The owner has explicitly ruled these out. Do not implement, flag, or warn about:
 
 - Rest intervals between shifts
-- Overtime thresholds
+- Overtime thresholds (as a validation or warning). Overtime **pay** exists for one case only:
+  a Deposit (Deposit-only, hourly) person's hours over 40 in the entity's week are paid at 1.5×
+  (FC-00070, DECISIONS #53). Every other pay method is straight time.
 
 Schedule validation covers exactly three things: coverage against minimum, shift
 arithmetic against stated hours, and roster completeness.

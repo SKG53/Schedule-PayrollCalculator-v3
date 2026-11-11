@@ -18,3 +18,7 @@ Ideas that are not part of any active Feature Card. Not committed, not scheduled
 - **Schedule OCR: multi-week extraction** — FC-00009 handles the first week of a multi-week image. If users routinely upload multi-week images, add a card.
 - **Schedule OCR: handwriting** — best-effort in current Gemini call, no guarantee. If accuracy is unacceptable, add a card that swaps model / adds review step.
 - **PDF-only print settings** (margins, page-break policy config) — FC-00015 uses defaults. Add a card if power-users need control.
+
+## 2026-11-11
+
+- **Monthly bonus framework** — the owner wants bonus amounts entered in the tool and shown on the payroll report and the accountant's bonus block; whether each bonus is a fixed monthly amount or entered each month is undecided. Until then the accountant file carries the accountant's bonus block over unchanged (FC-00074).

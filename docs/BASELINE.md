@@ -302,8 +302,9 @@ Header: **Undo <last big action>** (FC-00039), **Save snapshot** / **Open snapsh
   (skipped entirely if the schedule has no date row — see §10 defect 7), and
   aggregated by `empName + dayIdx` (day-of-week, not date). "Ignored" employees'
   punches are excluded at the calculation boundary only (data preserved in intake).
-- **Special cases:** none hard-coded per employee or entity. `OT_THRESHOLD = 40`
-  (informational flag only, straight time). Wage explicitly blanked (`wageBlank`)
+- **Special cases:** none hard-coded per employee or entity. `OT_THRESHOLD = 40`:
+  informational flag, straight time — except a Deposit (Deposit-only, hourly) person, whose
+  hours over 40 are paid at 1.5× (FC-00070, `_applyDepositOt`, `row.otPaidH`). Wage explicitly blanked (`wageBlank`)
   renders blank and is excluded from money totals; wage 0/unset shows `—`.
 - **Orphans** (in actuals, not on schedule): computed identically (same break
   logic), flagged `(orphan)`, included in totals.
@@ -346,8 +347,10 @@ Excel — sheets Report, Hours (FC-00060), Stats (FC-00051), Labor Cost (FC-0005
 landscape-letter PDF one page wide), a Payroll report per entity (FC-00059, same writer
 scoped to one entity), the Reviewed timecards Excel, the Payroll Settings file, the
 Snapshot and the Employee Schedule. The combined report's columns are Entity, Employee,
-Method, Hours, Rate, Actual Total, Deposit, Cash, Rounded Final, Diff (FC-00059; the H:MM
-column was removed by FC-00065). Subtotal and grand-total labels span Entity–Method in the
+Method, Hours, Over time, Rate, Actual Total, Deposit, [Contract Check], Cash, [Rounded Final,
+Diff] (FC-00059; the H:MM column was removed by FC-00065; Over time FC-00070; Contract Check
+only when someone on the report is paid that way and Rounded Final/Diff only when included,
+FC-00071). Since FC-00074 there is also the Accountant file card. Subtotal and grand-total labels span Entity–Method in the
 Excel and the PDF. Money text in the PDF, the preview and on screens reads `$1,234.56`,
 `-$0.17`, `+$0.13` (FC-00065).
 **FC-00060:** the Hours sheet has one row per person-day with real dates and times
@@ -614,3 +617,36 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
   report as "NAME (final pay)"; otherwise inactive people are still left out (FC-00035).
 - **Missing scheduled days as boxes (FC-00069).** "Scheduled, no approved punches · N days" lists
   each day in its own box with that day's scheduled shift; a box scrolls to the day's row.
+
+## Added by FC-00070 to FC-00075 (2026-11-11)
+
+- **Deposit overtime (FC-00070).** A Deposit-only hourly person's hours over 40 in the entity's
+  week are paid at 1.5×: pay = rate × (hours + ½ × hours over 40), rounded like all pay. Hours
+  stay the total; `row.otPaidH` is the part over 40. The payroll report's Over time column
+  (after Hours) shows it; in Excel the Over time cell is `MAX(0,ROUND(H−40,2))` and Actual Total
+  `ROUND((H+0.5×OT)×Rate,2)`. The Payroll table notes "N over 40 at 1.5×"; the 40h+ flag says
+  overtime was paid. Cash, Deposit + Cash, Contract Check, Executive PR and Flat: straight time.
+- **Report columns (FC-00071).** Contract Check prints in its own column (only when needed);
+  Rounded Final and Diff only when "Include Rounded Final and Diff columns" is ticked (Tool
+  Setting "Payroll report · Rounded Final and Diff columns", default Leave out). The layout is
+  rebuilt by `_setCombinedLayout` in `_columnsFor('combined')`; writers read columns by name.
+  An editable copy keeps its own columns.
+- **Executive PR (FC-00072).** Pay method `exec`: Flat weekly amount, deposit. Report block per
+  entity after its subtotal ("Executive PR — <entity>", rows, "<entity> Executive PR subtotal");
+  GRAND TOTAL unchanged, then EXECUTIVE PR TOTAL and TOTAL WITH EXECUTIVE PR. Left out of Stats
+  and Labor Cost.
+- **Pay dates and accountant details (FC-00073).** `payDates()`: deposit (from the accountant's
+  file or by hand) and cash/contract (Friday after the week, or by hand); `setPayDateByHand`
+  warns first. Stored in session.toolSettings as `payDate:<kind>|<week start>`; on the report
+  under the title; not in the settings file. Roster fields `acct_name`, `acct_type`,
+  `acct_section`, `acct_note`; Payroll Settings columns Accountant Name, Employment Type,
+  Accountant Section, Accountant Note (a blank note cell counts as cleared).
+- **Accountant file (FC-00074).** `exportAccountantFile` / `acctFileModel`: the accountant's
+  layout (sheet "Sheet2", Pay Period/Pay date, sections, hidden P–R formulas, banding, their bonus
+  block when their file was loaded) with Deposit, Deposit + Cash and Executive PR people who are
+  paid this run. Section names/order in Tool Settings "Accountant file · sections". Card status
+  names what to look at. In the batch by default.
+- **Accountant file check (FC-00075).** `loadAccountantFile` → `parseAccountantRows` →
+  `applyAccountantFile` (one checkpoint): takes the deposit pay date (unless set by hand), section
+  order, spellings, types, first notes; `acctMatchRow` answers a row (person of any entity,
+  `__exec__`, `__skip__`); `acctCompare` lists differences. The loaded file is a snapshot part.
