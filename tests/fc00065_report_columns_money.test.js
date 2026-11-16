@@ -31,10 +31,10 @@ test('test_no_hmm_column_in_excel_pdf_preview', async () => {
   assert.ok(!api.COMBINED_HEADERS.includes('H:MM'));
   api.setReportFinalDiff(true); // FC-00071
   await api.exportCombinedExcel();
-  assert.equal(api.COMBINED_HEADERS.length, 11);
+  assert.equal(api.COMBINED_HEADERS.length, 12); // FC-00077: Contract Check shows whenever it is ticked
   const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0];
   const hdr = ws.rows.find(r => r && r[1] && r[1].value === 'Entity').slice(1).map(c => c.value);
-  assert.deepEqual(hdr, ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Cash', 'Rounded Final', 'Diff']);
+  assert.deepEqual(hdr, ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Contract Check', 'Cash', 'Rounded Final', 'Diff']);
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, [], 'every formula still agrees');
   await api.exportCombinedPdf();
   const head = api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1].options.head[0].map(c => (c && typeof c === 'object' ? c.content : c));

@@ -598,6 +598,21 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
 /* === FC-00013: Live WYSIWYG preview panel (mirrors Combined Excel export exactly) === */
 .fc13-preview-panel{margin-top:24px;padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:8px}
 .fc13-preview-panel h3{font-size:14px;font-weight:600;margin-bottom:10px;color:var(--text1);display:flex;align-items:center;gap:8px}
+/* FC-00077: the report's column chips */
+.rc-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px;margin:0 0 6px;font-size:12px}
+.rc-bar-lbl{font-weight:600;color:var(--text2);margin-right:2px}
+.rc-chip{display:inline-flex;align-items:center;gap:4px;padding:3px 8px 3px 4px;border:1px solid var(--border);border-radius:14px;background:var(--surface);cursor:grab;user-select:none;white-space:nowrap}
+.rc-chip.on{background:#EEF4FF;border-color:#93B4F5}
+.rc-chip.off{color:var(--text3);background:transparent;border-style:dashed}
+.rc-chip.locked{cursor:grab}
+.rc-chip.dragging{opacity:.4}
+.rc-chip.drop-before{box-shadow:-3px 0 0 0 #2563EB}
+.rc-chip.drop-after{box-shadow:3px 0 0 0 #2563EB}
+.rc-chip input{margin:0;cursor:pointer}
+.rc-chip label{display:inline-flex;align-items:center;gap:4px;cursor:pointer}
+.rc-grip{color:var(--text3);font-size:11px;letter-spacing:-2px;padding:0 2px}
+.rc-reset{font-size:11px;padding:2px 8px;margin-left:4px}
+.rc-hidden-note{font-size:11px;color:var(--text3);margin:0 0 8px}
 .fc13-readonly-badge{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;color:var(--text3);background:var(--bg2,#EFEEE8);border:1px solid var(--border);border-radius:10px;padding:2px 8px}
 .fc13-preview-scroll{overflow-x:auto}
 .fc13-preview-table{border-collapse:collapse;font-size:11px;font-family:'IBM Plex Mono',monospace;table-layout:fixed}
@@ -2363,7 +2378,7 @@ function _fc24Upgrade(m){
   const hdr=m.rows.find(r=>r&&r.kind==='hdr');
   if(!hdr)return m;
   const at=hdr.cells.indexOf('H:MM');
-  if(at<0||COMBINED_HEADERS.includes('H:MM'))return m;
+  if(at<0||m.v>=77||COMBINED_HEADERS.includes('H:MM'))return m; // FC-00077: a copy made with the picker keeps its own columns
   const n=hdr.cells.length;
   m.rows.forEach(r=>{
     if(!r||!Array.isArray(r.cells)||r.cells.length!==n)return;
@@ -2622,8 +2637,11 @@ function _onBeforeUnload(e){
 // file labels). Kept in session state (so Undo and the snapshot carry them) and written to
 // the settings file's "Tool Settings" sheet.
 // ================================================================
-const TOOL_SETTING_DEFAULTS={wowHours:8,wowPayPct:25,reportFinalDiff:'Leave out',acctSections:''};
-const TOOL_SETTING_LABELS={wowHours:'Week-over-week hours swing',wowPayPct:'Week-over-week pay swing %',reportFinalDiff:'Payroll report · Rounded Final and Diff columns',acctSections:'Accountant file · sections'}; // FC-00071, FC-00074
+// FC-00077: reportColumns (the payroll report's columns, ticked and in order) replaces FC-00071's
+// reportFinalDiff; its default is filled in once the column pool is defined (REPORT_COL_KEYS).
+const TOOL_SETTING_DEFAULTS={wowHours:8,wowPayPct:25,reportColumns:'',acctSections:''};
+const TOOL_SETTING_LABELS={wowHours:'Week-over-week hours swing',wowPayPct:'Week-over-week pay swing %',reportColumns:'Payroll report · Columns',acctSections:'Accountant file · sections'}; // FC-00071, FC-00074, FC-00077
+const LEGACY_FINAL_DIFF_LABEL='Payroll report · Rounded Final and Diff columns'; // FC-00071's setting, still read from older settings files
 function getToolSetting(key){
   const v=session.toolSettings&&session.toolSettings[key];
   return v===undefined||v===null||v===''?TOOL_SETTING_DEFAULTS[key]:v;
@@ -2634,7 +2652,7 @@ function setToolSetting(key,val,screen){
     if(isNaN(n)||n<0){showToast(TOOL_SETTING_LABELS[key]+' must be a number of 0 or more','err');return false;}
     val=n;
   }
-  if(key==='reportFinalDiff')val=/^(incl|yes|true|on|1)/i.test(String(val==null?'':val).trim())?'Include':'Leave out'; // FC-00071
+  if(key==='reportColumns')val=_reportColsFormat(_reportColsParse(val)); // FC-00077: always stored in the same words
   const from=getToolSetting(key);
   if(from===val)return false;
   if(!session.toolSettings)session.toolSettings={};
@@ -2651,7 +2669,7 @@ function _toolSettingLabel(k){
   return k;
 }
 function _toolSettingsRows(){
-  const rows=Object.keys(TOOL_SETTING_DEFAULTS).filter(k=>k!=='acctSections'||getToolSetting(k)).map(k=>[TOOL_SETTING_LABELS[k],getToolSetting(k)]); // FC-00074: sections only once known
+  const rows=Object.keys(TOOL_SETTING_DEFAULTS).filter(k=>k!=='acctSections'||getToolSetting(k)).map(k=>[TOOL_SETTING_LABELS[k],k==='reportColumns'?_reportColsFormat(reportColumns()):getToolSetting(k)]); // FC-00074: sections only once known; FC-00077: the columns as the report has them
   // FC-00040: file labels, one row per entity that has one set.
   Object.keys(session.toolSettings||{}).filter(k=>k.startsWith('label:')).sort().forEach(k=>rows.push([_toolSettingLabel(k),session.toolSettings[k]]));
   // FC-00045: name display, written as words a person can read and edit.
@@ -2694,6 +2712,9 @@ function _ingestToolSettings(rows){
       if(nk&&v&&setToolSetting(nk,v,'settings'))n++;
       return;
     }
+    // FC-00077: a settings file from before the column picker says only whether Rounded Final and
+    // Diff were included; that ticks or unticks those two columns.
+    if(lab.toLowerCase()===LEGACY_FINAL_DIFF_LABEL.toLowerCase()){if(r[1]!==''&&r[1]!=null&&_setFinalDiffOn(/^(incl|yes|true|on|1)/i.test(String(r[1]).trim()),'settings'))n++;return;}
     const k=byLabel[lab.toLowerCase()];
     if(!k||r[1]===''||r[1]==null)return;
     if(setToolSetting(k,r[1],'settings'))n++;
@@ -3680,7 +3701,7 @@ function _downloadsHtmlInner(){
     const btns=Object.keys(d.formats).map(f=>`<button class="btn ${f==='xlsx'?'btn-green':''}" onclick="exportCardNow('${escJs(d.key)}','${f}')" ${d.disabled?'disabled':''}>${f==='json'?'Save snapshot':_FMT_LABEL[f]}</button>`).join('');
     const ticks=Object.keys(d.formats).map(f=>`<label class="dl-fmt"><input type="checkbox" ${_dlTick(d.key,f)?'checked':''} onchange="setDownloadTick('${escJs(d.key)}','${f}',this.checked)"> ${_FMT_LABEL[f]}</label>`).join(' ');
     const extra=d.key==='settings'?`<label class="dl-fmt" style="display:block;margin-top:4px"><input type="checkbox" id="settingsIncludeBreaksToggle" ${_settingsBreaksPref?'checked':''} onchange="setSettingsBreaksPref(this.checked)"> Include per-day breaks</label>`
-      :(d.key==='payroll'||d.key.startsWith('payroll:'))?`<label class="dl-fmt" style="display:block;margin-top:4px"><input type="checkbox" class="final-diff-toggle" ${reportShowsFinalDiff()?'checked':''} onchange="setReportFinalDiff(this.checked)"> Include Rounded Final and Diff columns</label>` // FC-00071
+      :(d.key==='payroll'||d.key.startsWith('payroll:'))?`<div class="dl-desc report-cols-note">${escHtml(_reportColsNoteText())}</div>` // FC-00077: chosen on the export preview
       :d.key==='accountant'?`<div class="dl-desc acct-card-dates">${escHtml(_payDatesLine()||'Pay dates: no schedule dates yet')}</div>`:'';
     h+=`<div class="exp-card${d.key.startsWith('payroll:')?' exp-card-entity':''}" data-key="${escHtml(d.key)}"><div class="exp-title">${escHtml(d.label)}</div><div class="dl-desc">${escHtml(d.desc)}</div>${ents}${d.key==='payroll'?_lineNameSelectHtml('payroll'):''}${names.length?'<div class="dl-files">'+names.map(escHtml).join('<br>')+'</div>':''}${extra}<div class="exp-btns">${btns}</div><div class="exp-batch">In batch: ${ticks}</div>`;
     if(st)h+=st.ok?'<div class="dl-ok">✓ Ready</div>':'<div class="dl-warn">⚠ '+st.reasons.map(escHtml).join('<br>⚠ ')+'</div>';
@@ -5249,7 +5270,8 @@ function _fc13PreviewModelInner(){
   if(data.length===0)return null;
   const spec=_columnsFor('combined');
   const C=COMBINED_COLS;
-  const cashColIdx=C.cash+1; // 1-based, as in _exportExcel
+  const cashColIdx=C.cash!=null?C.cash+1:null; // 1-based, as in _exportExcel
+  const LC=spec.labelCol||0; // FC-00077: where subtotal and total labels sit
 
   const titleText=_reportTitle('combined');
   const per=_exportPeriodStr();
@@ -5299,7 +5321,7 @@ function _fc13PreviewModelInner(){
         kind:'data',entityId,flag:flag?'Not on the schedule and not confirmed: add them as a new employee or match them to someone':'',
         cells:vals.map(_cellText),
         bgs:vals.map((c,ci)=>argbToCss((ci+1)===cashColIdx?pal.cash:pal.body)),
-        tips:vals.map((c,ci)=>ci===1?tdName:(ci===0?tdEntity:tdEdit))
+        tips:vals.map((c,ci)=>ci===C.employee?tdName:(ci===C.entity?tdEntity:tdEdit))
       });
     };
     if(filtered.length){
@@ -5307,7 +5329,7 @@ function _fc13PreviewModelInner(){
       // Entity subtotal row — the same totals the Excel and PDF write.
       const entVals=_sectionTotals(spec,filtered);
       const subVals=fill('');
-      subVals[0]=entityName+' subtotal';
+      subVals[LC]=entityName+' subtotal';
       (spec.totals||[]).forEach(t=>{subVals[t.col]=_totalCellText(t,entVals[t.col]);grandVals[t.col]+=entVals[t.col];});
       rows.push({kind:'subtotal',entityId,cells:subVals,bgs:fill(argbToCss(pal.subtotal)),tips:fill(tdAuto)});
     }
@@ -5316,7 +5338,7 @@ function _fc13PreviewModelInner(){
       rows.push({kind:'section',entityId,cells:[EXEC_PR_LABEL+' — '+entityName],bgs:['#E8E8E4'],tips:[tdAuto]});
       execRows.forEach(dataRow);
       const ev=_sectionTotals(spec,execRows);
-      const sv=fill('');sv[0]=entityName+' '+EXEC_PR_LABEL+' subtotal';
+      const sv=fill('');sv[LC]=entityName+' '+EXEC_PR_LABEL+' subtotal';
       (spec.totals||[]).forEach(t=>{sv[t.col]=_totalCellText(t,ev[t.col]);execVals[t.col]+=ev[t.col];});
       rows.push({kind:'execSub',entityId,cells:sv,bgs:fill(argbToCss(pal.subtotal)),tips:fill(tdAuto)});
       execCount++;
@@ -5328,18 +5350,18 @@ function _fc13PreviewModelInner(){
   // Grand total row — uses the shared grand-total fill (A6A6A6, same across all presets),
   // bold, matching _applyEntityPalette(g,FC14_PRESETS.Plain,'grand',null) in _exportExcel.
   const grandValsOut=fill('');
-  grandValsOut[0]='GRAND TOTAL';
+  grandValsOut[LC]='GRAND TOTAL';
   (spec.totals||[]).forEach(t=>{grandValsOut[t.col]=_totalCellText(t,Math.round(grandVals[t.col]*100)/100);});
   rows.push({kind:'grand',entityId:null,cells:grandValsOut,bgs:fill(argbToCss(FC14_PRESETS.Plain.grand)),tips:fill(tdAuto)});
   if(execCount){
     [['execGrand','EXECUTIVE PR TOTAL',t=>execVals[t.col]],['allGrand','TOTAL WITH EXECUTIVE PR',t=>grandVals[t.col]+execVals[t.col]]].forEach(([k,lab,val])=>{
-      const c=fill('');c[0]=lab;
+      const c=fill('');c[LC]=lab;
       (spec.totals||[]).forEach(t=>{c[t.col]=_totalCellText(t,Math.round(val(t)*100)/100);});
       rows.push({kind:k,entityId:null,cells:c,bgs:fill(argbToCss(FC14_PRESETS.Plain.grand)),tips:fill(tdAuto)});
     });
   }
 
-  return{headers:spec.headers.slice(),numCols:spec.numCols.slice(),colW:COMBINED_XL_WIDTHS.slice(),rows};
+  return{v:77,headers:spec.headers.slice(),numCols:spec.numCols.slice(),colW:COMBINED_XL_WIDTHS.slice(),labelCol:LC,rows};
 }
 
 // Renders a preview model as the fc13 table. `editable` (FC-00024 scratch copy) makes every
@@ -5400,8 +5422,44 @@ function renderFc00013PreviewPanel(){
   const _fc35Note=!_fc35.list.length?'':(_fc35.withPay.length
     ?`<div class="inactive-excluded-banner" style="background:#FEF2F2;color:#991B1B;border:1px solid #F87171;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px">⚠ Left out — Active unchecked but has hours or pay this week: ${escHtml(_fc35.payText)}. Check Active in Payroll Calculation to pay them.${_fc35.list.length>_fc35.withPay.length?` Also left out: ${escHtml(_fc35.list.filter(x=>!(x.hours>0||x.pay>0)).map(x=>x.empName).join(', '))}.`:''}</div>`
     :`<div class="inactive-excluded-banner" style="background:#F4F3EE;color:#57534E;border:1px solid #D6D3CD;border-radius:6px;padding:6px 10px;margin-bottom:8px;font-size:12px">Left out (Active unchecked): ${escHtml(_fc35.list.map(x=>x.empName).join(', '))}.</div>`);
-  host.innerHTML=(tableHtml?`<div class="fc13-preview-panel">${_fc32Note}${_fc35Note}<h3>Export preview <span class="fc13-readonly-badge">read-only</span>${_chooser}${copyBtn}</h3><div class="fc13-preview-scroll">${tableHtml}</div></div>`:'')+_fc24ScratchPanelHtml();
+  host.innerHTML=(tableHtml?`<div class="fc13-preview-panel">${_fc32Note}${_fc35Note}<h3>Export preview <span class="fc13-readonly-badge">read-only</span>${_chooser}${copyBtn}</h3>${_reportColsBarHtml()}<div class="fc13-preview-scroll">${tableHtml}</div></div>`:'')+_fc24ScratchPanelHtml();
 }
+
+// ---- FC-00077: the report's columns, as chips above the preview ----
+// One chip per column in the pool, in the report's order: tick to include, drag to move. The
+// choice is one Tool Setting, so Undo, History, the snapshot and the settings file carry it.
+function _reportColsBarHtml(){
+  const list=reportColumns();
+  const chips=list.map(c=>{
+    const d=_COMBINED_COL_DEFS[c.key],locked=c.key==='employee';
+    const k=escJs(c.key);
+    return`<span class="rc-chip ${c.on?'on':'off'}${locked?' locked':''}" data-key="${escHtml(c.key)}" draggable="true" title="${escHtml(d[5]+(locked?'':' · drag to move'))}" ondragstart="_rcDragStart(event,'${k}')" ondragover="_rcDragOver(event,'${k}')" ondragleave="_rcDragLeave(event)" ondrop="_rcDrop(event,'${k}')" ondragend="_rcDragEnd(event)"><span class="rc-grip">⋮⋮</span><label><input type="checkbox"${c.on?' checked':''}${locked?' disabled':''} onchange="setReportColumnOn('${k}',this.checked)">${escHtml(d[0])}</label></span>`;
+  }).join('');
+  const hid=_reportLayoutKeys(true).hidden.map(k=>_COMBINED_COL_DEFS[k][0]);
+  const note=hid.length?`<div class="rc-hidden-note">In the Excel, ${escHtml(_listWords(hid))} ${hid.length===1?'stays as a hidden column':'stay as hidden columns'} so the formulas still work.</div>`:'';
+  return`<div class="rc-bar" id="reportColsBar"><span class="rc-bar-lbl">Columns</span>${chips}<button class="btn rc-reset" onclick="resetReportColumns()" title="Back to the standard columns and order">Reset</button></div>${note}`;
+}
+function _listWords(a){return a.length<2?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];}
+function _reportColsNoteText(){const l=reportColumns();return'Columns: '+l.filter(c=>c.on).length+' of '+l.length+', chosen and ordered on the Export preview';}
+let _rcDragKey=null;
+function _rcDragStart(ev,key){_rcDragKey=key;try{ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',key);}catch(_){}const el=ev.currentTarget||ev.target;if(el&&el.classList)el.classList.add('dragging');}
+function _rcSide(ev){const el=ev.currentTarget;if(!el||!el.getBoundingClientRect)return'before';const r=el.getBoundingClientRect();return ev.clientX<r.left+r.width/2?'before':'after';}
+function _rcDragOver(ev,key){
+  if(!_rcDragKey||_rcDragKey===key)return;
+  ev.preventDefault();
+  const el=ev.currentTarget;if(!el||!el.classList)return;
+  const side=_rcSide(ev);
+  el.classList.toggle('drop-before',side==='before');el.classList.toggle('drop-after',side==='after');
+}
+function _rcDragLeave(ev){const el=ev.currentTarget;if(el&&el.classList){el.classList.remove('drop-before');el.classList.remove('drop-after');}}
+function _rcDrop(ev,key){
+  ev.preventDefault();
+  const from=_rcDragKey;_rcDragKey=null;
+  _rcDragLeave(ev);
+  if(!from||from===key)return false;
+  return moveReportColumn(from,key,_rcSide(ev));
+}
+function _rcDragEnd(ev){_rcDragKey=null;if(typeof document!=='undefined')document.querySelectorAll('.rc-chip').forEach(el=>{el.classList.remove('dragging','drop-before','drop-after');});}
 
 // ---- FC-00024: editable scratch copy of the combined preview ("god mode") ----
 // Escape hatch for when an upstream feature misbehaves: snapshot the read-only preview into
@@ -5458,7 +5516,7 @@ function _fc24CellFromText(text,ci,numCols,hdrCells){
   const raw=t.replace(/[$,\s]/g,'');
   if(!/^[+-]?(\d+\.?\d*|\.\d+)$/.test(raw))return t;
   const v=parseFloat(raw);
-  if(h==='Hours'||h==='Over time')return xlHours(v);  // Hours, Over time
+  if(h==='Hours'||h==='Over time'||h==='Break'||h==='Scheduled Hours'||h==='Hours vs Schedule')return xlHours(v);  // hours columns (FC-00077 adds three)
   if(h==='Diff')return xlMoneySigned(v);              // Diff
   return xlMoney(v);
 }
@@ -10426,17 +10484,19 @@ function _xlApplyFx(row,fx){
 }
 // FC-00065 (PDF): the same for a jsPDF-autotable row — the label cell spans the columns before
 // the first total (one cell with colSpan), so it never wraps onto a second line.
-function _spanTotalLabel(row,totals){
-  const first=Math.min(...(totals||[]).map(t=>t.col));
-  if(!isFinite(first)||first<2)return row;
-  return[Object.assign({},row[0],{colSpan:first})].concat(row.slice(first));
+function _spanTotalLabel(row,totals,labelCol){
+  labelCol=labelCol||0; // FC-00077: the label may sit in a later column
+  const next=Math.min(...(totals||[]).map(t=>t.col).filter(c=>c>labelCol));
+  if(!isFinite(next)||next-labelCol<2)return row;
+  return row.slice(0,labelCol).concat([Object.assign({},row[labelCol],{colSpan:next-labelCol})],row.slice(next));
 }
 // FC-00065: a subtotal / grand-total label spans the columns before the first total, so
 // "<ENTITY> subtotal" prints in full instead of being cut at the Entity column's edge.
-function _mergeTotalLabel(ws,rowNum,totals){
-  const first=Math.min(...(totals||[]).map(t=>t.col));
-  if(!isFinite(first)||first<1)return;
-  try{ws.mergeCells(rowNum,1,rowNum,first);}catch(_){}
+function _mergeTotalLabel(ws,rowNum,totals,labelCol){
+  labelCol=labelCol||0; // FC-00077: the label may sit in a later column
+  const next=Math.min(...(totals||[]).map(t=>t.col).filter(c=>c>labelCol));
+  if(!isFinite(next)||next-labelCol<2)return;
+  try{ws.mergeCells(rowNum,labelCol+1,rowNum,next);}catch(_){}
 }
 // Shared subtotal math for the Excel and PDF writers: spec.totals lists the summed columns.
 // FC-00059: a {hmmOf:col} total is that hours total shown as h:mm.
@@ -10447,39 +10507,147 @@ function _sectionTotals(spec,rows){
   return out;
 }
 function _totalCellText(t,v){
-  if((t.blankZero||t.hmmOf!=null)&&Math.abs(v)<0.005)return '';
-  if(t.hmmOf!=null)return fmtHmm(v);
+  if((t.blankZero||t.hmmOf!=null||t.hmm)&&Math.abs(v)<0.005)return '';
+  if(t.hmmOf!=null||t.hmm)return fmtHmm(v);
   return _cellText(t.hours?xlHours(v):(t.signed?xlMoneySigned(v):xlMoney(v)));
 }
-function _totalFmt(t){if(t.hmmOf!=null)return XL_FMT_HMM_BLANK0;if(t.signed)return XL_FMT_SIGNED_BLANK0;return t.hours?(t.blankZero?XL_FMT_HOURS_BLANK0:XL_FMT_HOURS):(t.blankZero?XL_FMT_MONEY_BLANK0:XL_FMT_MONEY)}
+function _totalFmt(t){if(t.hmmOf!=null||t.hmm)return XL_FMT_HMM_BLANK0;if(t.signed)return XL_FMT_SIGNED_BLANK0;return t.hours?(t.blankZero?XL_FMT_HOURS_BLANK0:XL_FMT_HOURS):(t.blankZero?XL_FMT_MONEY_BLANK0:XL_FMT_MONEY)}
 // FC-00059: the payroll report's columns, by name. FC-00065: no H:MM column on the report (the
 // owner hid it on every report); h:mm stays on screen and on the Hours sheet.
-// FC-00070/FC-00071: Over time sits after Hours; Contract Check has its own column when someone on
-// the report is paid that way; Rounded Final and Diff print only when the owner includes them
-// (Tool Settings "Payroll report · Rounded Final and Diff columns", off by default). The arrays and
-// the map are filled in place by _setCombinedLayout, so every writer reads the same layout.
+// FC-00070/FC-00071: Over time sits after Hours; Contract Check has its own column; Rounded Final
+// and Diff are optional.
+// FC-00077: the owner picks the report's columns and their order on the export preview (a chip per
+// column: tick to include, drag to move). The choice is the Tool Setting "Payroll report · Columns",
+// saved in the settings file. The preview and the PDF show the ticked columns in that order. The
+// Excel shows the same columns; a column that a shown formula reads (Hours, Over time and Rate for
+// Actual Total; Actual Total for Deposit, Contract Check and Cash; …) is written too, hidden, so every
+// formula still works. The arrays and the map are filled in place by _setCombinedLayout, so every
+// writer reads the same layout.
 const COMBINED_HEADERS=[];
 const COMBINED_COLS={};
 const COMBINED_XL_WIDTHS=[];
 const COMBINED_PDF_WIDTHS=[];
-const _COMBINED_COL_DEFS={entity:['Entity',17,100],employee:['Employee',22,130],method:['Method',15,90],hours:['Hours',10,60],ot:['Over time',10,60],rate:['Rate',9,60],total:['Actual Total',13,80],deposit:['Deposit',13.41796875,70],contract:['Contract Check',15,80],cash:['Cash',13.05078125,70],final:['Rounded Final',15,90],diff:['Diff',10,60]};
+const COMBINED_HIDDEN=[]; // FC-00077: 0-based columns the Excel writes hidden
+// key: [header, Excel width, PDF width, ticked by default, has subtotals, what the chip's tip says]
+const _COMBINED_COL_DEFS={
+  entity:['Entity',17,100,true,false,'The entity'],
+  employee:['Employee',22,130,true,false,'Always on: every row names who is paid'],
+  method:['Method',15,90,true,false,'Cash, Deposit, Deposit + Cash, Contract Check or Executive PR'],
+  hours:['Hours',10,60,true,true,'Hours paid this run, in decimals'],
+  ot:['Over time',10,60,true,true,'A Deposit person\'s hours over 40, paid at 1.5×'],
+  rate:['Rate',9,60,true,false,'Hourly rate, or "flat"'],
+  total:['Actual Total',13,80,true,true,'Hours × rate (with over time), or the flat amount'],
+  deposit:['Deposit',13.41796875,70,true,true,'Paid by deposit'],
+  contract:['Contract Check',15,80,true,true,'Paid by contract check. Left out, a contract check is counted under Deposit'],
+  cash:['Cash',13.05078125,70,true,true,'Paid in cash, whole dollars'],
+  final:['Rounded Final',15,90,false,true,'Deposit + Contract Check + Cash'],
+  diff:['Diff',10,60,false,true,'Rounded Final − Actual Total (the cash rounding)'],
+  mode:['Mode',11,60,false,false,'Hourly, Flat or Semi-monthly'],
+  hmm:['H:MM',9,55,false,true,'Hours paid, as hours:minutes'],
+  brk:['Break',9,55,false,true,'Break hours taken off this week'],
+  sched:['Scheduled Hours',12,70,false,true,'Hours on the schedule'],
+  vsSched:['Hours vs Schedule',13,75,false,true,'Hours paid − scheduled hours'],
+  avgIn:['Avg In vs Schedule',13,75,false,false,'Average clock-in against the schedule, in minutes (+ = late)'],
+  avgOut:['Avg Out vs Schedule',13,75,false,false,'Average clock-out against the schedule, in minutes (+ = stayed late)'],
+  acctName:['Accountant Name',20,110,false,false,'The name on the accountant\'s file'],
+  acctType:['Employment Type',13,70,false,false,'W2 or 1099, as on the accountant\'s file'],
+  payDate:['Pay Date',16,85,false,false,'The day this person is paid: the deposit date, the cash date, or both']
+};
+const REPORT_COL_KEYS=Object.keys(_COMBINED_COL_DEFS); // the default order
+// What each formula column reads in the Excel (FC-00033). Contract Check is never brought in this
+// way: left out, a contract check is counted under Deposit, the same in the preview and the files.
+const _COMBINED_COL_NEEDS={ot:['hours'],total:['hours','ot','rate'],deposit:['total'],contract:['total'],cash:['total'],final:['deposit','cash'],diff:['final','total'],hmm:['hours'],vsSched:['hours','sched']};
 function _setCombinedLayout(o){
-  o=o||{};
-  const keys=['entity','employee','method','hours','ot','rate','total','deposit'].concat(o.contract?['contract']:[],['cash'],o.finalDiff?['final','diff']:[]);
-  COMBINED_HEADERS.length=0;COMBINED_XL_WIDTHS.length=0;COMBINED_PDF_WIDTHS.length=0;
+  let keys,hidden=[];
+  if(Array.isArray(o))keys=o;
+  else if(o&&Array.isArray(o.keys)){keys=o.keys;hidden=o.hidden||[];}
+  else{o=o||{};keys=['entity','employee','method','hours','ot','rate','total','deposit'].concat(o.contract?['contract']:[],['cash'],o.finalDiff?['final','diff']:[]);} // FC-00071's form
+  COMBINED_HEADERS.length=0;COMBINED_XL_WIDTHS.length=0;COMBINED_PDF_WIDTHS.length=0;COMBINED_HIDDEN.length=0;
   Object.keys(COMBINED_COLS).forEach(k=>delete COMBINED_COLS[k]);
-  keys.forEach((k,i)=>{const d=_COMBINED_COL_DEFS[k];COMBINED_HEADERS.push(d[0]);COMBINED_COLS[k]=i;COMBINED_XL_WIDTHS.push(d[1]);COMBINED_PDF_WIDTHS.push(d[2]);});
+  keys.forEach((k,i)=>{const d=_COMBINED_COL_DEFS[k];COMBINED_HEADERS.push(d[0]);COMBINED_COLS[k]=i;COMBINED_XL_WIDTHS.push(d[1]);COMBINED_PDF_WIDTHS.push(d[2]);if(hidden.includes(k))COMBINED_HIDDEN.push(i);});
   return keys;
 }
 // Width of a report column by its header (an editable copy keeps the columns it was made with).
 function _combinedWidthOf(header,pdf){const k=Object.keys(_COMBINED_COL_DEFS).find(x=>_COMBINED_COL_DEFS[x][0]===header);const d=k?_COMBINED_COL_DEFS[k]:null;return d?(pdf?d[2]:d[1]):(pdf?70:13);}
-_setCombinedLayout({});
-function reportShowsFinalDiff(){return /^incl/i.test(String(getToolSetting('reportFinalDiff')||''));}
-function setReportFinalDiff(on){
-  const ch=setToolSetting('reportFinalDiff',on?'Include':'Leave out','payroll');
-  if(!_simulating){renderDownloadsPanel();renderFc00013PreviewPanel();}
+// FC-00077: the setting, written as words a person can read and edit in the settings file: every
+// column in the report's order, a left-out one marked "(off)": "Entity, Employee, …, Cash, Rounded
+// Final (off), Diff (off), …". Unknown words are ignored; a column missing from the words (one added
+// to the pool later) starts left out at the end; Employee is always on.
+const REPORT_COL_OFF=' (off)';
+function _reportColsDefaultList(){return REPORT_COL_KEYS.map(k=>({key:k,on:!!_COMBINED_COL_DEFS[k][3]}));}
+function _reportColKeyOf(name){const n=String(name==null?'':name).trim().toLowerCase();if(!n)return null;return REPORT_COL_KEYS.find(k=>k.toLowerCase()===n||_COMBINED_COL_DEFS[k][0].toLowerCase()===n)||null;}
+function _reportColsFormat(list){return list.map(c=>_COMBINED_COL_DEFS[c.key][0]+(c.on?'':REPORT_COL_OFF)).join(', ');}
+function _reportColsParse(v){
+  const str=String(v==null?'':v);
+  if(!str.trim())return _reportColsDefaultList();
+  const out=[],seen=new Set();
+  str.split(',').forEach(x=>{
+    const off=/\(\s*off\s*\)\s*$/i.test(x);
+    const k=_reportColKeyOf(String(x).replace(/\(\s*off\s*\)\s*$/i,''));
+    if(!k||seen.has(k))return;
+    seen.add(k);out.push({key:k,on:!off});
+  });
+  if(!out.length)return _reportColsDefaultList();
+  REPORT_COL_KEYS.forEach(k=>{if(!seen.has(k))out.push({key:k,on:false});});
+  out.forEach(c=>{if(c.key==='employee')c.on=true;});
+  return out;
+}
+TOOL_SETTING_DEFAULTS.reportColumns=_reportColsFormat(_reportColsDefaultList());
+function reportColumns(){
+  // A snapshot from before the picker holds only FC-00071's reportFinalDiff: Include ticks Rounded
+  // Final and Diff on the standard columns.
+  const ts=session.toolSettings||{};
+  if((ts.reportColumns==null||ts.reportColumns==='')&&/^incl/i.test(String(ts.reportFinalDiff||'')))return _reportColsDefaultList().map(c=>(c.key==='final'||c.key==='diff')?{key:c.key,on:true}:c);
+  return _reportColsParse(getToolSetting('reportColumns'));
+}
+// The report's keys in order: ticked only (preview and PDF), or for the Excel the ticked ones plus
+// every column a ticked formula reads, those written hidden.
+function _reportLayoutKeys(forExcel){
+  const list=reportColumns();
+  const on=new Set(list.filter(c=>c.on).map(c=>c.key));
+  if(!forExcel)return{keys:list.filter(c=>c.on).map(c=>c.key),hidden:[]};
+  const need=new Set(on);
+  let grew=true;
+  while(grew){grew=false;[...need].forEach(k=>(_COMBINED_COL_NEEDS[k]||[]).forEach(d=>{if(!need.has(d)){need.add(d);grew=true;}}));}
+  const keys=list.filter(c=>need.has(c.key)).map(c=>c.key);
+  return{keys,hidden:keys.filter(k=>!on.has(k))};
+}
+function setReportColumns(list,screen){
+  const ch=setToolSetting('reportColumns',_reportColsFormat(list),screen||'payroll');
+  if(ch&&!_simulating){renderDownloadsPanel();renderFc00013PreviewPanel();}
   return ch;
 }
+function setReportColumnOn(key,on){
+  if(!_COMBINED_COL_DEFS[key])return false;
+  if(key==='employee'&&!on){showToast('Employee is always on the report','err');if(!_simulating)renderFc00013PreviewPanel();return false;}
+  return setReportColumns(reportColumns().map(c=>c.key===key?{key,on:!!on}:c));
+}
+// Moves a column next to another one (where 'before' or 'after'), or to the end when `to` is empty.
+function moveReportColumn(key,to,where){
+  const list=reportColumns();
+  const from=list.findIndex(c=>c.key===key);
+  if(from<0||key===to)return false;
+  const item=list.splice(from,1)[0];
+  let at=to?list.findIndex(c=>c.key===to):list.length;
+  if(at<0)return false;
+  if(where==='after')at++;
+  list.splice(at,0,item);
+  return setReportColumns(list);
+}
+function resetReportColumns(){return setReportColumns(_reportColsDefaultList());}
+function reportShowsFinalDiff(){const c=reportColumns().find(x=>x.key==='final');return!!(c&&c.on);}
+function _setFinalDiffOn(on,screen){return setReportColumns(reportColumns().map(c=>(c.key==='final'||c.key==='diff')?{key:c.key,on:!!on}:c),screen);}
+function setReportFinalDiff(on){return _setFinalDiffOn(on,'payroll');} // FC-00071's switch: ticks or unticks both columns
+// The run's pay date for one row (FC-00073): deposit date, cash date, or both for Deposit + Cash.
+function _rowPayDateText(r){
+  const p=payDates();if(!p.run)return'';
+  const dep=p.deposit?_fmtPayDate(p.deposit.iso):'not set',cash=_fmtPayDate(p.cash.iso);
+  const m=r._breakdown.method;
+  if(m==='both')return dep+' + '+cash;
+  return(m==='deposit'||m==='exec')?dep:cash;
+}
+function _modeText(r){return r.isSemi?'Semi-monthly':(r.isFlat||r._breakdown.method==='exec')?'Flat':'Hourly';}
+function _minDiffText(v){return v==null?'':(v>0?'+':'')+Math.round(v)+'m';}
 
 // ================================================================
 // FC-00073 — the run's two pay dates, and each person's accountant details
@@ -11022,7 +11190,7 @@ function _fxHmmCell(n,C,hours){
 }
 
 // ---- Table spec per kind ----
-function _columnsFor(kind,nameKey){
+function _columnsFor(kind,nameKey,opts){
   const hasActuals=entities.some(e=>e.actualDays&&e.actualDays.length>0);
   // FC-00045: names print as chosen for this export (the Full report's sections use its choice).
   const _nmf=_makeNameFormatter(nameKey||_DL_KEY_FOR_KIND[kind]||'payroll');
@@ -11059,52 +11227,84 @@ function _columnsFor(kind,nameKey){
   }
   if(kind==='combined'){
     // FC-00059: every number column has subtotals and a grand total. COMBINED_COLS names the
-    // positions for every writer. FC-00070/FC-00071: Over time after Hours; Contract Check its own
-    // column when someone on this report is paid that way; Rounded Final and Diff only when included.
-    const hasContract=_collectExportData().some(d=>d.rows.some(r=>r._breakdown.method==='contract'));
-    _setCombinedLayout({contract:hasContract,finalDiff:reportShowsFinalDiff()});
+    // positions for every writer. FC-00077: the columns and their order are the owner's (the export
+    // preview's chips); opts.forExcel adds the hidden columns the Excel's formulas read.
+    _setCombinedLayout(_reportLayoutKeys(!!(opts&&opts.forExcel)));
     const C=Object.assign({},COMBINED_COLS);
-    const isC=r=>C.contract!=null&&r._breakdown.method==='contract';
+    const has=k=>C[k]!=null;
+    const isC=r=>has('contract')&&r._breakdown.method==='contract';
     const dep=r=>isC(r)?0:(r._breakdown.deposit||0);
     const con=r=>isC(r)?(r._breakdown.deposit||0):0;
-    const totals=[
-      {col:C.hours,val:r=>r.isFlat?0:_r2(hasActuals?(r.actualHours||0):(r.expectedH||0)),hours:true,blankZero:true},
-      {col:C.ot,val:r=>r.otPaidH||0,hours:true,blankZero:true},
-      {col:C.total,val:r=>r._breakdown.actualFinal||0},
-      {col:C.deposit,val:dep,blankZero:true}
-    ];
-    if(C.contract!=null)totals.push({col:C.contract,val:con,blankZero:true});
-    totals.push({col:C.cash,val:r=>r._breakdown.cash||0,blankZero:true});
-    if(C.final!=null)totals.push({col:C.final,val:r=>r._breakdown.roundedFinal||0},{col:C.diff,val:r=>r._breakdown.roundingDiff||0,signed:true,blankZero:true});
+    const hoursOf=r=>r.isFlat?null:(hasActuals?(r.actualHours||0):(r.expectedH||0));
+    const schedOf=r=>r.isFlat?null:(r.expectedH||0);
+    const T={
+      hours:{val:r=>r.isFlat?0:_r2(hoursOf(r)),hours:true,blankZero:true},
+      ot:{val:r=>r.otPaidH||0,hours:true,blankZero:true},
+      total:{val:r=>r._breakdown.actualFinal||0},
+      deposit:{val:dep,blankZero:true},
+      contract:{val:con,blankZero:true},
+      cash:{val:r=>r._breakdown.cash||0,blankZero:true},
+      final:{val:r=>r._breakdown.roundedFinal||0},
+      diff:{val:r=>r._breakdown.roundingDiff||0,signed:true,blankZero:true},
+      hmm:{val:r=>r.isFlat?0:_r2(hoursOf(r)),hmm:true},
+      brk:{val:r=>r.isFlat?0:_r2(r.actualBreakH||0),hours:true,blankZero:true},
+      sched:{val:r=>r.isFlat?0:_r2(schedOf(r)),hours:true,blankZero:true},
+      vsSched:{val:r=>r.isFlat?0:_r2(_r2(hoursOf(r))-_r2(schedOf(r))),hours:true,blankZero:true}
+    };
+    const totals=Object.keys(C).filter(k=>T[k]).sort((a,b)=>C[a]-C[b]).map(k=>{
+      const t=Object.assign({col:C[k],key:k},T[k]);
+      if(k==='hmm'&&has('hours'))t.hmmOf=C.hours; // the Excel's h:mm total reads the Hours total beside it
+      return t;
+    });
+    // Subtotal and grand-total labels sit in the first shown column that has no total (Employee at
+    // the latest), and span the columns up to the next total.
+    const labelCol=Object.keys(C).filter(k=>!_COMBINED_COL_DEFS[k][4]&&!COMBINED_HIDDEN.includes(C[k])).map(k=>C[k]).sort((a,b)=>a-b)[0]||0;
     return {
       headers:COMBINED_HEADERS.slice(),
       widths:COMBINED_PDF_WIDTHS.slice(),
       xlWidths:COMBINED_XL_WIDTHS.slice(),
+      hidden:COMBINED_HIDDEN.slice(),
       cols:C,
+      labelCol,
       rowFn:(r)=>{
         const exec=r._breakdown.method==='exec';
-        const hv=r.isFlat?null:(hasActuals?(r.actualHours||0):(r.expectedH||0));
+        const hv=hoursOf(r);
         const v=new Array(COMBINED_HEADERS.length).fill('');
-        v[C.entity]=r._entityName;
-        v[C.employee]=_nm(r)+(r.isFlat&&!exec?' (flat)':'');
-        v[C.method]=methodLabel(r._breakdown.method);
-        v[C.hours]=hv==null?'':xlHours(hv);
-        v[C.ot]=r.otPaidH>0?xlHours(r.otPaidH):'';
-        v[C.rate]=(r._wageBlank||exec)?'':(r.isFlat?'flat':(r.wage>0?xlMoney(r.wage):'—'));
-        v[C.total]=r._wageBlank?'':(r._totalPay>0?xlMoney(r._breakdown.actualFinal):'—');
-        v[C.deposit]=dep(r)>0?xlMoney(dep(r)):'—';
-        if(C.contract!=null)v[C.contract]=con(r)>0?xlMoney(con(r)):'—';
-        v[C.cash]=r._breakdown.cash>0?xlMoney(r._breakdown.cash):'—';
-        if(C.final!=null){
-          const diff=r._breakdown.roundingDiff||0;
-          v[C.final]=r._breakdown.roundedFinal>0?xlMoney(r._breakdown.roundedFinal):'—';
-          v[C.diff]=Math.abs(diff)>=0.005?xlMoneySigned(diff):'';
-        }
+        const put=(k,x)=>{if(has(k))v[C[k]]=x;};
+        put('entity',r._entityName);
+        put('employee',_nm(r)+(r.isFlat&&!exec?' (flat)':''));
+        put('method',methodLabel(r._breakdown.method));
+        put('hours',hv==null?'':xlHours(hv));
+        put('ot',r.otPaidH>0?xlHours(r.otPaidH):'');
+        put('rate',(r._wageBlank||exec)?'':(r.isFlat?'flat':(r.wage>0?xlMoney(r.wage):'—')));
+        put('total',r._wageBlank?'':(r._totalPay>0?xlMoney(r._breakdown.actualFinal):'—'));
+        put('deposit',dep(r)>0?xlMoney(dep(r)):'—');
+        put('contract',con(r)>0?xlMoney(con(r)):'—');
+        put('cash',r._breakdown.cash>0?xlMoney(r._breakdown.cash):'—');
+        const diff=r._breakdown.roundingDiff||0;
+        put('final',r._breakdown.roundedFinal>0?xlMoney(r._breakdown.roundedFinal):'—');
+        put('diff',Math.abs(diff)>=0.005?xlMoneySigned(diff):'');
+        put('mode',_modeText(r));
+        put('hmm',hv==null?'':xlHmm(hv));
+        put('brk',r.isFlat?'':xlHours(r.actualBreakH||0));
+        put('sched',r.isFlat?'':xlHours(schedOf(r)));
+        put('vsSched',r.isFlat?'':xlHours(_r2(hv)-_r2(schedOf(r))));
+        put('avgIn',r.isFlat?'':_minDiffText(r.avgInDiff));
+        put('avgOut',r.isFlat?'':_minDiffText(r.avgOutDiff));
+        put('acctName',getAcctField(r._entityId,r._empName,'acct_name'));
+        put('acctType',_normAcctType(getAcctField(r._entityId,r._empName,'acct_type')));
+        put('payDate',_rowPayDateText(r));
         return v;
       },
-      fx:(r,n)=>Object.assign({},_fxPayBlock(r,n,{hours:C.hours,ot:C.ot,rate:C.rate,total:C.total,deposit:C.deposit,contract:C.contract,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals})),
+      fx:(r,n)=>{
+        const out=_fxPayBlock(r,n,{hours:C.hours,ot:C.ot,rate:C.rate,total:C.total,deposit:C.deposit,contract:C.contract,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals});
+        const hv=hoursOf(r);
+        if(has('hmm')&&has('hours'))Object.assign(out,_fxHmmCell(n,C,hv));
+        if(has('vsSched')&&has('hours')&&has('sched')&&hv!=null)out[C.vsSched]={f:'ROUND('+_xlCol(C.hours)+n+'-'+_xlCol(C.sched)+n+',2)',r:_r2(_r2(hv)-_r2(schedOf(r))),fmt:XL_FMT_HOURS};
+        return out;
+      },
       totals,
-      numCols:Object.keys(C).filter(k=>!['entity','employee','method'].includes(k)).map(k=>C[k]).sort((a,b)=>a-b),
+      numCols:Object.keys(C).filter(k=>!['entity','employee','method','mode','avgIn','avgOut','acctName','acctType','payDate'].includes(k)).map(k=>C[k]).sort((a,b)=>a-b),
       sortFn:_paytypeExportSortFn
     };
   }
@@ -11410,7 +11610,8 @@ async function _exportExcel(kind){
   const _hoursMap=(kind==='combined'&&entities.some(e=>e.actualDays&&e.actualDays.length>0))?_writeHoursDetailSheet(ewb,data):null;
   let titleMerged=false;
   async function writeSection(sectionKind){
-    const spec=_columnsFor(sectionKind,_DL_KEY_FOR_KIND[kind]);
+    const spec=_columnsFor(sectionKind,_DL_KEY_FOR_KIND[kind],{forExcel:true}); // FC-00077: with the formulas' hidden inputs
+    const LC=spec.labelCol||0;
     if(!spec)return;
     // The title is merged once. The Full report writes two sections, and merging the same
     // range twice makes ExcelJS throw ("Cannot merge already merged cells"), which killed
@@ -11441,7 +11642,7 @@ async function _exportExcel(kind){
     // cashOnly's last column (Cash Portion) gets it too. depositOnly has no cash column —
     // its Deposit column is body-colored, not specially tinted (per FC-00012 DoD).
     const cashColIdx=
-      sectionKind==='combined'?COMBINED_COLS.cash+1:
+      sectionKind==='combined'?(COMBINED_COLS.cash!=null?COMBINED_COLS.cash+1:null):
       sectionKind==='cashOnly'?spec.headers.length:
       null;
 
@@ -11460,7 +11661,7 @@ async function _exportExcel(kind){
         if(!firstRow)firstRow=row.number;
         lastRow=row.number;
         if(spec.fx)_xlApplyFx(row,spec.fx(r,row.number));
-        if(_hoursMap&&sectionKind==='combined'&&!r.isFlat){
+        if(_hoursMap&&sectionKind==='combined'&&!r.isFlat&&COMBINED_COLS.hours!=null){
           const hm=_hoursMap.get(r._entityId+'|'+_aliasNorm(r._empName));
           const hc=row.getCell(COMBINED_COLS.hours+1);
           if(hm)hc.value={formula:'ROUND(SUM('+hm.ref+'),2)',result:_r2(r.actualHours||0)};
@@ -11475,7 +11676,7 @@ async function _exportExcel(kind){
       // Subtotal
       const entVals=_sectionTotals(spec,list);
       const subCells=new Array(spec.headers.length).fill('');
-      subCells[0]=subLabel;
+      subCells[LC]=subLabel;
       const sub=ws.addRow(subCells);
       totals.forEach(t=>{
         const L=_xlCol(t.col),cell=sub.getCell(t.col+1);
@@ -11489,7 +11690,7 @@ async function _exportExcel(kind){
         cell.border={top:medB,bottom:medB,left:thinB,right:thinB};
       });
       if(_fc12Colorize)_applyEntityPalette(sub,entPal,'subtotal',null);
-      _mergeTotalLabel(ws,sub.number,totals);
+      _mergeTotalLabel(ws,sub.number,totals,LC);
       return{num:sub.number,vals:entVals};
     };
     data.forEach(({entityName,entityId,rows})=>{
@@ -11521,7 +11722,7 @@ async function _exportExcel(kind){
 
     // Grand total row = sum of the subtotal cells above it.
     const grandCells=new Array(spec.headers.length).fill('');
-    grandCells[0]='GRAND TOTAL';
+    grandCells[LC]='GRAND TOTAL';
     const g=ws.addRow(grandCells);
     totals.forEach(t=>{
       const L=_xlCol(t.col),cell=g.getCell(t.col+1);
@@ -11536,16 +11737,16 @@ async function _exportExcel(kind){
       cell.border={top:medB,bottom:medB,left:medB,right:medB};
     });
     if(_fc12Colorize)_applyEntityPalette(g,FC14_PRESETS.Plain,'grand',null);
-    _mergeTotalLabel(ws,g.number,totals);
+    _mergeTotalLabel(ws,g.number,totals,LC);
     // FC-00072: Executive PR is totalled on its own, then together with the GRAND TOTAL.
     if(execSubNums.length){
       const totalRow=(label,fmla,val)=>{
-        const cells=new Array(spec.headers.length).fill('');cells[0]=label;
+        const cells=new Array(spec.headers.length).fill('');cells[LC]=label;
         const x=ws.addRow(cells);
         totals.forEach(t=>{if(t.hmmOf!=null)return;const L=_xlCol(t.col),cell=x.getCell(t.col+1);cell.value={formula:fmla(L),result:Math.round(val(t)*100)/100};cell.numFmt=_totalFmt(t);});
         x.eachCell((cell,ci)=>{cell.font={name:'Arial',bold:true,size:11};cell.fill=grandFill;cell.alignment={horizontal:spec.numCols.indexOf(ci-1)>=0?'right':'left',vertical:'middle'};cell.border={top:medB,bottom:medB,left:medB,right:medB};});
         if(_fc12Colorize)_applyEntityPalette(x,FC14_PRESETS.Plain,'grand',null);
-        _mergeTotalLabel(ws,x.number,totals);
+        _mergeTotalLabel(ws,x.number,totals,LC);
         return x;
       };
       const ex=totalRow('EXECUTIVE PR TOTAL',L=>'SUM('+execSubNums.map(n=>L+n).join(',')+')',t=>execVals[t.col]);
@@ -11556,6 +11757,7 @@ async function _exportExcel(kind){
     // other kinds keep the legacy px/6 conversion.
     if(sectionKind==='combined'){
       COMBINED_XL_WIDTHS.forEach((w,i)=>{ws.getColumn(i+1).width=w});
+      (spec.hidden||[]).forEach(i=>{ws.getColumn(i+1).hidden=true;}); // FC-00077: formula inputs left off the report
     }else{
       spec.widths.forEach((w,i)=>{ws.getColumn(i+1).width=Math.round(w/6)});
     }
@@ -11695,6 +11897,7 @@ async function _exportPdf(kind){
   function writeSection(sectionKind){
     const spec=_columnsFor(sectionKind,_DL_KEY_FOR_KIND[kind]);
     if(!spec)return;
+    const LC=spec.labelCol||0; // FC-00077
 
     if(kind==='full'){
       doc.setFont('helvetica','bold');doc.setFontSize(12);
@@ -11706,7 +11909,7 @@ async function _exportPdf(kind){
     // cashOnly's last column (Cash Portion) gets it too. depositOnly has no cash column —
     // matches the cashColIdx logic in _exportExcel (which is 1-based; this is 0-based).
     const cashColIdx=
-      sectionKind==='combined'?COMBINED_COLS.cash:
+      sectionKind==='combined'?(COMBINED_COLS.cash!=null?COMBINED_COLS.cash:null):
       sectionKind==='cashOnly'?spec.headers.length-1:
       null;
 
@@ -11729,11 +11932,11 @@ async function _exportPdf(kind){
       });
       const entVals=_sectionTotals(spec,list);
       const subRow=new Array(spec.headers.length).fill({content:'',styles:{fillColor:[240,239,233],fontStyle:'bold'}});
-      subRow[0]={content:subLabel,styles:{fillColor:[240,239,233],fontStyle:'bold'}};
+      subRow[LC]={content:subLabel,styles:{fillColor:[240,239,233],fontStyle:'bold'}};
       totals.forEach(t=>{
         subRow[t.col]={content:_totalCellText(t,entVals[t.col]),styles:{fillColor:[240,239,233],fontStyle:'bold',halign:'right'}};
       });
-      body.push(_spanTotalLabel(subRow,totals));
+      body.push(_spanTotalLabel(subRow,totals,LC));
       // FC-00015: keep an entity's subtotal row on the same page as its data rows whenever
       // possible — autoTable's own per-row 'avoid' setting (vs. the table-wide 'avoid',
       // which would force the whole table onto one page) does exactly this.
@@ -11761,20 +11964,20 @@ async function _exportPdf(kind){
     });
 
     const grandRow=new Array(spec.headers.length).fill({content:'',styles:{fillColor:[224,222,213],fontStyle:'bold'}});
-    grandRow[0]={content:'GRAND TOTAL',styles:{fillColor:[224,222,213],fontStyle:'bold'}};
+    grandRow[LC]={content:'GRAND TOTAL',styles:{fillColor:[224,222,213],fontStyle:'bold'}};
     totals.forEach(t=>{
       grandRow[t.col]={content:_totalCellText(t,Math.round(grandVals[t.col]*100)/100),styles:{fillColor:[224,222,213],fontStyle:'bold',halign:'right'}};
     });
     const g0=body.length;
-    body.push(_spanTotalLabel(grandRow,totals));
+    body.push(_spanTotalLabel(grandRow,totals,LC));
     rowRoles.push({role:'grand',pal:_fc15Colorize?FC14_PRESETS.Plain:null,pageBreak:'avoid'});
     // FC-00072: Executive PR total, then the GRAND TOTAL with it.
     if(execCount){
       [['EXECUTIVE PR TOTAL',t=>execVals[t.col]],['TOTAL WITH EXECUTIVE PR',t=>grandVals[t.col]+execVals[t.col]]].forEach(([lab,val])=>{
         const row=new Array(spec.headers.length).fill({content:'',styles:{fillColor:[224,222,213],fontStyle:'bold'}});
-        row[0]={content:lab,styles:{fillColor:[224,222,213],fontStyle:'bold'}};
+        row[LC]={content:lab,styles:{fillColor:[224,222,213],fontStyle:'bold'}};
         totals.forEach(t=>{row[t.col]={content:_totalCellText(t,Math.round(val(t)*100)/100),styles:{fillColor:[224,222,213],fontStyle:'bold',halign:'right'}};});
-        body.push(_spanTotalLabel(row,totals));
+        body.push(_spanTotalLabel(row,totals,LC));
         rowRoles.push({role:'grand',pal:_fc15Colorize?FC14_PRESETS.Plain:null,pageBreak:'avoid'});
       });
     }

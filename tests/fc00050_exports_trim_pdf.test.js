@@ -114,10 +114,11 @@ test('test_kept_exports_unchanged', async () => {
   const ws = api.__lastExcelWorkbook.worksheets[0];
   // FC-00065: no H:MM column on the payroll report.
   // FC-00070/FC-00071: Over time after Hours; Rounded Final and Diff only when included.
-  assert.deepEqual(ws.rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Cash']);
+  // FC-00077: Contract Check shows whenever it is ticked (ticked by default).
+  assert.deepEqual(ws.rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Contract Check', 'Cash']);
   api.setReportFinalDiff(true);
   await api.exportCombinedExcel();
-  assert.deepEqual(api.__lastExcelWorkbook.worksheets[0].rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Cash', 'Rounded Final', 'Diff']);
+  assert.deepEqual(api.__lastExcelWorkbook.worksheets[0].rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Contract Check', 'Cash', 'Rounded Final', 'Diff']);
   await api.exportActualsIntakeExcel();
   assert.ok(api.__lastExcelWorkbook.worksheets.length >= 1);
 });

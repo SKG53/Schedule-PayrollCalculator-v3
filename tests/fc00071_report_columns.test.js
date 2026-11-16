@@ -1,6 +1,6 @@
-// FC-00071: Contract Check has its own column on the payroll report (only when someone on the
-// report is paid that way); Rounded Final and Diff are optional columns, off by default, chosen on
-// the Exports card and kept in the settings file. Invented names and figures only.
+// FC-00071: Contract Check has its own column on the payroll report; Rounded Final and Diff are
+// optional columns, off by default, kept in the settings file. FC-00077: every column is chosen on
+// the export preview; Contract Check shows whenever it is ticked. Invented names and figures only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { xlNum, xlFormulaMismatches } = require('./xl-helpers');
@@ -41,15 +41,21 @@ test('test_contract_check_own_column_and_total', async () => {
   assert.equal(call.options.body.find(r => r[1] === 'Dane Dtest')[C.contract], '$150.00');
 });
 
-test('test_contract_column_only_when_needed', async () => {
+test('test_contract_column_follows_its_tick', async () => {
+  // FC-00077: ticked, the column shows even when nobody on the report is paid that way.
   const api = setup();
-  api.payMethod[api.wKey(0, 'Dane Dtest')] = 'cash';
-  await api.exportCombinedExcel();
-  assert.ok(!hdrOf(api.__lastExcelWorkbook.worksheets[0]).includes('Contract Check'));
-  // A per-entity report shows it only if that entity has someone paid that way.
-  api.payMethod[api.wKey(0, 'Dane Dtest')] = 'contract';
   await api._withExportScope([1], () => api.exportCombinedExcel());
-  assert.ok(!hdrOf(api.__lastExcelWorkbook.worksheets[0]).includes('Contract Check'), 'Beta Test has no Contract Check');
+  assert.ok(hdrOf(api.__lastExcelWorkbook.worksheets[0]).includes('Contract Check'), 'Beta Test still has the column');
+  // Unticked, a contract check is counted under Deposit, the same in the Excel, the preview and the PDF.
+  assert.equal(api.setReportColumnOn('contract', false), true);
+  await api.exportCombinedExcel();
+  const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0], C = api.COMBINED_COLS;
+  assert.ok(!hdrOf(ws).includes('Contract Check'));
+  const dane = ws.rows.find(r => r && r[2] && r[2].value === 'Dane Dtest');
+  assert.equal(xlNum(dane[C.deposit + 1]), 150);
+  assert.deepEqual(xlFormulaMismatches(wb, ws).bad, []);
+  const m = api._fc13PreviewModel();
+  assert.equal(m.rows.find(r => r.kind === 'data' && r.cells[1] === 'Dane Dtest').cells[api.COMBINED_COLS.deposit], '$150.00');
 });
 
 test('test_final_and_diff_optional_and_saved', async () => {
@@ -64,26 +70,29 @@ test('test_final_and_diff_optional_and_saved', async () => {
   assert.equal(dane[C.final + 1].value.formula, 'ROUND(' + L('deposit') + n + '+' + L('cash') + n + '+' + L('contract') + n + ',2)', 'Rounded Final adds Contract Check');
   assert.equal(xlNum(dane[C.final + 1]), 150);
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, []);
-  // Saved in the settings file's Tool Settings and read back.
+  // Saved in the settings file's Tool Settings (FC-00077: as the report's column list) and read back.
   await api.exportPayrollSettingsExcel(false);
   const ts = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Tool Settings');
-  assert.ok(ts.rows.some(r => r && r[1] && r[1].value === 'Payroll report · Rounded Final and Diff columns' && r[2].value === 'Include'));
+  assert.ok(ts.rows.some(r => r && r[1] && r[1].value === 'Payroll report · Columns' && /^Entity, .*Cash, Rounded Final, Diff, Mode \(off\), /.test(r[2].value)));
+  // A settings file from before the picker still ticks or unticks the two columns.
   const b = setup();
   assert.equal(b._ingestToolSettings([['Payroll report · Rounded Final and Diff columns', 'Include']]), 1);
   assert.equal(b.reportShowsFinalDiff(), true);
   b._ingestToolSettings([['Payroll report · Rounded Final and Diff columns', 'no']]);
-  assert.equal(b.getToolSetting('reportFinalDiff'), 'Leave out', 'anything but include/yes is Leave out');
+  assert.equal(b.reportShowsFinalDiff(), false, 'anything but include/yes leaves them out');
   // Logged and undoable from History.
-  const line = api.session.log.filter(e => e.type === 'toolSetting' && e.target.field === 'reportFinalDiff').at(-1);
+  const line = api.session.log.filter(e => e.type === 'toolSetting' && e.target.field === 'reportColumns').at(-1);
   api.revertFromHistory(line.id);
   assert.equal(api.reportShowsFinalDiff(), false);
 });
 
-test('test_exports_card_has_the_choice', () => {
+test('test_exports_card_points_to_the_preview', () => {
+  // FC-00077: the columns are chosen on the export preview; the card says how many are on.
   const api = setup();
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  assert.match(html, /class="final-diff-toggle" +onchange="setReportFinalDiff\(this\.checked\)"> Include Rounded Final and Diff columns/);
+  assert.match(html, /class="dl-desc report-cols-note">Columns: 10 of 22, chosen and ordered on the Export preview</);
+  assert.doesNotMatch(html, /final-diff-toggle/);
 });
 
 test('test_editable_copy_keeps_its_own_columns', async () => {

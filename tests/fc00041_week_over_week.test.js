@@ -109,7 +109,7 @@ test('test_swing_thresholds_and_edit', async () => {
   await cur.exportPayrollSettingsExcel(false);
   const ts = cur.__lastExcelWorkbook.worksheets.find(x => x.name === 'Tool Settings');
   const tsRows = ts.rows.slice(2).map(r => [r[1].value, r[2].value]);
-  assert.deepEqual(tsRows.filter(r => !/^Highest employee ID issued/.test(r[0])), [['Week-over-week hours swing', 12], ['Week-over-week pay swing %', 1000], ['Payroll report · Rounded Final and Diff columns', 'Leave out']]);
+  assert.deepEqual(tsRows.filter(r => !/^Highest employee ID issued/.test(r[0])), [['Week-over-week hours swing', 12], ['Week-over-week pay swing %', 1000], ['Payroll report · Columns', 'Entity, Employee, Method, Hours, Over time, Rate, Actual Total, Deposit, Contract Check, Cash, Rounded Final (off), Diff (off), Mode (off), H:MM (off), Break (off), Scheduled Hours (off), Hours vs Schedule (off), Avg In vs Schedule (off), Avg Out vs Schedule (off), Accountant Name (off), Employment Type (off), Pay Date (off)']]); // FC-00077
   // FC-00056: the settings file also carries the highest employee ID ever issued, per entity.
   assert.ok(tsRows.some(r => /^Highest employee ID issued · [A-Z0-9]{3}$/.test(r[0]) && r[1] > 0));
   const fresh = week(W2, THIS);

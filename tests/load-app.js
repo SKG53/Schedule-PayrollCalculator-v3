@@ -80,10 +80,12 @@ function loadApp(opts) {
     const rows = [null];
     const colWidths = []; // colWidths[colNumber] = width, 1-indexed
     const merges = [];
+    const hiddenCols = []; // FC-00077: hiddenCols[colNumber] = true for a hidden column
     const sheet = {
       rows,
       colWidths,
       merges,
+      hiddenCols,
       addRow(values) {
         const cells = [undefined]; // 1-indexed within the row too
         (values || []).forEach((v, i) => {
@@ -121,6 +123,8 @@ function loadApp(opts) {
         return {
           get width() { return colWidths[i]; },
           set width(w) { colWidths[i] = w; },
+          get hidden() { return !!hiddenCols[i]; },
+          set hidden(h) { hiddenCols[i] = !!h; },
         };
       },
       columns: [],
@@ -576,6 +580,8 @@ function loadApp(opts) {
       payDates, setPayDateByHand, _setPayDate, _payDatesLine, _fmtPayDate, _fridayAfter, _runWeekIsos, getAcctField, setAcctField, _normAcctType,
       acctFileModel, exportAccountantFile, parseAccountantRows, applyAccountantFile, acctMatchRow, acctSetSectionEntity, acctUseTheirNote, acctUseAllTheirNotes, clearAccountantFile, acctCompare,
       _acctMatchRow, _acctSectionList, acctSectionOf, _acctStatusReasons, _acctPanelHtml, getAcctFile: () => _acctFile, setAcctFile: (v) => { _acctFile = v; }, _acctDateIso, _personFields,
+      // FC-00077
+      reportColumns, setReportColumns, setReportColumnOn, moveReportColumn, resetReportColumns, _reportColsParse, _reportColsFormat, _reportLayoutKeys, REPORT_COL_KEYS, COMBINED_HIDDEN, _reportColsBarHtml, _rcDragStart, _rcDragOver, _rcDrop, _rcDragEnd, _rowPayDateText, _COMBINED_COL_DEFS,
       COMBINED_COLS, COMBINED_HEADERS, _writeHoursDetailSheet, _fc13PreviewModel, setPreviewKey, _unconfirmedNamesRaw, STATS_XL_HEADERS,
       _gatherActualsIntakeRows, _writeActualsIntakeSheet, ACTUALS_INTAKE_HEADERS, _isoToExcelDate,
       getActiveEntityIdx: () => activeEntityIdx,

@@ -197,6 +197,7 @@ test('test_copy_with_hmm_column_from_a_snapshot_is_normalized', () => {
   api._fc24MakeCopy();
   const now = JSON.parse(JSON.stringify(api._fc24GetScratch()));
   const old = JSON.parse(JSON.stringify(now));
+  delete old.v; // FC-00077: copies made before the column picker carry no version
   const n = now.rows.find(r => r.kind === 'hdr').cells.length;
   old.rows.forEach(r => { if (r.cells.length === n) { r.cells.splice(4, 0, r.kind === 'hdr' ? 'H:MM' : '1:00'); r.bgs.splice(4, 0, ''); r.tips.splice(4, 0, ''); } });
   const up = api._fc24Upgrade(old);
