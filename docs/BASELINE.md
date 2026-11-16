@@ -650,3 +650,8 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
   `applyAccountantFile` (one checkpoint): takes the deposit pay date (unless set by hand), section
   order, spellings, types, first notes; `acctMatchRow` answers a row (person of any entity,
   `__exec__`, `__skip__`); `acctCompare` lists differences. The loaded file is a snapshot part.
+
+## Added by FC-00076 (2026-11-16)
+
+- **Retry all failed.** `retryAllFailedOcr(entIdx|null)` retries every failed image (status err, file attached) of one entity or of all, as one checkpoint, on the OCR run bar, Images-read-at-once workers, `OCR_MAX_AUTO_ATTEMPTS` attempts each (`retryOcrJob(..., {quiet:true})`). Buttons: above each entity's image list and on the run bar (also as a strip when the bar is closed); shown only when nothing runs, refreshed when an OCR action ends (`_refreshOcrRetryButtons`).
+- **Credits used up.** `_isCreditsErr` (HTTP 402 / "prepayment credits"): no further attempts, `_ocrRun.creditsOut` stops the rest of the run ("Not read: Gemini credits are used up"), the bar names the fix (`OCR_CREDITS_MSG`).
