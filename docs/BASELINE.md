@@ -346,11 +346,10 @@ exists but currently has **no caller** — dead code.
 Excel — sheets Report, Hours (FC-00060), Stats (FC-00051), Labor Cost (FC-00052) — and a
 landscape-letter PDF one page wide), a Payroll report per entity (FC-00059, same writer
 scoped to one entity), the Reviewed timecards Excel, the Payroll Settings file, the
-Snapshot and the Employee Schedule. The combined report's columns are Entity, Employee,
-Method, Hours, Over time, Rate, Actual Total, Deposit, [Contract Check], Cash, [Rounded Final,
-Diff] (FC-00059; the H:MM column was removed by FC-00065; Over time FC-00070; Contract Check
-only when someone on the report is paid that way and Rounded Final/Diff only when included,
-FC-00071). Since FC-00074 there is also the Accountant file card. Subtotal and grand-total labels span Entity–Method in the
+Snapshot and the Employee Schedule. The combined report's standard columns are Entity, Employee,
+Method, Hours, Over time, Rate, Actual Total, Deposit, Contract Check, Cash (FC-00059; the H:MM
+column was removed by FC-00065; Over time FC-00070; Contract Check FC-00071). Since FC-00077 the
+owner chooses and orders the columns on the export preview (see "Added by FC-00077"). Since FC-00074 there is also the Accountant file card. Subtotal and grand-total labels span from the first text column to the first total column in the
 Excel and the PDF. Money text in the PDF, the preview and on screens reads `$1,234.56`,
 `-$0.17`, `+$0.13` (FC-00065).
 **FC-00060:** the Hours sheet has one row per person-day with real dates and times
@@ -626,9 +625,9 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
   (after Hours) shows it; in Excel the Over time cell is `MAX(0,ROUND(H−40,2))` and Actual Total
   `ROUND((H+0.5×OT)×Rate,2)`. The Payroll table notes "N over 40 at 1.5×"; the 40h+ flag says
   overtime was paid. Cash, Deposit + Cash, Contract Check, Executive PR and Flat: straight time.
-- **Report columns (FC-00071).** Contract Check prints in its own column (only when needed);
-  Rounded Final and Diff only when "Include Rounded Final and Diff columns" is ticked (Tool
-  Setting "Payroll report · Rounded Final and Diff columns", default Leave out). The layout is
+- **Report columns (FC-00071).** Contract Check prints in its own column; Rounded Final and Diff
+  are optional (since FC-00077 both are chips on the export preview; "only when needed" and the
+  Exports-card box were replaced). The layout is
   rebuilt by `_setCombinedLayout` in `_columnsFor('combined')`; writers read columns by name.
   An editable copy keeps its own columns.
 - **Executive PR (FC-00072).** Pay method `exec`: Flat weekly amount, deposit. Report block per
@@ -655,3 +654,10 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
 
 - **Retry all failed.** `retryAllFailedOcr(entIdx|null)` retries every failed image (status err, file attached) of one entity or of all, as one checkpoint, on the OCR run bar, Images-read-at-once workers, `OCR_MAX_AUTO_ATTEMPTS` attempts each (`retryOcrJob(..., {quiet:true})`). Buttons: above each entity's image list and on the run bar (also as a strip when the bar is closed); shown only when nothing runs, refreshed when an OCR action ends (`_refreshOcrRetryButtons`).
 - **Credits used up.** `_isCreditsErr` (HTTP 402 / "prepayment credits"): no further attempts, `_ocrRun.creditsOut` stops the rest of the run ("Not read: Gemini credits are used up"), the bar names the fix (`OCR_CREDITS_MSG`).
+
+## Added by FC-00077 (2026-11-16)
+
+- **Column picker.** `_reportColsBarHtml()` above the export preview: one chip per column of `_COMBINED_COL_DEFS` (22; `REPORT_COL_KEYS` is the standard order), checkbox `setReportColumnOn(key,on)` (Employee locked on), drag `_rcDragStart/_rcDragOver/_rcDrop` → `moveReportColumn(key,to,'before'|'after')`, Reset `resetReportColumns()`. The bar names the columns the Excel keeps hidden.
+- **Setting.** Tool Setting `reportColumns` ("Payroll report · Columns"): every column in order, a left-out one marked " (off)" (`_reportColsFormat` / `_reportColsParse`; unknown words ignored, missing columns appended off, Employee forced on). `reportColumns()` also honours an older snapshot's `reportFinalDiff: Include`; the settings file's legacy row "Payroll report · Rounded Final and Diff columns" ticks or unticks those two (`_setFinalDiffOn`). `setReportFinalDiff`/`reportShowsFinalDiff` remain as wrappers.
+- **Layout.** `_columnsFor('combined',nameKey,{forExcel})` → `_reportLayoutKeys(forExcel)`: ticked keys in order; for the Excel plus every input in `_COMBINED_COL_NEEDS` (closure), written hidden (`COMBINED_HIDDEN`, `ws.getColumn(i).hidden`). Contract Check is never brought in: left out, `isC` is false and a contract check counts under Deposit. `spec.labelCol` = first non-total, non-hidden column; `_spanTotalLabel(row,totals,labelCol)` and `_mergeTotalLabel(ws,row,totals,labelCol)` span from it to the next total. Cash tint follows `COMBINED_COLS.cash` (null when unticked).
+- **New columns.** Mode (`_modeText`), H:MM (`xlHmm`, Excel `ROUND(H*60,0)/1440`, total via `hmm`/`hmmOf`), Break (`actualBreakH`), Scheduled Hours (`expectedH`), Hours vs Schedule (Excel `ROUND(H−Sched,2)`), Avg In/Out vs Schedule (`avgInDiff`/`avgOutDiff` as "+5m"), Accountant Name / Employment Type (roster `acct_name`/`acct_type`), Pay Date (`_rowPayDateText`: deposit date for Deposit and Executive PR, cash date for Cash and Contract Check, both for Deposit + Cash). Flat rows leave the hours-like columns blank. The editable copy keeps its own columns (`v:77` stops the FC-00065 H:MM upgrade).
