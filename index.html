@@ -319,6 +319,8 @@ img.tc-thumb.tc-thumb-small{cursor:default;outline:1px dashed #F59E0B}
 .ocr-run.finished{border-color:#86EFAC}.ocr-run.has-err{border-color:#FCA5A5}
 .ocr-run-line{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .ocr-run-err{color:var(--red);font-weight:600}
+.ocr-retry-all{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--border)}
+.ocr-retry-all .retry-all-btn,.ocr-run-line .retry-all-btn{margin-left:8px;font-weight:600}
 .ocr-run-track{height:8px;background:var(--border);border-radius:4px;overflow:hidden;margin-top:8px}
 .ocr-run-fill{height:100%;background:#2563EB;transition:width 300ms ease}
 .ocr-run.finished .ocr-run-fill{background:#16A34A}
@@ -2071,6 +2073,13 @@ function _checkpointDone(cp){
   if(cp.afterSig===cp.beforeSig){const i=_checkpoints.indexOf(cp);if(i>=0)_checkpoints.splice(i,1);}
   renderUndoBar();
   _refreshHistoryIfOpen();
+  // FC-00076: an OCR action has ended — the "Retry all failed" buttons can show now.
+  if(/^(Run OCR|Image re-run|Retry failed)/.test(cp.label||''))_refreshOcrRetryButtons();
+}
+function _refreshOcrRetryButtons(){
+  if(typeof document==='undefined')return;
+  _renderOcrRunBar();
+  entities.forEach((e,i)=>{const j=e&&e.intake&&e.intake._ocrJobs;if(j&&j.length)renderOcrFileList(i,j);});
 }
 // Runs fn (sync or async) behind a checkpoint labelled `label`.
 function _withCheckpoint(label,fn,meta){
@@ -6801,6 +6810,56 @@ function _restoreOcrParFocus(where,host){
 function _syncOcrParallelInputs(){try{const v=String(ocrParallel());document.querySelectorAll('.ocr-par-input').forEach(el=>{el.value=v;});const s=document.getElementById('ocrParallelInput');if(s)s.value=v;}catch(_){}}
 // A Gemini answer that means "too many requests at once" (HTTP 429 / quota).
 function _isRateLimitErr(err){return/\b429\b|RESOURCE_EXHAUSTED|too many requests|rate.?limit|quota/i.test(String((err&&err.message)||err||''));}
+// FC-00076: "Your prepayment credits are depleted" (HTTP 402). Trying again cannot help until the
+// owner adds credits, so the image is not retried and the rest of the run is not sent.
+function _isCreditsErr(err){return/\b402\b|prepayment credits|credits are depleted/i.test(String((err&&err.message)||err||''));}
+const OCR_CREDITS_MSG='Gemini credits are used up — add credits at aistudio.google.com/billing, then press Retry all failed';
+const OCR_CREDITS_NOT_READ='Not read: Gemini credits are used up';
+function _ocrCreditsOut(){if(!_ocrRun)_ocrRun={finished:false,ents:[]};if(!_ocrRun.creditsOut){_ocrRun.creditsOut=true;_renderOcrRunBar();}}
+// Failed images that can be read again (their file is still attached).
+function _failedOcrJobs(i){const it=entities[i]&&entities[i].intake;return((it&&it._ocrJobs)||[]).filter(j=>j&&j.status==='err'&&j.file);}
+function _failedOcrCount(){return entities.reduce((a,_,i)=>a+_failedOcrJobs(i).length,0);}
+function _retryAllBtnHtml(entIdx,n){
+  return`<button class="mini-btn retry-btn retry-all-btn" onclick="retryAllFailedOcr(${entIdx==null?'null':entIdx})" title="Read every failed image again: up to ${OCR_MAX_AUTO_ATTEMPTS} attempts each, as many at a time as Images read at once">↻ Retry all failed (${n})</button>`;
+}
+// Retry every failed image of one entity (entIdx) or of every entity (null), as one run: the
+// run bar counts them, "Images read at once" applies, each image gets up to 3 attempts, and one
+// Undo step takes it all back.
+function retryAllFailedOcr(entIdx){
+  const list=(entIdx==null?entities.map((_,i)=>i):[entIdx]).filter(i=>_failedOcrJobs(i).length);
+  if(!list.length){showToast('No failed images to retry','ok');return undefined;}
+  const n=list.reduce((a,i)=>a+_failedOcrJobs(i).length,0);
+  return _withCheckpoint('Retry failed images · '+n+' image'+(n===1?'':'s'),()=>_retryAllFailedImpl(list));
+}
+async function _retryAllFailedImpl(list){
+  if(!_prefGet('pv26_api_key')){showToast('No Gemini API key set. Opening Settings…','err');openSettings();return;}
+  _ocrRunPlan(list.map(i=>({idx:i,total:_failedOcrJobs(i).length})));
+  let ok=0,bad=0;
+  for(const i of list){
+    const jobs=_failedOcrJobs(i),all=entities[i].intake._ocrJobs;
+    if(!jobs.length)continue;
+    _ocrRunStart(i,jobs.length);
+    let done=0,errs=0;
+    const queue=jobs.slice();
+    const conc=Math.max(1,Math.min((_ocrRun&&_ocrRun.parallel)||ocrParallel(),jobs.length));
+    const worker=async()=>{
+      while(queue.length){
+        const job=queue.shift();if(!job)break;
+        if(_ocrRun&&_ocrRun.creditsOut){job.status='err';job.detail=OCR_CREDITS_NOT_READ;}
+        else await retryOcrJob(i,all.indexOf(job),OCR_MAX_AUTO_ATTEMPTS,{quiet:true});
+        done++;if(job.status==='err')errs++;
+        _ocrRunProgress(i,done,errs);
+      }
+    };
+    await Promise.all(Array.from({length:conc},worker));
+    ok+=done-errs;bad+=errs;
+    _ocrRunEntityDone(i,done,errs);
+    renderOcrFileList(i,all);
+  }
+  _ocrRunFinish();
+  if(bad)showToast(`Retry finished · ${ok} read, ${bad} still failed`+(_ocrRun&&_ocrRun.creditsOut?' · Gemini credits are used up':''),'err');
+  else showToast(`Retry finished · all ${ok} image${ok===1?'':'s'} read`,'ok');
+}
 
 function renderOcrFileList(idx, jobs){
   const el=document.getElementById('ocrFileList_'+idx);if(!el)return;
@@ -6817,7 +6876,10 @@ function renderOcrFileList(idx, jobs){
     jobs=all;
   }
   el.className='ocr-file-list active';
-  el.innerHTML=jobs.map((j,i)=>{
+  // FC-00076: one button for every failed image of this entity (not while something is running).
+  const nFail=jobs.filter(j=>j&&j.status==='err'&&j.file).length;
+  const head=(nFail&&!_actionRunning())?`<div class="ocr-retry-all"><span class="ocr-run-err">${nFail} image${nFail===1?'':'s'} failed</span>${_retryAllBtnHtml(idx,nFail)}</div>`:'';
+  el.innerHTML=head+jobs.map((j,i)=>{
     const retryBtns=(j.status==='err')?
       `<button class="mini-btn retry-btn" onclick="rerunOcrForImage(${idx},'${escJs(j.id)}',1)" title="Retry once (single attempt)">↻ Retry 1x</button>`+
       `<button class="mini-btn retry-btn" onclick="rerunOcrForImage(${idx},'${escJs(j.id)}',3)" title="Retry up to 3 times with delay between attempts">↻ Retry 3x</button>`
@@ -6831,7 +6893,8 @@ function renderOcrFileList(idx, jobs){
 // Retry a single failed OCR job. Re-uses the same in-memory file handle the user
 // originally uploaded so no re-upload is required.
 // maxAttempts: 1 = single retry (default), 3 = up to 3 attempts with OCR_RETRY_DELAY_MS between them.
-async function retryOcrJob(idx,jobIdx,maxAttempts){
+async function retryOcrJob(idx,jobIdx,maxAttempts,opts){
+  const quiet=!!(opts&&opts.quiet); // FC-00076: Retry all failed shows one summary, not a toast per image
   maxAttempts=Math.max(1,parseInt(maxAttempts,10)||1);
   const ent=entities[idx];if(!ent||!ent.intake)return;
   const jobs=ent.intake._ocrJobs;if(!jobs||!jobs[jobIdx])return;
@@ -6885,12 +6948,19 @@ async function retryOcrJob(idx,jobIdx,maxAttempts){
       }
       job.status='done';
       job.detail=`${rows.length} row${rows.length===1?'':'s'} extracted`+(attempt>1?` (attempt ${attempt})`:'');
-      showToast(`Retry OK · ${rows.length} row${rows.length===1?'':'s'} extracted from ${job.name}`,'ok');
+      if(!quiet)showToast(`Retry OK · ${rows.length} row${rows.length===1?'':'s'} extracted from ${job.name}`,'ok');
       ent.intake.lastOcrError='';
       lastErr=null;
       break;
     }catch(err){
       lastErr=err;
+      if(_isCreditsErr(err)){ // FC-00076
+        if(_ocrRun)_ocrCreditsOut();
+        job.status='err';job.detail=OCR_CREDITS_MSG;
+        ent.intake.lastOcrError=OCR_CREDITS_MSG;
+        if(!quiet)showToast(OCR_CREDITS_MSG,'err');
+        break;
+      }
       if(attempt<maxAttempts){
         job.status='retrying';
         job.detail=`Attempt ${attempt}/${maxAttempts} failed — retrying in ${Math.round(OCR_RETRY_DELAY_MS/1000)}s…`;
@@ -6902,7 +6972,7 @@ async function retryOcrJob(idx,jobIdx,maxAttempts){
         const errMsg=(err.message||String(err)).slice(0,120);
         job.detail=maxAttempts>1?`Failed all ${maxAttempts} attempts: ${errMsg}`:errMsg;
         ent.intake.lastOcrError='OCR failed on '+job.name+(maxAttempts>1?` (all ${maxAttempts} attempts)`:'')+': '+(err.message||err);
-        showToast(`Retry failed · ${job.name}`,'err');
+        if(!quiet)showToast(`Retry failed · ${job.name}`,'err');
       }
     }
   }
@@ -7114,7 +7184,10 @@ function _ocrRunFinish(){
 function closeOcrRunBar(){if(_ocrRunActive())return;_ocrRun=null;_renderOcrRunBar();}
 function _ocrRunRateLimited(){if(!_ocrRun)_ocrRun={finished:false,ents:[]};if(!_ocrRun.rateLimited){_ocrRun.rateLimited=true;_renderOcrRunBar();}}
 function _ocrRunHtml(){
-  const r=_ocrRun;if(!r||!r.ents.length)return'';
+  const r=_ocrRun;
+  // FC-00076: failed images left over (bar closed, or an earlier run) still get one button.
+  const nFail=_actionRunning()?0:_failedOcrCount();
+  if(!r||!r.ents.length)return nFail?`<div class="ocr-run finished has-err"><div class="ocr-run-line"><span class="ocr-run-err">${nFail} image${nFail===1?'':'s'} failed to read</span>${r&&r.creditsOut?` · <span class="ocr-run-err ocr-credits-note">${escHtml(OCR_CREDITS_MSG)}</span>`:''}${_retryAllBtnHtml(null,nFail)}</div></div>`:'';
   const nm=i=>escHtml((entities[i]&&entities[i].name)||('Entity '+(i+1)));
   const total=r.ents.filter(e=>e.state!=='skipped').reduce((a,e)=>a+e.total,0);
   const done=r.ents.reduce((a,e)=>a+e.done,0),errs=r.ents.reduce((a,e)=>a+e.errs,0);
@@ -7131,7 +7204,9 @@ function _ocrRunHtml(){
   const sk=r.ents.filter(e=>e.state==='skipped');
   if(sk.length)line+=` · not started: ${sk.map(e=>nm(e.idx)).join(', ')}`;
   if(r.rateLimited)line+=` · <span class="ocr-run-err ocr-rate-note">Gemini is limiting requests — try fewer at once</span>`; // FC-00068
+  if(r.creditsOut)line+=` · <span class="ocr-run-err ocr-credits-note">${escHtml(OCR_CREDITS_MSG)}</span>`; // FC-00076
   line+=_ocrParallelInputHtml('ocr');
+  if(r.finished&&nFail)line+=_retryAllBtnHtml(null,nFail); // FC-00076
   const chips=r.ents.map(e=>`<span class="ocr-run-chip ${e.state}">${e.state==='done'?(e.errs?'⚠':'✓'):e.state==='running'?'●':e.state==='skipped'?'–':'○'} ${nm(e.idx)} ${e.done}/${e.total}</span>`).join('');
   return`<div class="ocr-run${r.finished?' finished':''}${errs?' has-err':''}"><div class="ocr-run-line">${line}${r.finished?'<button class="mini-btn" onclick="closeOcrRunBar()" title="Close" style="margin-left:auto">✕</button>':''}</div><div class="ocr-run-track"><div class="ocr-run-fill" style="width:${pct}%"></div></div><div class="ocr-run-chips">${chips}</div></div>`;
 }
@@ -7197,6 +7272,10 @@ async function _runOcrForEntityImpl(idx){
   async function runOne(job){
     const MAX_ATTEMPTS=OCR_MAX_AUTO_ATTEMPTS;
     const RETRY_DELAY=OCR_RETRY_DELAY_MS;
+    if(_ocrRun&&_ocrRun.creditsOut){ // FC-00076: credits ran out earlier in this run
+      job.status='err';job.detail=OCR_CREDITS_NOT_READ;errCount++;done++;
+      renderOcrFileList(idx,jobs);updateBar();return;
+    }
     for(let attempt=1;attempt<=MAX_ATTEMPTS;attempt++){
       job.status='running';
       job.attempt=attempt;
@@ -7235,6 +7314,12 @@ async function _runOcrForEntityImpl(idx){
         break; // success — exit retry loop
       } catch(err){
         if(_isRateLimitErr(err))_ocrRunRateLimited(); // FC-00068
+        if(_isCreditsErr(err)){ // FC-00076: no point trying again until credits are added
+          _ocrCreditsOut();
+          job.status='err';job.detail=OCR_CREDITS_MSG;errCount++;
+          ent.intake.lastOcrError=OCR_CREDITS_MSG;
+          break;
+        }
         if(attempt<MAX_ATTEMPTS){
           // Show countdown spinner before retrying
           job.status='retrying';
