@@ -16,7 +16,7 @@ test('test_default_pool_order_and_employee_locked', () => {
   const api = setup();
   const list = api.reportColumns();
   assert.deepEqual(list.map(c => c.key), api.REPORT_COL_KEYS, 'every column in the pool, standard order');
-  assert.equal(list.length, 22);
+  assert.equal(list.length, 23); // FC-00079 adds Bonus
   assert.deepEqual(keysOn(api), ['entity', 'employee', 'method', 'hours', 'ot', 'rate', 'total', 'deposit', 'contract', 'cash'], 'the extras start unticked');
   assert.equal(api.setReportColumnOn('employee', false), false, 'Employee is always on');
   assert.ok(keysOn(api).includes('employee'));
@@ -25,7 +25,7 @@ test('test_default_pool_order_and_employee_locked', () => {
   const parsed = api._reportColsParse('Cash, Hours');
   assert.deepEqual(parsed.slice(0, 2), [{ key: 'cash', on: true }, { key: 'hours', on: true }]);
   assert.ok(parsed.slice(2).every(c => !c.on || c.key === 'employee'), 'columns missing from the words start left out');
-  assert.equal(parsed.length, 22);
+  assert.equal(parsed.length, 23);
 });
 
 test('test_untick_and_move_follow_in_preview_pdf_and_excel', async () => {
@@ -164,7 +164,7 @@ test('test_choice_saved_in_settings_snapshot_and_undoable', async () => {
   api.moveReportColumn('payDate', 'entity', 'before');
   api.setReportColumnOn('rate', false);
   const text = api.getToolSetting('reportColumns');
-  assert.match(text, /^Pay Date, Entity, Employee, Method, Hours, Over time, Rate \(off\), Actual Total, Deposit, Contract Check, Cash, Rounded Final \(off\), /);
+  assert.match(text, /^Pay Date, Entity, Employee, Method, Hours, Over time, Rate \(off\), Bonus \(off\), Actual Total, Deposit, Contract Check, Cash, Rounded Final \(off\), /);
   // Unticked columns keep their place: ticking Rate again puts it back after Over time.
   api.setReportColumnOn('rate', true);
   assert.deepEqual(keysOn(api).slice(0, 7), ['payDate', 'entity', 'employee', 'method', 'hours', 'ot', 'rate']);
@@ -192,7 +192,7 @@ test('test_choice_saved_in_settings_snapshot_and_undoable', async () => {
 test('test_chip_bar_and_drag_to_move', () => {
   const api = setup();
   const html = api._reportColsBarHtml();
-  assert.equal((html.match(/class="rc-chip /g) || []).length, 22, 'one chip per column');
+  assert.equal((html.match(/class="rc-chip /g) || []).length, 23, 'one chip per column');
   assert.match(html, /data-key="employee"[^>]*>.*?<input type="checkbox" checked disabled/, 'Employee cannot be unticked');
   assert.match(html, /data-key="mode"[^>]*>.*?<input type="checkbox" onchange="setReportColumnOn\('mode',this\.checked\)">Mode/, 'an extra starts unticked');
   assert.doesNotMatch(html, /rc-hidden-note/, 'nothing hidden by default');

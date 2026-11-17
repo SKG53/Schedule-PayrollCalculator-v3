@@ -319,6 +319,14 @@ img.tc-thumb.tc-thumb-small{cursor:default;outline:1px dashed #F59E0B}
 .ocr-run.finished{border-color:#86EFAC}.ocr-run.has-err{border-color:#FCA5A5}
 .ocr-run-line{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
 .ocr-run-err{color:var(--red);font-weight:600}
+.bonus-btn{margin-left:4px}
+.bonus-btn.has-bonus{background:#FEF3C7;border-color:#F59E0B;font-weight:600}
+.bonus-panel{border:1px solid #F59E0B;background:#FFFBEB;border-radius:6px;padding:8px 12px;margin:10px 0;font-size:12px}
+.bonus-head{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-bottom:6px}
+.bonus-hint{color:var(--text3);font-size:11px}
+.bonus-person{padding:6px 0;border-top:1px solid #FDE68A}
+.bonus-who{font-weight:600;margin-bottom:4px}.bonus-ent{font-weight:400;color:var(--text3)}
+.bonus-table td,.bonus-table th{padding:3px 6px;text-align:left}
 .reg-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
 .reg-bar input[type=search]{min-width:240px;padding:5px 8px}
 .reg-count{font-size:12px;color:var(--text3)}
@@ -1741,6 +1749,7 @@ function _applyRecordMirror(entId,empName,field,value){
   else if(field==='final_pass_method')rec.final_pass_method=(value||'').toString();
   else if(field==='notes')rec.notes=(value||'').toString();
   else if(ACCT_FIELDS.includes(field)){if(value===undefined)delete rec[field];else rec[field]=(value||'').toString();} // FC-00073
+  else if(field==='bonuses'){if(Array.isArray(value)&&value.length)rec.bonuses=value.map(b=>Object.assign({},b));else delete rec.bonuses;} // FC-00079
   else if(field==='mgmt'||field==='tng'){if(value===undefined||value===null||value==='')delete rec[field];else rec[field]=String(value);if(field==='tng'&&value)_noteTngSeen(value);} // FC-00078
 }
 function getAliases(entId,empName){return rosterAliases[wKey(entId,empName)]||[]}
@@ -1956,7 +1965,98 @@ function _computeBothBreakdown(total,meta){
   const final=roundDeposit(deposit+cash);
   return{method:'both',total,deposit,cash,final,roundedFinal:final,actualFinal:total,roundingDiff:0};
 }
+// ================================================================
+// FC-00079 — Bonuses
+// ================================================================
+// A person's bonuses live on their record at one entity (rec.bonuses), set through History like
+// any roster field. Each: {id,type:'weekly'|'monthly'|'specialty',amount,pay:'deposit'|'cash'|
+// 'contract',recurring,note,week}. A Weekly bonus with Recurring ticked counts in every run; any
+// other bonus counts only in the run whose week it was entered for (week = the run's first day).
+const BONUS_TYPES=['weekly','monthly','specialty'];
+const BONUS_TYPE_LABEL={weekly:'Weekly',monthly:'Monthly',specialty:'Specialty'};
+const BONUS_PAY_LABEL={deposit:'Deposit',cash:'Cash',contract:'Contract Check'};
+function _runWeekStart(){const wk=_runWeekIsos();return wk?wk.start:'';}
+function _bonusCounts(b,week){return!!b&&(b.amount||0)>0&&((b.type==='weekly'&&b.recurring)||String(b.week||'')===String(week==null?_runWeekStart():week));}
+function getBonuses(entId,empName){const r=_resolveRecordNoMint(entId,empName);return r&&Array.isArray(r.bonuses)?r.bonuses.map(b=>Object.assign({},b)):[];}
+function bonusesThisRun(entId,empName){const w=_runWeekStart();return getBonuses(entId,empName).filter(b=>_bonusCounts(b,w));}
+function bonusTotals(entId,empName){
+  const t={total:0,deposit:0,cash:0,contract:0};
+  bonusesThisRun(entId,empName).forEach(b=>{const a=roundDeposit(+b.amount||0);t.total=roundDeposit(t.total+a);t[b.pay]=roundDeposit((t[b.pay]||0)+a);});
+  return t;
+}
+function _bonusDefaultPay(method){return method==='cash'?'cash':method==='contract'?'contract':'deposit';}
+function _cleanBonus(b,entId,empName){
+  const type=BONUS_TYPES.includes(b.type)?b.type:'specialty';
+  const pay=BONUS_PAY_LABEL[b.pay]?b.pay:_bonusDefaultPay(getPayMethod(entId,empName));
+  return{id:b.id||('b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),type,amount:Math.max(0,roundDeposit(parseFloat(String(b.amount==null?'':b.amount).replace(/[$,\s]/g,''))||0)),pay,recurring:type==='weekly'&&!!b.recurring,note:String(b.note||'').replace(/\s+/g,' ').trim(),week:b.week==null?_runWeekStart():String(b.week)};
+}
+function setBonuses(entId,empName,list,screen){
+  const rec=_resolveRecordNoMint(entId,empName)||ensureRosterRecord(entId,empName);if(!rec||!rec.id)return false;
+  const to=(list||[]).map(b=>_cleanBonus(b,entId,empName));
+  const from=Array.isArray(rec.bonuses)?rec.bonuses:[];
+  if(JSON.stringify(from)===JSON.stringify(to))return false;
+  dispatch({type:'rosterFieldSet',screen:screen||'payroll',target:{kind:'employee',entity:rec.entity,id:rec.id,field:'bonuses'},from:from.length?from:undefined,to:to.length?to:undefined,meta:{empName:rec.canonical_name}});
+  if(!_simulating&&screen!=='settings-import'&&currentTab==='payroll')renderPayroll();
+  return true;
+}
+function addBonus(entId,empName,b){const list=getBonuses(entId,empName);list.push(Object.assign({week:_runWeekStart()},b||{}));return setBonuses(entId,empName,list);}
+function updateBonus(entId,empName,id,patch){const list=getBonuses(entId,empName).map(b=>b.id===id?Object.assign({},b,patch):b);return setBonuses(entId,empName,list);}
+function removeBonus(entId,empName,id){return setBonuses(entId,empName,getBonuses(entId,empName).filter(b=>b.id!==id));}
+// Folds this run's bonuses into a pay breakdown. T0 is the pay before bonuses. Deposit and checks
+// are to the cent; cash is whole dollars, rounded together with the person's own cash.
+// bd.check is a contract check paid to someone whose method is not Contract Check, bd.depositExtra a
+// deposit paid to a Contract Check person (whose bd.deposit holds the check, as before).
+function _withBonuses(bd,entId,empName){
+  const b=bonusTotals(entId,empName);
+  if(!b.total)return bd;
+  const T0=bd.actualFinal||0,m=bd.method,out=Object.assign({},bd,{bonus:b.total,bonusDeposit:b.deposit,bonusCash:b.cash,bonusContract:b.contract});
+  out.total=out.actualFinal=roundDeposit(T0+b.total);
+  if(m==='cash'){out.cash=roundCash(T0+b.cash);out.deposit=0;out.check=roundDeposit(b.contract);out.depositExtra=roundDeposit(b.deposit);}
+  else if(m==='both'){
+    const meta=getSplitMeta(entId,empName);
+    const base=_computeBothBreakdown(roundDeposit(T0+b.cash),meta);
+    out.deposit=roundDeposit(base.deposit+b.deposit);out.cash=base.cash;out.check=roundDeposit(b.contract);
+  }
+  else if(m==='contract'){out.deposit=roundDeposit(T0+b.contract);out.cash=roundCash(b.cash);out.depositExtra=roundDeposit(b.deposit);}
+  else{out.deposit=roundDeposit(T0+b.deposit);out.cash=roundCash(b.cash);out.check=roundDeposit(b.contract);}
+  out.final=out.roundedFinal=roundDeposit((out.deposit||0)+(out.cash||0)+(out.check||0)+(out.depositExtra||0));
+  out.roundingDiff=roundDeposit(out.roundedFinal-out.total);
+  return out;
+}
+// What a breakdown pays by deposit, contract check and cash, whatever the person's method.
+function payParts(bd){
+  const isC=bd.method==='contract';
+  return{deposit:roundDeposit((isC?0:(bd.deposit||0))+(bd.depositExtra||0)),contract:roundDeposit((isC?(bd.deposit||0):0)+(bd.check||0)),cash:bd.cash||0};
+}
+let _bonusEdit=null; // {entId,name}: the person whose bonuses the panel under the payroll table shows
+function openBonusEditor(entId,name){_bonusEdit={entId,name};renderBonusPanel();const el=document.getElementById('bonusPanel');if(el&&el.scrollIntoView)el.scrollIntoView({block:'nearest',inline:'nearest'});}
+function closeBonusEditor(){_bonusEdit=null;renderBonusPanel();}
+function renderBonusPanel(){
+  const host=document.getElementById('bonusPanel');if(!host)return;
+  // Everyone with a bonus this run, plus the person being edited.
+  const people=[];
+  entities.forEach(e=>Object.keys(session.roster.byId).forEach(k=>{const r=session.roster.byId[k];if(r&&r.entity===e.id&&bonusesThisRun(e.id,r.canonical_name).length)people.push({entId:e.id,name:r.canonical_name,ent:e.name||''});}));
+  if(_bonusEdit&&!people.some(p=>p.entId===_bonusEdit.entId&&_aliasNorm(p.name)===_aliasNorm(_bonusEdit.name)))people.unshift({entId:_bonusEdit.entId,name:_bonusEdit.name,ent:(entities.find(x=>x.id===_bonusEdit.entId)||{}).name||''});
+  if(!people.length){host.innerHTML='';return;}
+  const week=_runWeekStart();
+  const sel=(opts,v,on)=>`<select onchange="${on}">${opts.map(([k,l])=>`<option value="${k}"${k===v?' selected':''}>${l}</option>`).join('')}</select>`;
+  host.innerHTML=`<div class="bonus-panel"><div class="bonus-head"><b>Bonuses this run</b>${week?` · week of ${escHtml(_isoDayLabel(week))}`:''} <span class="bonus-hint">Only a Weekly bonus with Recurring ticked carries to next week; Monthly and Specialty bonuses are for this run only.</span>${_bonusEdit?'<button class="mini-btn" onclick="closeBonusEditor()">Close</button>':''}</div>`+
+    people.map(p=>{
+      const n=escJs(p.name),list=bonusesThisRun(p.entId,p.name);
+      return`<div class="bonus-person"><div class="bonus-who">${escHtml(p.name)} <span class="bonus-ent">${escHtml(p.ent)}</span> <button class="mini-btn" onclick="addBonus(${p.entId},'${n}',{type:'specialty',amount:0});renderBonusPanel()">Add bonus</button></div>`+
+        (list.length?`<table class="bonus-table"><tr><th>Type</th><th>Amount</th><th>Paid by</th><th>Recurring</th><th>Note</th><th></th></tr>`+list.map(b=>{const id=escJs(b.id);
+          return`<tr><td>${sel(BONUS_TYPES.map(t=>[t,BONUS_TYPE_LABEL[t]]),b.type,`updateBonus(${p.entId},'${n}','${id}',{type:this.value});renderBonusPanel()`)}</td>
+          <td><input type="number" min="0" step="0.01" value="${(+b.amount||0).toFixed(2)}" onchange="updateBonus(${p.entId},'${n}','${id}',{amount:this.value});renderBonusPanel()" style="width:90px;text-align:right"></td>
+          <td>${sel(Object.keys(BONUS_PAY_LABEL).map(k=>[k,BONUS_PAY_LABEL[k]]),b.pay,`updateBonus(${p.entId},'${n}','${id}',{pay:this.value});renderBonusPanel()`)}</td>
+          <td>${b.type==='weekly'?`<input type="checkbox"${b.recurring?' checked':''} onchange="updateBonus(${p.entId},'${n}','${id}',{recurring:this.checked});renderBonusPanel()">`:'<span class="bonus-hint">this run only</span>'}</td>
+          <td><input type="text" value="${escHtml(b.note||'')}" placeholder="optional" onchange="updateBonus(${p.entId},'${n}','${id}',{note:this.value});renderBonusPanel()"></td>
+          <td><button class="mini-btn" onclick="removeBonus(${p.entId},'${n}','${id}');renderBonusPanel()">Remove</button></td></tr>`;}).join('')+'</table>':'<div class="bonus-hint">No bonus yet.</div>')+'</div>';
+    }).join('')+'</div>';
+}
 function computePayBreakdown(row,entId){
+  return _withBonuses(_computePayBreakdownBase(row,entId),entId,row.schedName||row.name); // FC-00079
+}
+function _computePayBreakdownBase(row,entId){
   const method=row.isOrphan?getPayMethod(entId,row.schedName||row.name):getPayMethod(entId,row.schedName||row.name);
   const total=roundDeposit(row.pay||0);
   if(method==='cash'){
@@ -2410,7 +2510,7 @@ function _historyField(e){
   if(e.type==='reviewMerge'||e.type==='reviewSplit')return(e.meta&&e.meta.date)||'';
   if(e.type==='reviewApproveBulk')return((e.meta&&e.meta.count)||0)+' row'+((e.meta&&e.meta.count)===1?'':'s');
   if(e.type==='breakOverride')return DAY_SHORT[t.day]||'';
-  if(e.type==='rosterFieldSet')return({acct_name:'Accountant name',acct_type:'Employment type',acct_section:'Accountant section',acct_note:'Accountant note',tng:'TNG ID (same person)',mgmt:'Management'})[t.field]||t.field||''; // FC-00073, FC-00078
+  if(e.type==='rosterFieldSet')return({acct_name:'Accountant name',acct_type:'Employment type',acct_section:'Accountant section',acct_note:'Accountant note',tng:'TNG ID (same person)',mgmt:'Management',bonuses:'Bonuses'})[t.field]||t.field||''; // FC-00073, FC-00078
   if(e.type==='toolSetting')return _toolSettingLabel(t.field||'');
   if(e.type==='revert'){const o=session.log.find(x=>x.id===e.originalId);return o?('#'+o.seq+' '+_historyKind(o)):'';}
   return'';
@@ -3303,7 +3403,7 @@ function stageSettingsData(rows,colMap,includeBreaks,toolRows,label,opts){
     if(!entityName&&!empName)return;
     list.push({i,row,entityName,empName,id:_rowCell(row,colMap,'employee id','employeeid','employee_id')});
   });
-  _staged={rows:list,colMap,includeBreaks:!!includeBreaks,toolRows:toolRows||[],label:label||'settings file',skip:new Set(),entityChoice:{},pendingEntry:(opts&&opts.pendingEntry)||null,openedEntities:(opts&&opts.openedEntities)||[],preview:null};
+  _staged={rows:list,colMap,includeBreaks:!!includeBreaks,toolRows:toolRows||[],bonusRows:(opts&&opts.bonusRows)||[],label:label||'settings file',skip:new Set(),entityChoice:{},pendingEntry:(opts&&opts.pendingEntry)||null,openedEntities:(opts&&opts.openedEntities)||[],preview:null};
   _staged.preview=_computeStagePreview();
   _renderStageOverlay(true);
   return _staged;
@@ -3365,6 +3465,7 @@ function _computeStagePreview(){
     try{
       _ingestToolSettings(st.toolRows); // FC-00056: first, so the file's highest-ID-issued is known before renumbering
       const rep=_ingestPayrollSettings(rows.map(r=>r.row),st.colMap,st.includeBreaks);
+      _ingestBonusRows(st.bonusRows); // FC-00079
       return rep;
     }finally{_importing=false;}
   });
@@ -3495,7 +3596,7 @@ function applyStagedSettings(){
   _withCheckpoint('Settings import · '+st.label,()=>{
     if(rows.length||st.toolRows.length){
       _importing=true;
-      try{_ingestToolSettings(st.toolRows);_ingestPayrollSettings(rows.map(r=>r.row),st.colMap,st.includeBreaks);} // FC-00056: tool settings first
+      try{_ingestToolSettings(st.toolRows);_ingestPayrollSettings(rows.map(r=>r.row),st.colMap,st.includeBreaks);_ingestBonusRows(st.bonusRows);} // FC-00056: tool settings first; FC-00079: bonuses last
       finally{_importing=false;}
     }
     if(!session.pendingSettings)session.pendingSettings=[];
@@ -5378,7 +5479,7 @@ function renderPayrollEntityContent(idx){
     </div>
     <div class="payroll-subtab-content">
       <div id="timecardDataWrap" style="display:${activeSub==='timecard'?'block':'none'}"><div class="sched-table-wrap" style="display:block"><table class="sched" id="timecardDataTable"></table></div></div>
-      <div id="payrollCalcWrap" style="display:${activeSub==='payroll'?'block':'none'}"><div class="sched-table-wrap" style="display:block"><table class="sched" id="payrollCalcTable"></table></div></div>
+      <div id="payrollCalcWrap" style="display:${activeSub==='payroll'?'block':'none'}"><div class="sched-table-wrap" style="display:block"><table class="sched" id="payrollCalcTable"></table></div><div id="bonusPanel"></div></div>
       <div id="statsWrap" style="display:${activeSub==='stats'?'block':'none'}"><div style="font-size:12px;color:var(--text3);margin:0 0 6px">Against the loaded schedule. Late: 1–5 min yellow, over 5 red. Early clock-ins are counted, never flagged. A day more than 2 hours off the shift counts as other hours, not late or early. Counts show next to every percent.</div><div class="sched-table-wrap" style="display:block"><table class="sched stats-table" id="statsTable"></table></div></div>
       <div id="laborCostWrap" style="display:${activeSub==='labor'?'block':'none'}"><div id="laborCostHost"></div></div>
     </div>`;
@@ -6206,6 +6307,7 @@ function renderTimeCardData(rows,hasActuals,ent,noSchedule){
 // ---- PAYROLL CALCULATION sub-tab: name, actual break, actual hours, wage, hourly/flat toggle, pay method, split amounts, final pay ----
 function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
   const table=document.getElementById('payrollCalcTable');if(!table)return;
+  setTimeout(()=>{try{renderBonusPanel();}catch(_){}} ,0); // FC-00079
   // `rows` arrives already sorted in renderPayrollEntityContent so the row index
   // here matches the _flatRows index used by setWage/setRowBreakOverride/etc.
   // Total columns = 11 (name + 10 data cols). Date labels for break-detail row chips.
@@ -6286,6 +6388,7 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
       <button class="${method==='cash'?'selected':''}" onclick="setPayMethodForRow(${i},'cash')" title="Cash only — rounds to whole dollar">Cash</button>
       <button class="${method==='both'?'selected':''}" onclick="setPayMethodForRow(${i},'both')" title="Split — type deposit, cash auto-calcs. Whole-dollar deposit keeps whole; cash rounds to nearest dollar.">Deposit + Cash</button>
       <button class="${method==='contract'?'selected':''}" onclick="setPayMethodForRow(${i},'contract')" title="Contract Check — non-cash payment, rounds to 2 decimals like Deposit">Contract Check</button>
+      ${(()=>{const bt=bonusTotals(ent.id,keyName).total;return`<button class="bonus-btn${bt>0?' has-bonus':''}" onclick="openBonusEditor(${ent.id},'${escJs(keyName)}')" title="Bonuses this run: weekly, monthly or specialty, each paid by deposit, cash or contract check">${bt>0?'Bonus '+_fmtUsd(bt):'+ Bonus'}</button>`;})()}
 
     </div></td>`;
 
@@ -10504,6 +10607,7 @@ function _collectExportData(){
       }else{
         breakdown=_computeBothBreakdown(totalRounded,getSplitMeta(e.id,empName));
       }
+      if(!wageBlankFlag)breakdown=_withBonuses(breakdown,e.id,empName); // FC-00079
       return Object.assign({},r,{_empName:empName,_breakdown:breakdown,_entityId:e.id,_entityName:entName,_totalPay:totalPay,_wageBlank:wageBlankFlag,_finalPay:_isFinalPay(e.id,r),_exec:method==='exec'}); // FC-00072
     });
     out.push({entityName:entName,entityId:e.id,rows:enriched});
@@ -10687,7 +10791,8 @@ const _COMBINED_COL_DEFS={
   hours:['Hours',10,60,true,true,'Hours paid this run, in decimals'],
   ot:['Over time',10,60,true,true,'A Deposit person\'s hours over 40, paid at 1.5×'],
   rate:['Rate',9,60,true,false,'Hourly rate, or "flat"'],
-  total:['Actual Total',13,80,true,true,'Hours × rate (with over time), or the flat amount'],
+  bonus:['Bonus',10,60,false,true,'This run\'s bonuses (included in Actual Total and in the column each is paid by)'],
+  total:['Actual Total',13,80,true,true,'Hours × rate (with over time), or the flat amount, plus any bonus'],
   deposit:['Deposit',13.41796875,70,true,true,'Paid by deposit'],
   contract:['Contract Check',15,80,true,true,'Paid by contract check. Left out, a contract check is counted under Deposit'],
   cash:['Cash',13.05078125,70,true,true,'Paid in cash, whole dollars'],
@@ -11386,14 +11491,16 @@ function _columnsFor(kind,nameKey,opts){
     _setCombinedLayout(_reportLayoutKeys(!!(opts&&opts.forExcel)));
     const C=Object.assign({},COMBINED_COLS);
     const has=k=>C[k]!=null;
-    const isC=r=>has('contract')&&r._breakdown.method==='contract';
-    const dep=r=>isC(r)?0:(r._breakdown.deposit||0);
-    const con=r=>isC(r)?(r._breakdown.deposit||0):0;
+    // FC-00079: what each row pays by deposit / check / cash (bonuses included). Left out, contract
+    // checks count under Deposit.
+    const dep=r=>{const p=payParts(r._breakdown);return has('contract')?p.deposit:roundDeposit(p.deposit+p.contract);};
+    const con=r=>has('contract')?payParts(r._breakdown).contract:0;
     const hoursOf=r=>r.isFlat?null:(hasActuals?(r.actualHours||0):(r.expectedH||0));
     const schedOf=r=>r.isFlat?null:(r.expectedH||0);
     const T={
       hours:{val:r=>r.isFlat?0:_r2(hoursOf(r)),hours:true,blankZero:true},
       ot:{val:r=>r.otPaidH||0,hours:true,blankZero:true},
+      bonus:{val:r=>r._breakdown.bonus||0,blankZero:true},
       total:{val:r=>r._breakdown.actualFinal||0},
       deposit:{val:dep,blankZero:true},
       contract:{val:con,blankZero:true},
@@ -11431,6 +11538,7 @@ function _columnsFor(kind,nameKey,opts){
         put('hours',hv==null?'':xlHours(hv));
         put('ot',r.otPaidH>0?xlHours(r.otPaidH):'');
         put('rate',(r._wageBlank||exec)?'':(r.isFlat?'flat':(r.wage>0?xlMoney(r.wage):'—')));
+        put('bonus',r._breakdown.bonus>0?xlMoney(r._breakdown.bonus):'');
         put('total',r._wageBlank?'':(r._totalPay>0?xlMoney(r._breakdown.actualFinal):'—'));
         put('deposit',dep(r)>0?xlMoney(dep(r)):'—');
         put('contract',con(r)>0?xlMoney(con(r)):'—');
@@ -11451,6 +11559,9 @@ function _columnsFor(kind,nameKey,opts){
         return v;
       },
       fx:(r,n)=>{
+        // FC-00079: a row with a bonus keeps its money as values (the bonus can be paid another way
+        // than the person's own pay); its hours and over time still follow the Hours sheet.
+        if(r._breakdown.bonus>0)return{};
         const out=_fxPayBlock(r,n,{hours:C.hours,ot:C.ot,rate:C.rate,total:C.total,deposit:C.deposit,contract:C.contract,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals});
         const hv=hoursOf(r);
         if(has('hmm')&&has('hours'))Object.assign(out,_fxHmmCell(n,C,hv));
@@ -12753,6 +12864,7 @@ async function exportPayrollSettingsExcel(includeBreaks){
   ts.columns.forEach((col,i)=>{col.width=i===0?34:16;});
   // FC-00078: the register's People sheet (one row per person, for reading) and its stamp.
   _writeRegisterPeopleSheet(ewb);
+  _writeThisWeekSheet(ewb); // FC-00079
   const info=_registerStamp();
   const ri=ewb.addWorksheet('Register Info');
   ri.addRow(['Employee Register']).font={bold:true,size:13};
@@ -12785,6 +12897,46 @@ function registerRows(){
 }
 const REGISTER_COLS=[['TNG ID','tng',11],['Name','name',24],['Entity','entity',16],['Former ID','id',15],['Employment Type','type',10],['Management','mgmt',11],['Active','active',8],['Pay Method','method',15],['Pay','pay',12],['Rate','rate',9],['Flat / Salary','flat',12],['Deposit Amount','deposit',12],['Accountant Name','acctName',22],['Aliases','aliases',24],['Note','note',30]];
 function _registerCell(r,k){const v=r[k];if(k==='mgmt'||k==='active')return v?'Yes':'No';if(k==='rate'||k==='flat'||k==='deposit')return v==null?'':v;return v==null?'':v;}
+// FC-00079: this run's bonuses, and every recurring Weekly bonus, so they load back next week.
+const THIS_WEEK_HEADERS=['TNG ID','Entity','Employee','Employee ID','Bonus Type','Amount','Paid By','Recurring','Week','Note'];
+function _bonusRowsForFile(){
+  const week=_runWeekStart(),rows=[];
+  entities.forEach(e=>Object.keys(session.roster.byId).forEach(k=>{
+    const r=session.roster.byId[k];if(!r||r.entity!==e.id||!Array.isArray(r.bonuses))return;
+    r.bonuses.filter(b=>_bonusCounts(b,week)||(b.type==='weekly'&&b.recurring)).forEach(b=>rows.push([r.tng||'',e.name||'',r.canonical_name,r.id,BONUS_TYPE_LABEL[b.type],+b.amount||0,BONUS_PAY_LABEL[b.pay],b.recurring?'Yes':'',b.week||'',b.note||'']));
+  }));
+  return rows;
+}
+function _writeThisWeekSheet(ewb){
+  const ws=ewb.addWorksheet('This Week');
+  ws.addRow(['This run · week of '+(_runWeekStart()||'—')]).font={bold:true,size:13};
+  ws.addRow(['Bonuses: a Weekly bonus with Recurring = Yes counts every week; any other counts only in its Week.']).font={italic:true,size:9,color:{argb:'FF888880'}};
+  const h=ws.addRow(THIS_WEEK_HEADERS);h.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};});
+  _bonusRowsForFile().forEach(r=>{const x=ws.addRow(r);x.getCell(6).numFmt=XL_FMT_MONEY;});
+  ws.columns.forEach((col,i)=>{col.width=[11,16,22,15,12,11,15,10,12,30][i]||14;});
+}
+// Reads the This Week sheet's bonus rows ([header row, ...rows] from sheet_to_json) into people's
+// bonuses: a person's bonuses in the file replace theirs.
+function _ingestBonusRows(rows){
+  if(!rows||!rows.length)return 0;
+  const hi=rows.findIndex(r=>(r||[]).some(c=>String(c).trim().toLowerCase()==='bonus type'));if(hi<0)return 0;
+  const cm={};rows[hi].forEach((c,i)=>{cm[String(c).trim().toLowerCase()]=i;});
+  const g=(r,k)=>cm[k]==null?'':String(r[cm[k]]==null?'':r[cm[k]]).trim();
+  const per=new Map();
+  rows.slice(hi+1).forEach(r=>{
+    if(!r||!g(r,'employee'))return;
+    const ent=entities.find(e=>_aliasNorm(e.name||'')===_aliasNorm(g(r,'entity')));if(!ent)return;
+    const rec=(g(r,'employee id')&&session.roster.byId[g(r,'employee id')])||_resolveRecordNoMint(ent.id,g(r,'employee'));if(!rec)return;
+    const type=(BONUS_TYPES.find(t=>t===g(r,'bonus type').toLowerCase())||'specialty');
+    const payTxt=g(r,'paid by').toLowerCase();
+    const pay=payTxt.startsWith('cash')?'cash':payTxt.startsWith('contract')?'contract':'deposit';
+    const list=per.get(rec)||[];
+    list.push({type,amount:g(r,'amount'),pay,recurring:/^(y|yes|true|1)$/i.test(g(r,'recurring')),note:g(r,'note'),week:g(r,'week')});
+    per.set(rec,list);
+  });
+  per.forEach((list,rec)=>setBonuses(rec.entity,rec.canonical_name,list,'settings-import'));
+  return per.size;
+}
 function _writeRegisterPeopleSheet(ewb){
   const ws=ewb.addWorksheet('People');
   const t=ws.addRow(['Employee Register — one row per person and entity']);t.font={bold:true,size:13};
@@ -12923,12 +13075,14 @@ function importPayrollSettingsFile(file,includeBreaks,opts){
       // includeBreaks=true: file's break columns (if present) will overwrite per-day overrides + entity default break.
       // includeBreaks=false: even if the file HAS break columns, they are intentionally ignored — existing
       // break state stays untouched. This is the safety mechanism the user asked for.
+      const twName=wb.SheetNames.find(n=>/this\s*week/i.test(n)); // FC-00079
+      const bonusRows=twName?XLSX.utils.sheet_to_json(wb.Sheets[twName],{header:1,defval:'',raw:false}):[];
       const tsName=wb.SheetNames.find(n=>/tool\s*settings/i.test(n));
       const tsRows=tsName?XLSX.utils.sheet_to_json(wb.Sheets[tsName],{header:1,defval:'',raw:false}).slice(1):[];
       // FC-00038: show what the file would change; nothing is applied until Apply.
       // FC-00047: loaded first (Schedules tab), the file opens its own entities.
       const opened=opts&&opts.createEntities?_openFileEntities(data.slice(headerRow+1),colMap):[];
-      stageSettingsData(data.slice(headerRow+1),colMap,!!includeBreaks,tsRows,file.name||'settings file',{openedEntities:opened});
+      stageSettingsData(data.slice(headerRow+1),colMap,!!includeBreaks,tsRows,file.name||'settings file',{openedEntities:opened,bonusRows});
     }catch(err){alert('Error reading file: '+err.message);}
   };
   reader.readAsArrayBuffer(file);

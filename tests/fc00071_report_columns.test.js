@@ -91,7 +91,7 @@ test('test_exports_card_points_to_the_preview', () => {
   const api = setup();
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  assert.match(html, /class="dl-desc report-cols-note">Columns: 10 of 22, chosen and ordered on the Export preview</);
+  assert.match(html, /class="dl-desc report-cols-note">Columns: 10 of 23, chosen and ordered on the Export preview</);
   assert.doesNotMatch(html, /final-diff-toggle/);
 });
 
