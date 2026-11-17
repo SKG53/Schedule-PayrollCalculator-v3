@@ -222,13 +222,18 @@ function loadApp(opts) {
   sandbox.__lastAutoTableCalls = [];
   function makeJsPdfDoc(opts) {
     const calls = sandbox.__lastAutoTableCalls;
+    let pages = 1, cur = 1;
     const doc = {
       __opts: opts,
+      __texts: [], // FC-00082: [{page, text}] for every doc.text()
       internal: { pageSize: { getWidth: () => 792, getHeight: () => 612 } },
       setFont: noop,
       setFontSize: noop,
-      text: noop,
-      addPage: noop,
+      setTextColor: noop,
+      text(t) { doc.__texts.push({ page: cur, text: String(t) }); },
+      addPage() { pages++; cur = pages; },
+      getNumberOfPages: () => pages,
+      setPage(i) { cur = i; },
       save: noop,
       output: () => new ArrayBuffer(8), // FC-00040: Downloads capture PDFs as bytes
       autoTable(tableOpts) {
@@ -577,7 +582,7 @@ function loadApp(opts) {
       entityCostGrid, payrollGridView, setPayrollGridView, renderPayrollCostGrid,
       setCombinedEntity, combinedScopeIds, exportCardNow, _buildFiles, _syncDownloads, _reportTitle, _withExportScope, getExportScope: () => _exportScope,
       // FC-00070 to FC-00075
-      collectAllFlags, _toolSettingLabel, _normalizePayMethod, PAYTYPE_SORT_ORDER, retryAllFailedOcr, _isCreditsErr, _failedOcrCount, _failedOcrJobs, OCR_CREDITS_MSG, renderOcrFileList, _applyDepositOt, setReportFinalDiff, reportShowsFinalDiff, _setCombinedLayout, COMBINED_XL_WIDTHS, COMBINED_PDF_WIDTHS, _withoutExec, _reportModel, _reportSortFn, _reportColKeyOf, _reportIsMgmt, REPORT_COLORS, _bandOf, setPayMethodForRow,
+      collectAllFlags, _toolSettingLabel, _normalizePayMethod, PAYTYPE_SORT_ORDER, retryAllFailedOcr, _isCreditsErr, _failedOcrCount, _failedOcrJobs, OCR_CREDITS_MSG, renderOcrFileList, _applyDepositOt, setReportFinalDiff, reportShowsFinalDiff, _setCombinedLayout, COMBINED_XL_WIDTHS, COMBINED_PDF_WIDTHS, _withoutExec, _reportModel, _reportSortFn, _reportColKeyOf, acctSelfCheck, stopBonus, THIS_WEEK_HEADERS, _bonusRowsForFile, _runWeekStart, _bonusCounts, _bonusWeekText, _isoOfCell, _fxPayBlock, _reportIsMgmt, REPORT_COLORS, _bandOf, setPayMethodForRow,
       payDates, setPayDateByHand, _setPayDate, _payDatesLine, _fmtPayDate, _fridayAfter, _runWeekIsos, getAcctField, setAcctField, _normAcctType,
       acctFileModel, exportAccountantFile, exportAccountantPdf, acctTieOut, _acctData, _acctSpec, _acctLine, getAcctWeekNote, setAcctWeekNote, ACCT_COLS,
       _acctStatusReasons, _acctPanelHtml, _personFields,

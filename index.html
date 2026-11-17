@@ -1976,13 +1976,33 @@ function _computeBothBreakdown(total,meta){
 // ================================================================
 // A person's bonuses live on their record at one entity (rec.bonuses), set through History like
 // any roster field. Each: {id,type:'weekly'|'monthly'|'specialty',amount,pay:'deposit'|'cash'|
-// 'contract',recurring,note,week}. A Weekly bonus with Recurring ticked counts in every run; any
-// other bonus counts only in the run whose week it was entered for (week = the run's first day).
+// 'contract',recurring,note,week,endWeek}. FC-00082: every bonus belongs to a week (week = the
+// schedule week's first day, the run's week ID). A one-off bonus counts only in its own week; a
+// recurring Weekly bonus counts from its start week on, never before, and up to its end week once
+// stopped. An older week reprocessed gets only that week's bonuses.
 const BONUS_TYPES=['weekly','monthly','specialty'];
 const BONUS_TYPE_LABEL={weekly:'Weekly',monthly:'Monthly',specialty:'Specialty'};
 const BONUS_PAY_LABEL={deposit:'Deposit',cash:'Cash',contract:'Contract Check'};
 function _runWeekStart(){const wk=_runWeekIsos();return wk?wk.start:'';}
-function _bonusCounts(b,week){return!!b&&(b.amount||0)>0&&((b.type==='weekly'&&b.recurring)||String(b.week||'')===String(week==null?_runWeekStart():week));}
+function _bonusCounts(b,week){
+  if(!b||!((b.amount||0)>0))return false;
+  const w=String(week==null?_runWeekStart():week),start=String(b.week||'');
+  if(b.type==='weekly'&&b.recurring)return(!start||!w||w>=start)&&(!b.endWeek||!w||w<=String(b.endWeek));
+  return start===w;
+}
+// The bonus's weeks, as the panel and the register show them.
+function _bonusWeekText(b){
+  const d=iso=>iso?_fmtIsoShort(iso):'?';
+  if(b.type==='weekly'&&b.recurring)return'from week of '+d(b.week)+(b.endWeek?' to week of '+d(b.endWeek):'');
+  return'week of '+d(b.week);
+}
+// Stop a recurring bonus: 'after' = paid this week for the last time; 'before' = not paid from
+// this week on. The end week is kept, so earlier weeks still show it. '' resumes it.
+function stopBonus(entId,empName,id,when){
+  const w=_runWeekStart();if(!w)return false;
+  const end=when==='after'?w:when==='before'?_isoAddDays(w,-7):'';
+  return updateBonus(entId,empName,id,{endWeek:end});
+}
 function getBonuses(entId,empName){const r=_resolveRecordNoMint(entId,empName);return r&&Array.isArray(r.bonuses)?r.bonuses.map(b=>Object.assign({},b)):[];}
 function bonusesThisRun(entId,empName){const w=_runWeekStart();return getBonuses(entId,empName).filter(b=>_bonusCounts(b,w));}
 function bonusTotals(entId,empName){
@@ -1994,7 +2014,7 @@ function _bonusDefaultPay(method){return method==='cash'?'cash':method==='contra
 function _cleanBonus(b,entId,empName){
   const type=BONUS_TYPES.includes(b.type)?b.type:'specialty';
   const pay=BONUS_PAY_LABEL[b.pay]?b.pay:_bonusDefaultPay(getPayMethod(entId,empName));
-  return{id:b.id||('b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),type,amount:Math.max(0,roundDeposit(parseFloat(String(b.amount==null?'':b.amount).replace(/[$,\s]/g,''))||0)),pay,recurring:type==='weekly'&&!!b.recurring,note:String(b.note||'').replace(/\s+/g,' ').trim(),week:b.week==null?_runWeekStart():String(b.week)};
+  return{id:b.id||('b'+Date.now().toString(36)+Math.random().toString(36).slice(2,6)),type,amount:Math.max(0,roundDeposit(parseFloat(String(b.amount==null?'':b.amount).replace(/[$,\s]/g,''))||0)),pay,recurring:type==='weekly'&&!!b.recurring,note:String(b.note||'').replace(/\s+/g,' ').trim(),week:b.week?String(b.week):(_bonusDefaultWeek||_runWeekStart()),endWeek:(type==='weekly'&&b.recurring&&b.endWeek)?String(b.endWeek):''};
 }
 function setBonuses(entId,empName,list,screen){
   const rec=_resolveRecordNoMint(entId,empName)||ensureRosterRecord(entId,empName);if(!rec||!rec.id)return false;
@@ -2005,7 +2025,12 @@ function setBonuses(entId,empName,list,screen){
   if(!_simulating&&screen!=='settings-import'&&currentTab==='payroll')renderPayroll();
   return true;
 }
-function addBonus(entId,empName,b){const list=getBonuses(entId,empName);list.push(Object.assign({week:_runWeekStart()},b||{}));return setBonuses(entId,empName,list);}
+let _bonusDefaultWeek=''; // FC-00082: the register's week, for a bonus row in the file that names none
+function addBonus(entId,empName,b){
+  const w=_runWeekStart();
+  if(!w&&!(b&&b.week)){if(!_simulating)alert('Load the schedules first: a bonus belongs to a week.');return false;}
+  const list=getBonuses(entId,empName);list.push(Object.assign({week:w},b||{}));return setBonuses(entId,empName,list);
+}
 function updateBonus(entId,empName,id,patch){const list=getBonuses(entId,empName).map(b=>b.id===id?Object.assign({},b,patch):b);return setBonuses(entId,empName,list);}
 function removeBonus(entId,empName,id){return setBonuses(entId,empName,getBonuses(entId,empName).filter(b=>b.id!==id));}
 // Folds this run's bonuses into a pay breakdown. T0 is the pay before bonuses. Deposit and checks
@@ -2044,19 +2069,22 @@ function renderBonusPanel(){
   entities.forEach(e=>Object.keys(session.roster.byId).forEach(k=>{const r=session.roster.byId[k];if(r&&r.entity===e.id&&bonusesThisRun(e.id,r.canonical_name).length)people.push({entId:e.id,name:r.canonical_name,ent:e.name||''});}));
   if(_bonusEdit&&!people.some(p=>p.entId===_bonusEdit.entId&&_aliasNorm(p.name)===_aliasNorm(_bonusEdit.name)))people.unshift({entId:_bonusEdit.entId,name:_bonusEdit.name,ent:(entities.find(x=>x.id===_bonusEdit.entId)||{}).name||''});
   if(!people.length){host.innerHTML='';return;}
-  const week=_runWeekStart();
+  const week=_runWeekStart(),prevWeek=week?_isoAddDays(week,-7):'';
   const sel=(opts,v,on)=>`<select onchange="${on}">${opts.map(([k,l])=>`<option value="${k}"${k===v?' selected':''}>${l}</option>`).join('')}</select>`;
-  host.innerHTML=`<div class="bonus-panel"><div class="bonus-head"><b>Bonuses this run</b>${week?` · week of ${escHtml(_isoDayLabel(week))}`:''} <span class="bonus-hint">Only a Weekly bonus with Recurring ticked carries to next week; Monthly and Specialty bonuses are for this run only.</span>${_bonusEdit?'<button class="mini-btn" onclick="closeBonusEditor()">Close</button>':''}</div>`+
+  host.innerHTML=`<div class="bonus-panel"><div class="bonus-head"><b>Bonuses this run</b>${week?` · week of ${escHtml(_isoDayLabel(week))}`:''} <span class="bonus-hint">Each bonus belongs to a week. Only a Weekly bonus with Recurring ticked carries to later weeks, until it is stopped; Monthly and Specialty bonuses are for their week only.</span>${_bonusEdit?'<button class="mini-btn" onclick="closeBonusEditor()">Close</button>':''}</div>`+
     people.map(p=>{
-      const n=escJs(p.name),list=bonusesThisRun(p.entId,p.name);
+      const n=escJs(p.name),list=getBonuses(p.entId,p.name).filter(b=>_bonusCounts(b,week)||(b.type==='weekly'&&b.recurring&&b.endWeek&&b.endWeek===prevWeek));
       return`<div class="bonus-person"><div class="bonus-who">${escHtml(p.name)} <span class="bonus-ent">${escHtml(p.ent)}</span> <button class="mini-btn" onclick="addBonus(${p.entId},'${n}',{type:'specialty',amount:0});renderBonusPanel()">Add bonus</button></div>`+
-        (list.length?`<table class="bonus-table"><tr><th>Type</th><th>Amount</th><th>Paid by</th><th>Recurring</th><th>Note</th><th></th></tr>`+list.map(b=>{const id=escJs(b.id);
+        (list.length?`<table class="bonus-table"><tr><th>Type</th><th>Amount</th><th>Paid by</th><th>Recurring</th><th>Week</th><th>Note</th><th></th></tr>`+list.map(b=>{const id=escJs(b.id);
+          const rec=b.type==='weekly'&&b.recurring,startedEarlier=rec&&b.week&&week&&b.week<week,stopped=rec&&b.endWeek&&b.endWeek<week;
+          const endSel=rec?sel([['','Keeps going'],['after','Last paid this week'],['before','Stopped from this week']],b.endWeek===week?'after':(b.endWeek===prevWeek?'before':''),`stopBonus(${p.entId},'${n}','${id}',this.value);renderBonusPanel()`):'';
           return`<tr><td>${sel(BONUS_TYPES.map(t=>[t,BONUS_TYPE_LABEL[t]]),b.type,`updateBonus(${p.entId},'${n}','${id}',{type:this.value});renderBonusPanel()`)}</td>
           <td><input type="number" min="0" step="0.01" value="${(+b.amount||0).toFixed(2)}" onchange="updateBonus(${p.entId},'${n}','${id}',{amount:this.value});renderBonusPanel()" style="width:90px;text-align:right"></td>
           <td>${sel(Object.keys(BONUS_PAY_LABEL).map(k=>[k,BONUS_PAY_LABEL[k]]),b.pay,`updateBonus(${p.entId},'${n}','${id}',{pay:this.value});renderBonusPanel()`)}</td>
-          <td>${b.type==='weekly'?`<input type="checkbox"${b.recurring?' checked':''} onchange="updateBonus(${p.entId},'${n}','${id}',{recurring:this.checked});renderBonusPanel()">`:'<span class="bonus-hint">this run only</span>'}</td>
+          <td>${b.type!=='weekly'?'<span class="bonus-hint">this week only</span>':(startedEarlier?endSel:`<input type="checkbox"${b.recurring?' checked':''} onchange="updateBonus(${p.entId},'${n}','${id}',{recurring:this.checked});renderBonusPanel()"> ${endSel}`)}</td>
+          <td class="bonus-week${stopped?' bonus-stopped':''}">${escHtml(_bonusWeekText(b))}${stopped?' · not paid this week':''}</td>
           <td><input type="text" value="${escHtml(b.note||'')}" placeholder="optional" onchange="updateBonus(${p.entId},'${n}','${id}',{note:this.value});renderBonusPanel()"></td>
-          <td><button class="mini-btn" onclick="removeBonus(${p.entId},'${n}','${id}');renderBonusPanel()">Remove</button></td></tr>`;}).join('')+'</table>':'<div class="bonus-hint">No bonus yet.</div>')+'</div>';
+          <td><button class="mini-btn" title="Only for a bonus entered by mistake: it disappears from every week. To end a recurring bonus, use its Recurring setting." onclick="removeBonus(${p.entId},'${n}','${id}');renderBonusPanel()">Remove</button></td></tr>`;}).join('')+'</table>':'<div class="bonus-hint">No bonus yet.</div>')+'</div>';
     }).join('')+'</div>';
 }
 function computePayBreakdown(row,entId){
@@ -10695,7 +10723,11 @@ function _fxDeposit(t,method,meta){
 function _fxPayBlock(r,n,cols,opts){
   const out={};
   if(r._wageBlank)return out;
-  const b=r._breakdown,meta=getSplitMeta(r._entityId,r._empName);
+  const b0=r._breakdown,meta=getSplitMeta(r._entityId,r._empName);
+  // FC-00082: with a bonus, the pay formulas below give the pay before the bonus, and the bonus
+  // is added on after (see the end). b is the breakdown those base formulas reproduce.
+  const B=b0.bonus>0?b0.bonus:0;
+  const b=B?Object.assign({},b0,{actualFinal:roundDeposit((b0.actualFinal||0)-B)}):b0;
   const ref=(ci)=>_xlCol(ci)+n;
   const T=ref(cols.total);
   const hourly=!r.isFlat&&r.wage>0&&opts.hoursDrivePay;
@@ -10722,9 +10754,30 @@ function _fxPayBlock(r,n,cols,opts){
   if(cols.deposit!=null)out[cols.deposit]=inContract?{v:0,fmt:XL_FMT_MONEY_DASH}:{f:_fxDeposit(T,b.method,meta),r:b.deposit,fmt:XL_FMT_MONEY_DASH};
   if(cols.contract!=null)out[cols.contract]=inContract?{f:'ROUND('+T+',2)',r:b.deposit,fmt:XL_FMT_MONEY_DASH}:{v:0,fmt:XL_FMT_MONEY_DASH};
   if(cols.cash!=null)out[cols.cash]={f:_fxCash(T,b.method,meta),r:b.cash,fmt:XL_FMT_MONEY_DASH};
-  if(cols.final!=null)out[cols.final]={f:'ROUND('+ref(cols.deposit)+'+'+ref(cols.cash)+(cols.contract!=null?'+'+ref(cols.contract):'')+',2)',r:b.roundedFinal,fmt:XL_FMT_MONEY_DASH};
-  if(cols.diff!=null)out[cols.diff]={f:'ROUND('+ref(cols.final)+'-'+T+',2)',r:b.roundingDiff||0,fmt:XL_FMT_SIGNED_BLANK0};
+  if(B)_fxAddBonus(out,b0,meta,cols,ref,T);
+  if(cols.final!=null)out[cols.final]={f:'ROUND('+ref(cols.deposit)+'+'+ref(cols.cash)+(cols.contract!=null?'+'+ref(cols.contract):'')+',2)',r:b0.roundedFinal,fmt:XL_FMT_MONEY_DASH};
+  if(cols.diff!=null)out[cols.diff]={f:'ROUND('+ref(cols.final)+'-'+T+',2)',r:b0.roundingDiff||0,fmt:XL_FMT_SIGNED_BLANK0};
   return out;
+}
+// FC-00082: a row with a bonus stays live. Total = the pay formula + Bonus (the Bonus cell when
+// the report shows it). Deposit, Check and Cash = their pay-before-bonus formula, read from
+// (Total − Bonus), + the part of the bonus paid that way, written as a fixed amount. This mirrors
+// _withBonuses exactly, so a punch changed on the Hours sheet moves the whole row.
+function _fxAddBonus(out,b,meta,cols,ref,T){
+  const B=b.bonus,Bx=cols.bonus!=null?ref(cols.bonus):String(B);
+  const base=out[cols.total];
+  const baseExpr=base.f!=null?base.f:String(base.v);
+  out[cols.total]={f:'ROUND('+baseExpr+'+'+Bx+',2)',r:b.actualFinal,fmt:XL_FMT_MONEY_DASH};
+  const T0='('+T+'-'+Bx+')',bd=+(b.bonusDeposit||0),bc=+(b.bonusCash||0),bk=+(b.bonusContract||0);
+  let dE,kE,cE;
+  if(b.method==='cash'){dE=String(bd);kE=String(bk);cE='ROUND('+T0+'+'+bc+',0)';}
+  else if(b.method==='both'){const X='('+T0+'+'+bc+')';dE='('+_fxDeposit(X,'both',meta)+'+'+bd+')';kE=String(bk);cE=_fxCash(X,'both',meta);}
+  else if(b.method==='contract'){dE=String(bd);kE='('+T0+'+'+bk+')';cE='ROUND('+bc+',0)';}
+  else{dE='('+T0+'+'+bd+')';kE=String(bk);cE='ROUND('+bc+',0)';}
+  const p=payParts(b);
+  if(cols.deposit!=null)out[cols.deposit]=cols.contract!=null?{f:'ROUND('+dE+',2)',r:p.deposit,fmt:XL_FMT_MONEY_DASH}:{f:'ROUND('+dE+'+'+kE+',2)',r:roundDeposit(p.deposit+p.contract),fmt:XL_FMT_MONEY_DASH};
+  if(cols.contract!=null)out[cols.contract]={f:'ROUND('+kE+',2)',r:p.contract,fmt:XL_FMT_MONEY_DASH};
+  if(cols.cash!=null)out[cols.cash]={f:cE,r:b.cash||0,fmt:XL_FMT_MONEY_DASH};
 }
 // Writes a {f|v,r,fmt} map onto a just-added ExcelJS row.
 function _xlApplyFx(row,fx){
@@ -11030,8 +11083,9 @@ function _acctLine(r){
   const reg=hourly?Math.round((_r2(r.actualHours||0)-ot)*100)/100:0;
   const rate=(hourly&&!r._wageBlank)?(r.wage||0):0;
   const salary=(!hourly&&ACCT_DEPOSIT_METHODS.includes(m))?Math.round((dep-bonus)*100)/100:0;
-  // Worked out again from the file's own columns, so the tie to the report's Deposit is a check.
-  const pay=hourly?roundDeposit(_xround((reg+1.5*ot)*rate,Math.max(0,Math.min(6,r.rounding==null?2:r.rounding)))):salary;
+  // FC-00082: worked out from the file's own columns, to the cent, as the accountant would by
+  // hand; our check against this week's payroll deposits then catches any difference.
+  const pay=hourly?roundDeposit((reg+1.5*ot)*rate):salary;
   const gross=Math.round((pay+bonus)*100)/100;
   const type=rec?_normAcctType(rec.acct_type):'';
   const note=[rec?String(rec.acct_note||''):'',getAcctWeekNote(r._entityId,r._empName)].filter(Boolean).join(' · ');
@@ -11063,7 +11117,7 @@ function _acctSpec(){
     rowFn:r=>{const a=r._acct||_acctLine(r);return[a.name,a.type,num(a.reg),num(a.ot),num(a.rate,true),num(a.salary,true),num(a.bonus,true),num(a.gross,true),a.note];},
     fx:(r,n)=>{
       const a=r._acct||_acctLine(r);
-      const f=a.hourly?'ROUND('+_fxPay('('+L('reg')+n+'+1.5*'+L('ot')+n+')',L('rate')+n,a.rounding)+'+'+L('bonus')+n+',2)':'ROUND('+L('salary')+n+'+'+L('bonus')+n+',2)';
+      const f=a.hourly?'ROUND('+_fxPay('('+L('reg')+n+'+1.5*'+L('ot')+n+')',L('rate')+n,2)+'+'+L('bonus')+n+',2)':'ROUND('+L('salary')+n+'+'+L('bonus')+n+',2)';
       return{[AC.gross]:{f,r:a.gross,fmt:XL_FMT_MONEY_BLANK0}};
     },
     totals:[
@@ -11075,7 +11129,40 @@ function _acctSpec(){
     ]
   };
 }
-// The tool's check: each entity's Gross Total against the payroll report's Deposit.
+// FC-00082: the file checks out on its own. Every row reproduces from its printed columns, every
+// subtotal is its rows, every entity total its subtotals, the grand total the entity totals, and
+// the tool's own words on it say nothing about cash, checks, the report or our process.
+const ACCT_PROCESS_WORDS=/\b(cash|checks?|envelopes?|report|TNG\d+|EMP_\w+)\b/i;
+function acctSelfCheck(data){
+  data=data||_acctData();
+  const problems=[],noteWarnings=[],c2=v=>Math.round((v||0)*100)/100;
+  const spec=_acctSpec(),m=_reportModel(spec,data,{noNotes:true});
+  const G=AC.gross,cols=['reg','ot','salary','bonus','gross'];
+  const printed=r=>{const a=r._acct;return{reg:c2(a.reg),ot:c2(a.ot),rate:c2(a.rate),salary:c2(a.salary),bonus:c2(a.bonus),gross:c2(a.gross)};};
+  let rows=[],subs=[],ents=[];
+  const sumOf=(list,k)=>c2(list.reduce((s,x)=>s+(x[k]||0),0));
+  const cmp=(label,want,got)=>{cols.forEach(k=>{if(Math.abs((want[k]||0)-(got[k]||0))>=0.005)problems.push(label+': '+ACCT_COLS[AC[k]][1]+' '+(got[k]||0).toFixed(2)+' should be '+(want[k]||0).toFixed(2));});};
+  const valsOf=x=>{const o={};cols.forEach(k=>{o[k]=c2(x.vals[AC[k]]||0);});return o;};
+  m.rows.forEach(x=>{
+    if(x.kind==='data'){
+      const p=printed(x.src),a=x.src._acct;
+      const hand=a.hourly?c2(c2((p.reg+1.5*p.ot)*p.rate)+p.bonus):c2(p.salary+p.bonus);
+      if(Math.abs(hand-p.gross)>=0.005)problems.push(a.name+' ('+(entities.find(e=>e.id===x.entityId)||{}).name+'): Gross Total '+_fmtUsd(p.gross)+', but its own columns give '+_fmtUsd(hand));
+      if(a.note&&ACCT_PROCESS_WORDS.test(a.note))noteWarnings.push(a.name+'\'s note mentions "'+(a.note.match(ACCT_PROCESS_WORDS)||[''])[0]+'"');
+      rows.push(p);
+    }else if(x.kind==='subtotal'){const v=valsOf(x);cmp(x.cells[LC_ACCT()]||'Subtotal',{reg:sumOf(rows,'reg'),ot:sumOf(rows,'ot'),salary:sumOf(rows,'salary'),bonus:sumOf(rows,'bonus'),gross:sumOf(rows,'gross')},v);subs.push(v);rows=[];}
+    else if(x.kind==='enttotal'){const v=valsOf(x);cmp(x.cells[LC_ACCT()],{reg:sumOf(subs,'reg'),ot:sumOf(subs,'ot'),salary:sumOf(subs,'salary'),bonus:sumOf(subs,'bonus'),gross:sumOf(subs,'gross')},v);ents.push(v);subs=[];}
+    else if(x.kind==='grand'){const v=valsOf(x);cmp('Grand total',{reg:sumOf(ents,'reg'),ot:sumOf(ents,'ot'),salary:sumOf(ents,'salary'),bonus:sumOf(ents,'bonus'),gross:sumOf(ents,'gross')},v);}
+  });
+  // The tool's own words on the file: the title, the dates line, the headings and the row labels.
+  const own=[_acctTitle(),spec.datesLine].concat(spec.headers,m.rows.filter(x=>x.kind!=='data').map(x=>x.text||x.cells&&x.cells[AC.name]||''));
+  own.forEach(t=>{if(t&&ACCT_PROCESS_WORDS.test(t))problems.push('The file would say "'+t+'"');});
+  void G;
+  return{ok:!problems.length,problems,noteWarnings};
+}
+function LC_ACCT(){return AC.name;}
+// Our own check, on screen only: each entity's Gross Total against this week's payroll deposits
+// (what the run pays by deposit, contract checks never included).
 function acctTieOut(){
   return _acctData().map(d=>{
     const gross=Math.round(d.rows.reduce((a,r)=>a+r._acct.gross,0)*100)/100;
@@ -11088,11 +11175,19 @@ function acctFileModel(){
   return{period:_acctPeriodLabel(),payDate:payDates().deposit,entities:data.map(d=>({entityId:d.entityId,entityName:d.entityName,rows:d.rows.slice().sort(_reportSortFn).map(r=>Object.assign({entityId:d.entityId,empName:r._empName,mgmt:_reportIsMgmt(r)},r._acct))}))};
 }
 function _acctTitle(){const p=_acctPeriodLabel();return'ACCOUNTANT PAYROLL'+(p?' — PERIOD '+p:'');}
+// FC-00082: a file that does not check out on its own is never written.
+function _acctCheckOrBail(data){
+  const c=acctSelfCheck(data);
+  if(c.ok)return true;
+  if(!_dlCapture)alert('The accountant file was not written: it does not check out on its own.\n\n'+c.problems.slice(0,12).join('\n'));
+  return false;
+}
 async function exportAccountantFile(){
   if(!_payrollGateOk(()=>exportAccountantFile()))return; // FC-00049: a payroll document asks first
   if(!_confirmBreaksOrBail())return;
   const data=_acctData();
   if(!data.length){if(!_dlCapture)alert('No one is paid by deposit this week, so there is no accountant file.');return;}
+  if(!_acctCheckOrBail(data))return; // FC-00082
   const wb=_xlFormulaWorkbook();
   const ws=wb.addWorksheet('Accountant');
   const title=ws.addRow([_acctTitle()]);title.height=26;
@@ -11107,12 +11202,11 @@ async function exportAccountantPdf(){
   if(!window.jspdf||!window.jspdf.jsPDF){alert('PDF library failed to load. Please reload the page and try again.');return;}
   const data=_acctData();
   if(!data.length){if(!_dlCapture)alert('No one is paid by deposit this week, so there is no accountant file.');return;}
+  if(!_acctCheckOrBail(data))return; // FC-00082
   const {jsPDF}=window.jspdf;
   const doc=new jsPDF({unit:'pt',format:'letter',orientation:'landscape'});
-  const pageW=doc.internal.pageSize.getWidth();
-  doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text(_acctTitle(),pageW/2,34,{align:'center'});
-  doc.setFontSize(10.5);doc.text(_acctDatesLine(),pageW/2,52,{align:'center'});
-  _writeReportPdf(doc,_acctSpec(),data,62);
+  _writeReportPdf(doc,_acctSpec(),data,REPORT_PDF_TOP);
+  _pdfHeadingEveryPage(doc,_acctTitle(),_acctDatesLine()); // FC-00082
   _savePdf(doc,_fileStem()+'_AccountantFile.pdf');
 }
 function _acctStatusReasons(){
@@ -11126,7 +11220,10 @@ function _acctStatusReasons(){
   data.forEach(d=>d.rows.forEach(r=>{if(!r._acct.type)noType.push(r._acct.name);if(r._acct.noRate)noRate.push(r._acct.name);}));
   if(noType.length)out.push('Employment type not set: '+noType.join(', '));
   if(noRate.length)out.push('Rate missing: '+noRate.join(', '));
-  acctTieOut().filter(t=>!t.ok).forEach(t=>out.push(t.entityName+': Gross Total '+_fmtUsd(t.gross)+' does not match the payroll report\'s Deposit '+_fmtUsd(t.deposit)));
+  const sc=acctSelfCheck(data);
+  if(!sc.ok)out.push('Does not check out on its own: '+sc.problems.slice(0,3).join('; ')+(sc.problems.length>3?' …':''));
+  sc.noteWarnings.forEach(w=>out.push(w+': the accountant will see it'));
+  acctTieOut().filter(t=>!t.ok).forEach(t=>out.push(t.entityName+': Gross Total '+_fmtUsd(t.gross)+' does not match this week\'s payroll deposits '+_fmtUsd(t.deposit)));
   return out;
 }
 // The accountant file panel on the Exports screen: the pay dates, who is on the file (name,
@@ -11141,7 +11238,9 @@ function _acctPanelHtml(){
   const ties=acctTieOut();
   if(ties.length){
     h+='<div class="acct-check">';
-    ties.forEach(t=>{h+=t.ok?`<div class="dl-ok acct-tie">✓ ${escHtml(t.entityName)}: Gross Total ${escHtml(_fmtUsd(t.gross))} = the payroll report's Deposit</div>`:`<div class="dl-warn acct-tie">⚠ ${escHtml(t.entityName)}: Gross Total ${escHtml(_fmtUsd(t.gross))}, the payroll report's Deposit ${escHtml(_fmtUsd(t.deposit))}</div>`;});
+    const sc=acctSelfCheck();
+    h+=sc.ok?'<div class="dl-ok acct-tie">✓ The file checks out on its own: every row from its own columns, every total from the lines above it.</div>':`<div class="dl-warn acct-tie">⚠ The file does not check out on its own, so it will not be written: ${escHtml(sc.problems.slice(0,3).join('; '))}</div>`;
+    ties.forEach(t=>{h+=t.ok?`<div class="dl-ok acct-tie">✓ ${escHtml(t.entityName)}: Gross Total ${escHtml(_fmtUsd(t.gross))} matches this week's payroll deposits</div>`:`<div class="dl-warn acct-tie">⚠ ${escHtml(t.entityName)}: Gross Total ${escHtml(_fmtUsd(t.gross))}, this week's payroll deposits ${escHtml(_fmtUsd(t.deposit))}</div>`;});
     h+='</div>';
   }
   if(M.entities.length){
@@ -11311,8 +11410,22 @@ function _writeReportXl(ws,spec,data,title){
   (spec.xlWidths||COMBINED_XL_WIDTHS).forEach((w,i)=>{ws.getColumn(i+1).width=w;});
   (spec.hidden||[]).forEach(i=>{ws.getColumn(i+1).hidden=true;}); // FC-00077: formula inputs left off the report
   // Landscape Letter, one page wide, the column headings on every page.
-  ws.pageSetup=Object.assign(ws.pageSetup||{},{paperSize:1,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:hdr.number+':'+hdr.number,horizontalCentered:true,margins:{left:0.4,right:0.4,top:0.35,bottom:0.35,header:0.2,footer:0.2}});
+  // FC-00082: the title, the dates line and the column headings print on every page; pages numbered.
+  ws.pageSetup=Object.assign(ws.pageSetup||{},{paperSize:1,orientation:'landscape',fitToPage:true,fitToWidth:1,fitToHeight:0,printTitlesRow:'1:'+hdr.number,horizontalCentered:true,margins:{left:0.4,right:0.4,top:0.35,bottom:0.45,header:0.2,footer:0.2}});
+  ws.headerFooter=Object.assign(ws.headerFooter||{},{oddFooter:'&C&"Arial,Regular"&8Page &P of &N'});
   ws.views=[{state:'frozen',ySplit:hdr.number}];
+}
+// FC-00082: every page of a payroll PDF carries the same title and dates line, and its number.
+const REPORT_PDF_TOP=62;
+function _pdfHeadingEveryPage(doc,title,dates){
+  const n=doc.getNumberOfPages?doc.getNumberOfPages():1,W=doc.internal.pageSize.getWidth(),H=doc.internal.pageSize.getHeight();
+  for(let i=1;i<=n;i++){
+    if(doc.setPage)doc.setPage(i);
+    if(doc.setTextColor)doc.setTextColor(17,17,17);
+    doc.setFont('helvetica','bold');doc.setFontSize(15);doc.text(title,W/2,34,{align:'center'});
+    if(dates){doc.setFontSize(10.5);doc.text(dates,W/2,52,{align:'center'});}
+    doc.setFont('helvetica','normal');doc.setFontSize(8);doc.text('Page '+i+' of '+n,W/2,H-14,{align:'center'});
+  }
 }
 // The PDF: same blocks; each entity starts a new page and the column headings repeat.
 function _writeReportPdf(doc,spec,data,startY){
@@ -11348,7 +11461,7 @@ function _writeReportPdf(doc,spec,data,startY){
     doc.autoTable({
       head:[spec.headers],
       body,
-      startY:pi===0?startY:M,
+      startY:pi===0?startY:REPORT_PDF_TOP,
       theme:'plain',
       styles:{font:'helvetica',fontSize:FS,cellPadding:PAD,textColor:dark,lineColor:ruleC,lineWidth:0,overflow:'linebreak',valign:'middle'},
       headStyles:{fillColor:white,textColor:dark,fontStyle:'bold',lineColor:dark,lineWidth:{bottom:1.4}},
@@ -11356,7 +11469,7 @@ function _writeReportPdf(doc,spec,data,startY){
       tableWidth:avail,
       showHead:'everyPage',
       rowPageBreak:'avoid',
-      margin:{left:M,right:M,top:M,bottom:M},
+      margin:{left:M,right:M,top:REPORT_PDF_TOP,bottom:M}, // FC-00082: room for the heading on every page
       didParseCell(h){
         if(h.section!=='head')return;
         h.cell.styles.halign=alignOf(h.column.index);
@@ -11462,7 +11575,7 @@ function _columnsFor(kind,nameKey,opts){
         put('hours',hv==null?'':xlHours(straightOf(r)));
         put('ot',r.otPaidH>0?xlHours(r.otPaidH):'');
         put('rate',(r._wageBlank||exec)?(exec?'flat':''):(r.isFlat?'flat':(r.wage>0?xlMoney(r.wage):'')));
-        put('bonus',r._breakdown.bonus>0?xlMoney(r._breakdown.bonus):'');
+        put('bonus',r._breakdown.bonus>0?xlMoney(r._breakdown.bonus):(opts&&opts.forExcel?_numCell(0,XL_FMT_MONEY_BLANK0,''):''));
         put('total',r._wageBlank?'':(r._breakdown.actualFinal>0?xlMoney(r._breakdown.actualFinal):''));
         put('deposit',dep(r)>0?xlMoney(dep(r)):'');
         put('contract',con(r)>0?xlMoney(con(r)):'');
@@ -11486,9 +11599,8 @@ function _columnsFor(kind,nameKey,opts){
         // recalculates hours, pay and every total.
         const hm=(opts&&opts.hoursMap&&!r.isFlat&&has('hours'))?opts.hoursMap.get(r._entityId+'|'+_aliasNorm(r._empName)):null;
         const sumExpr=hm?'ROUND(SUM('+hm.ref+'),2)':null;
-        // FC-00079: a row with a bonus keeps its money as values (the bonus can be paid another way
-        // than the person's own pay); its hours and over time still follow the Hours sheet.
-        const out=r._breakdown.bonus>0?{}:_fxPayBlock(r,n,{hours:C.hours,ot:C.ot,rate:C.rate,total:C.total,deposit:C.deposit,contract:C.contract,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals,otSplit:split,sumExpr});
+        // FC-00082: a row with a bonus is live too (_fxAddBonus).
+        const out=_fxPayBlock(r,n,{hours:C.hours,ot:C.ot,rate:C.rate,bonus:C.bonus,total:C.total,deposit:C.deposit,contract:C.contract,cash:C.cash,final:C.final,diff:C.diff},{hoursDrivePay:hasActuals,otSplit:split,sumExpr});
         const hv=hoursOf(r);
         const H=has('hours')?_xlCol(C.hours)+n:null,O=has('ot')?_xlCol(C.ot)+n:null;
         // FC-00080: straight-time Hours = hours worked − Over time (a Deposit person's over 40).
@@ -12044,13 +12156,7 @@ async function _exportPdf(kind){
 
   let startY=56;
   // FC-00080: the payroll report's title, its pay dates line, then its blocks.
-  if(kind==='combined'){
-    doc.setFont('helvetica','bold');doc.setFontSize(15);
-    doc.text(titleText+(per?' — '+per:''),pageW/2,34,{align:'center'});
-    const _pdl=_payDatesLine();
-    if(_pdl){doc.setFont('helvetica','bold');doc.setFontSize(10.5);doc.text(_pdl,pageW/2,52,{align:'center'});}
-    startY=_pdl?62:50;
-  }
+  if(kind==='combined')startY=REPORT_PDF_TOP; // FC-00082: the heading is drawn on every page at the end
 
   function writeSection(sectionKind){
     const spec=_columnsFor(sectionKind,_DL_KEY_FOR_KIND[kind]);
@@ -12203,6 +12309,7 @@ async function _exportPdf(kind){
     writeSection(kind);
   }
 
+  if(kind==='combined')_pdfHeadingEveryPage(doc,titleText+(per?' — '+per:''),_payDatesLine()); // FC-00082
   const pdfName=_exportFilenameBase(kind)+'.pdf';
   _savePdf(doc,pdfName);
   _toastExportWithWeekNote(pdfName);
@@ -12771,22 +12878,22 @@ function registerRows(){
 const REGISTER_COLS=[['TNG ID','tng',11],['Name','name',24],['Entity','entity',16],['Former ID','id',15],['Employment Type','type',10],['Management','mgmt',11],['Active','active',8],['Pay Method','method',15],['Pay','pay',12],['Rate','rate',9],['Flat / Salary','flat',12],['Deposit Amount','deposit',12],['Accountant Name','acctName',22],['Aliases','aliases',24],['Note','note',30]];
 function _registerCell(r,k){const v=r[k];if(k==='mgmt'||k==='active')return v?'Yes':'No';if(k==='rate'||k==='flat'||k==='deposit')return v==null?'':v;return v==null?'':v;}
 // FC-00079: this run's bonuses, and every recurring Weekly bonus, so they load back next week.
-const THIS_WEEK_HEADERS=['TNG ID','Entity','Employee','Employee ID','Bonus Type','Amount','Paid By','Recurring','Week','Note'];
+const THIS_WEEK_HEADERS=['TNG ID','Entity','Employee','Employee ID','Bonus Type','Amount','Paid By','Recurring','Week','End Week','Note'];
 function _bonusRowsForFile(){
   const week=_runWeekStart(),rows=[];
   entities.forEach(e=>Object.keys(session.roster.byId).forEach(k=>{
     const r=session.roster.byId[k];if(!r||r.entity!==e.id||!Array.isArray(r.bonuses))return;
-    r.bonuses.filter(b=>_bonusCounts(b,week)||(b.type==='weekly'&&b.recurring)).forEach(b=>rows.push([r.tng||'',e.name||'',r.canonical_name,r.id,BONUS_TYPE_LABEL[b.type],+b.amount||0,BONUS_PAY_LABEL[b.pay],b.recurring?'Yes':'',b.week||'',b.note||'']));
+    r.bonuses.filter(b=>_bonusCounts(b,week)||(b.type==='weekly'&&b.recurring)).forEach(b=>rows.push([r.tng||'',e.name||'',r.canonical_name,r.id,BONUS_TYPE_LABEL[b.type],+b.amount||0,BONUS_PAY_LABEL[b.pay],b.recurring?'Yes':'',b.week||'',b.endWeek||'',b.note||'']));
   }));
   return rows;
 }
 function _writeThisWeekSheet(ewb){
   const ws=ewb.addWorksheet('This Week');
   ws.addRow(['This run · week of '+(_runWeekStart()||'—')]).font={bold:true,size:13};
-  ws.addRow(['Bonuses: a Weekly bonus with Recurring = Yes counts every week; any other counts only in its Week.']).font={italic:true,size:9,color:{argb:'FF888880'}};
+  ws.addRow(['Bonuses: each belongs to its Week (the schedule week\'s first day). A Weekly bonus with Recurring = Yes counts from its Week through its End Week (blank: still going); any other counts only in its Week.']).font={italic:true,size:9,color:{argb:'FF888880'}};
   const h=ws.addRow(THIS_WEEK_HEADERS);h.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};});
   _bonusRowsForFile().forEach(r=>{const x=ws.addRow(r);x.getCell(6).numFmt=XL_FMT_MONEY;});
-  ws.columns.forEach((col,i)=>{col.width=[11,16,22,15,12,11,15,10,12,30][i]||14;});
+  ws.columns.forEach((col,i)=>{col.width=[11,16,22,15,12,11,15,10,12,12,30][i]||14;});
 }
 // Reads the This Week sheet's bonus rows ([header row, ...rows] from sheet_to_json) into people's
 // bonuses: a person's bonuses in the file replace theirs.
@@ -12804,11 +12911,19 @@ function _ingestBonusRows(rows){
     const payTxt=g(r,'paid by').toLowerCase();
     const pay=payTxt.startsWith('cash')?'cash':payTxt.startsWith('contract')?'contract':'deposit';
     const list=per.get(rec)||[];
-    list.push({type,amount:g(r,'amount'),pay,recurring:/^(y|yes|true|1)$/i.test(g(r,'recurring')),note:g(r,'note'),week:g(r,'week')});
+    list.push({type,amount:g(r,'amount'),pay,recurring:/^(y|yes|true|1)$/i.test(g(r,'recurring')),note:g(r,'note'),week:_isoOfCell(g(r,'week')),endWeek:_isoOfCell(g(r,'end week'))});
     per.set(rec,list);
   });
   per.forEach((list,rec)=>setBonuses(rec.entity,rec.canonical_name,list,'settings-import'));
   return per.size;
+}
+// A week cell from the file: an ISO date as written, or as a spreadsheet reformatted it.
+function _isoOfCell(v){
+  v=String(v==null?'':v).trim();if(!v)return'';
+  if(/^\d{4}-\d{2}-\d{2}$/.test(v))return v;
+  const m=/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/.exec(v);
+  if(m){const y=m[3].length===2?'20'+m[3]:m[3];return y+'-'+m[1].padStart(2,'0')+'-'+m[2].padStart(2,'0');}
+  return v;
 }
 function _writeRegisterPeopleSheet(ewb){
   const ws=ewb.addWorksheet('People');
@@ -12847,6 +12962,7 @@ function _checkRegisterAge(wb){
     });
   }
   if(info.high)_noteTngSeen(_tngFmt(info.high));
+  _bonusDefaultWeek=info.week||''; // FC-00082
   if(newest&&(!name||_registerIsOlder(info,newest))){
     const msg=name?`This Employee Register is older than one already used in this browser.\n\nThis file: week of ${info.week||'?'}, saved ${info.savedAt||'?'}\nNewest used: week of ${newest.week||'?'}, saved ${newest.savedAt||'?'}\n\nLoad it anyway? Employee IDs stay unique either way, but its rates and people may be out of date.`:
       'This settings file is from before the Employee Register, and a newer register has already been used in this browser.\n\nLoad it anyway? Its rates and people may be out of date.';

@@ -55,7 +55,7 @@ test('test_ties_to_the_report_deposit', () => {
   assert.deepEqual(dep, ['$2,307.00', '$320.00']);
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  assert.match(html, /✓ Alpha Test: Gross Total \$2,307\.00 = the payroll report's Deposit/);
+  assert.match(html, /✓ Alpha Test: Gross Total \$2,307\.00 matches this week's payroll deposits/);
 });
 
 test('test_excel_layout_and_formulas', async () => {

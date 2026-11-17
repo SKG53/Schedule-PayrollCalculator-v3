@@ -79,7 +79,7 @@ test('test_bonuses_saved_in_register_and_snapshot_and_undoable', async () => {
   await api.exportPayrollSettingsExcel(false);
   const tw = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'This Week');
   const rows = tw.rows.filter(Boolean).map(r => r.slice(1).map(c => (c && c.value != null ? String(c.value) : '')));
-  assert.ok(rows.some(r => r[2] === 'Avery Atest' && r[4] === 'Weekly' && r[7] === 'Yes' && r[9] === 'lead shifts'));
+  assert.ok(rows.some(r => r[2] === 'Avery Atest' && r[4] === 'Weekly' && r[7] === 'Yes' && r[10] === 'lead shifts'));
   assert.ok(rows.some(r => r[2] === 'Bram Btest' && r[4] === 'Specialty' && r[6] === 'Deposit'));
   const b = setup();
   assert.equal(b._ingestBonusRows(rows), 2);
@@ -105,6 +105,6 @@ test('test_bonus_button_and_panel', () => {
   api.renderPayroll(); api.renderBonusPanel();
   const html = doc.getElementById('bonusPanel').innerHTML;
   assert.match(html, /value="12\.00"/);
-  assert.match(html, /this run only/, 'Monthly cannot recur');
+  assert.match(html, /this week only/, 'Monthly cannot recur');
   assert.match(doc.getElementById('payrollCalcTable').innerHTML, /Bonus \$12\.00/);
 });
