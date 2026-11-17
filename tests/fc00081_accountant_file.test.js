@@ -123,12 +123,12 @@ test('test_card_status_and_panel', () => {
   const d = api.DOWNLOADS.find(x => x.key === 'accountant');
   assert.deepEqual(Object.keys(d.formats), ['xlsx', 'pdf']);
   const st = api.downloadStatus('accountant');
-  assert.ok(st.reasons.includes('Deposit pay date not set: set it below'), st.reasons.join(' | '));
-  assert.ok(st.reasons.some(x => /^Employment type not set: /.test(x)));
+  assert.ok(st.reasons.includes('Deposit pay date not set: set it on this card'), st.reasons.join(' | ')); // FC-00084
+  assert.ok(st.reasons.some(x => /^Employment type not set \(Employee Register tab\): /.test(x)));
   assert.ok(!st.reasons.some(x => /accountant's file is not loaded/.test(x)), 'nothing to load any more');
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  assert.match(html, /<h3>Accountant file<\/h3>/);
+  assert.match(html, /<div class="exp-title">Accountant file<\/div>/); // FC-00084: on its card, no page section
   assert.doesNotMatch(html, /Load the accountant's file/);
   assert.match(html, /onchange="setPayDateByHand\('deposit',this.value\)"/);
   assert.match(html, /class="acct-note acct-week-note"/);

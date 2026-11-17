@@ -585,7 +585,8 @@ function loadApp(opts) {
       collectAllFlags, _toolSettingLabel, _normalizePayMethod, PAYTYPE_SORT_ORDER, retryAllFailedOcr, _isCreditsErr, _failedOcrCount, _failedOcrJobs, OCR_CREDITS_MSG, renderOcrFileList, _applyDepositOt, setReportFinalDiff, reportShowsFinalDiff, _setCombinedLayout, COMBINED_XL_WIDTHS, COMBINED_PDF_WIDTHS, _withoutExec, _reportModel, _reportSortFn, _reportColKeyOf, acctSelfCheck, stopBonus, exportToolSettingsExcel, _importToolSettingsWb, registerWeekStatus, _setRegisterLoaded, _registerWeekLine, _toolSettingsRows, _registerIdRows, _readRegisterInfo, _tngBrowserHigh, getRegLoaded: () => _regLoaded, THIS_WEEK_HEADERS, _bonusRowsForFile, _runWeekStart, _bonusCounts, _bonusWeekText, _isoOfCell, _fxPayBlock, _reportIsMgmt, REPORT_COLORS, _bandOf, setPayMethodForRow,
       payDates, setPayDateByHand, _setPayDate, _payDatesLine, _fmtPayDate, _fridayAfter, _runWeekIsos, getAcctField, setAcctField, _normAcctType,
       acctFileModel, exportAccountantFile, exportAccountantPdf, acctTieOut, _acctData, _acctSpec, _acctLine, getAcctWeekNote, setAcctWeekNote, ACCT_COLS,
-      _acctStatusReasons, _acctPanelHtml, _personFields,
+      _acctStatusReasons, _acctCardHtml, _personFields,
+      _downloadsHtml, noSchedRecords, isNoSched, noSchedStatus, noSchedStatusText, noSchedUnchecked, _nsReminderText, _nsReminderHtml, keepNoSched, setNoSchedSkip, setNoSchedAmount, setNoSchedMethod, setNoSchedDeposit, setNoSchedActive, addNoSchedPerson, _noSchedSectionHtml, _nsSkipped, _nsWeekKey, getFlatWageRows,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078
