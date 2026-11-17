@@ -1,6 +1,6 @@
 # FC-00080 — Payroll report redesign: entity blocks, Employees and Management, easier to read
 
-**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** drafting · **Affected entities:** All
+**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** done · **Affected entities:** All
 **Depends on:** FC-00077 (column picker), FC-00078 (Management tick, employment type), FC-00079 (Bonus)
 **Reference:** the owner-reviewed sample `Payroll_1108to1114_SAMPLE_v5.pdf` (2026-11-16)
 
@@ -14,8 +14,8 @@
 4. **Totals:** Employees subtotal, Management subtotal, then **ENTITY TOTAL** (both groups together). **GRAND TOTAL — ALL ENTITIES** comes at the end.
 5. **Columns, in order:** Employee, Type, Method, Hours, Over time, Rate, Bonus, Total, Deposit, Check, Cash. The column picker (FC-00077) still chooses and orders them. Entity stays in the pool, unticked. Type and Bonus join the pool.
 6. **Hours and Over time:** Hours is straight-time hours. Over time is a Deposit person's hours over 40, paid at 1.5×, so Hours + Over time = hours worked. (Today, Hours is the total worked.)
-7. **Row order in each group:** Cash, then Contract Check, then Deposit + Cash, then Deposit. People without an employment type come first, without breaking up those with one.
-8. **People paid $0 in the run are not printed.**
+7. **Row order in each group:** Cash, then Contract Check, then Deposit + Cash, then Deposit.
+8. **People paid $0 are printed only when ticked Active** (the check mark decides, not the amount).
 9. **Look:**
    - Each entity's rows share one light fill of its color, with no alternating stripes.
    - Horizontal lines only, bold names, and a rule before Total.
@@ -63,10 +63,21 @@ One revert commit.
 1. One entity per page (as the sample: three pages), or let entities run on to save paper? Default: one per page.
 
 ## Tests
-`tests/fc00080_report_redesign.test.js`: groups and totals; row order; $0 rows left out; Hours/Over time split; colors (cash fill the same for every entity); PDF and Excel headings and totals; picker with groups; regress of pay per person.
+`tests/fc00080_report_redesign.test.js`: groups and totals; row order; $0 rows printed when ticked Active; Hours/Over time split; colors (cash fill the same for every entity); PDF and Excel headings and totals; picker with groups; regress of pay per person.
 
 ## Slice
 M
 
 ## Affected entities
 All
+
+## As built (2026-11-17)
+- **$0 rows (corrects 8 above):** a person is printed when ticked Active on the Payroll tab, whatever the amount; unticked, they are left out. The tick decides, not the amount (the owner, 2026-11-17).
+- **Row order (corrects 7 above):** Cash, Contract Check, Deposit + Cash, Deposit; within each, the Payroll tab's order. Employment type does not reorder rows.
+- **Hours:** straight time while Over time is ticked; with Over time unticked, Hours is the hours worked again. In the Excel, Over time reads the Hours sheet (`MAX(0,ROUND(ROUND(SUM(Hours),2)−40,2))`), Hours = `ROUND(SUM(Hours),2) − Over time`, Total = `ROUND((Hours + 1.5 × Over time) × Rate,2)`.
+- **Names** print plain; Rate says "flat" for a flat amount (the " (flat)" suffix is gone).
+- **One entity** (a per-entity report): its TOTAL closes the report; there is no GRAND TOTAL.
+- **Pages:** each entity starts a new page in the PDF and in the Excel's print layout (landscape Letter, one page wide, headings repeated). The title and dates line are on the first page.
+- **A column list saved before this card** (it names "Actual Total") moves to the new standard columns; Rounded Final, Diff and the other optional columns keep their tick. Old names (Actual Total, Contract Check, Employment Type) still read.
+- **Executive PR blocks** are removed; an old row paid that way prints under MANAGEMENT.
+- On the real weeks: every entity total and the GRAND TOTAL are unchanged against the previous report, and the Excel recalculates in LibreOffice with no mismatches.

@@ -1,6 +1,6 @@
 # FC-00081 — New accountant file: deposit people only, in our report's layout
 
-**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** drafting · **Affected entities:** All
+**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** done · **Affected entities:** All
 **Depends on:** FC-00078 (register, employment type, Management), FC-00079 (bonuses), FC-00080 (layout)
 **Replaces:** FC-00074's file in the accountant's layout and FC-00075's loading of the accountant's file
 
@@ -65,3 +65,14 @@ M
 
 ## Affected entities
 All
+
+## As built (2026-11-17)
+- **Top:** "ACCOUNTANT PAYROLL — PERIOD 11/08/26 – 11/14/26", then "Deposit paid Thu 11/19/26".
+- **Who:** Deposit, Deposit + Cash and salaried-by-deposit people ticked Active, plus anyone else with a bonus paid by deposit (on the file for that bonus only).
+- **Employment Type** prints blank when not set; the Exports card names who is missing it.
+- **Notes:** the standing note (prints every week) and "This week's note", typed on the Exports panel's accountant table. The week note is kept with the run (Undo, History, snapshot), not in the register.
+- **Gross Total** in the Excel is a live formula: hourly `ROUND(ROUND((Regular + 1.5 × Overtime) × Rate,2) + Bonus,2)`, salaried `ROUND(Salary + Bonus,2)`. Subtotals, entity totals and the grand total are SUMs.
+- **The check:** the Exports panel shows each entity's Gross Total against the payroll report's Deposit (✓ or ⚠); a mismatch also shows on the card.
+- **Card:** Excel ticked in the batch by default; PDF available, not ticked by default.
+- **Retired:** the file in the accountant's layout, loading and matching the accountant's file, and the "Accountant file · sections" setting. The Accountant Section column stays in the register but is no longer used. An older snapshot that carries a loaded accountant file opens without it.
+- All six real weeks: every entity's Gross Total ties to Deposit, and the Excel formulas agree (also recalculated in LibreOffice).

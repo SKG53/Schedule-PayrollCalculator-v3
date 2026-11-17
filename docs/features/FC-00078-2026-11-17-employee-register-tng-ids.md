@@ -1,6 +1,6 @@
 # FC-00078 — Employee Register and TNG employee IDs
 
-**Date:** 2026-11-17 · **Slice:** L · **Risk:** High · **Status:** drafting · **Affected entities:** All
+**Date:** 2026-11-17 · **Slice:** L · **Risk:** High · **Status:** done · **Affected entities:** All
 
 ## What
 1. **One ID per person, group-wide:** `TNG` + five digits (`TNG00001`). The tool alone issues IDs. An ID is never typed by hand, never changed and never reused. Nobody is ever deleted: a person who leaves is marked inactive and keeps the ID.
@@ -67,3 +67,11 @@ L
 
 ## Affected entities
 All
+
+## As built (2026-11-17)
+- **Assignments** are the register's Payroll Settings sheet (one row per person per entity, as before) with two new columns, TNG ID and Management. The People sheet lists one row per person; Register Info holds the week, the save time and the highest TNG ID issued. This Week holds the run's one-off bonuses (FC-00079).
+- **TNG IDs** are given when the register is saved or the Employee Register tab is opened, in old-ID order (entity code, then number), after the highest ever issued. Loading the same file twice gives the same IDs.
+- **Same person at two entities:** the Employee Register tab lists likely pairs; "Link as one person" gives both records one TNG ID, "Unlink" separates them. Nothing is merged without that click. (No separate one-time move screen.)
+- **Entity codes** are fixed once an ID is issued and saved in Tool Settings as "Entity code · <name>"; Nirvana, Zion and Hefner keep N11, ZIO and HEF.
+- **Executive PR** people become Deposit with their flat weekly amount and Management ticked, on loading a register or opening an older snapshot.
+- Pay unchanged on all six real weeks (base against new).
