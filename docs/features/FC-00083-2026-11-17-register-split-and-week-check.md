@@ -1,6 +1,6 @@
 # FC-00083 — The Employee Register holds employees only; Tool Settings is its own file; the register week check
 
-**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** drafting · **Affected entities:** All
+**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** done · **Affected entities:** All
 
 ## What
 Files are still loaded by hand and each week stays in its own folder. There are three files, each with one job.
@@ -91,3 +91,21 @@ M
 
 ## Affected entities
 All
+
+## As built (2026-11-17)
+- **Register file sheets:** Payroll Settings, People, Bonuses, Paid Days, Register Info. There is no Tool Settings sheet. The Payroll Settings sheet keeps its existing columns, including each row's Palette, so older versions still read it.
+- **Tool Settings file sheets:** Tool Settings (setting, value) and About. The Exports card is not ticked in the batch by default. Loading it is one History line and can be undone.
+- **Telling the files apart:** a file with a Tool Settings sheet and no Payroll Settings sheet loads as Tool Settings; anything else loads as a register (preview, then Apply).
+- **Week check:**
+  - It runs when a register is applied and after every schedule load. It warns once per register and week.
+  - An older settings file with no Register Info shows "no week on it" and is not checked.
+- **New TNG IDs from an older register:** the tool asks once per register. Declined, the new people stay without an ID until last week's register is loaded.
+- **Highest TNG ID in this browser:** kept in the browser's storage. It is raised by:
+  - loading a register;
+  - saving one;
+  - issuing IDs;
+  - opening a snapshot.
+- **Checked with last week's real settings file:**
+  - It loaded both its employees and its tool settings, with pay unchanged.
+  - The new register then loaded back with the same people and pay, and left the tool settings alone.
+  - The Tool Settings file then brought the settings back.
