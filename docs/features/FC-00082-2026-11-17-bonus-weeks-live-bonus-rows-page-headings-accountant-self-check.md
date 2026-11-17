@@ -1,6 +1,6 @@
 # FC-00082 — Bonuses dated to their week, live bonus rows, the heading on every page, a self-contained accountant file
 
-**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** drafting · **Affected entities:** All
+**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** done · **Affected entities:** All
 
 ## What
 1. **Each bonus is tied to its week.**
@@ -82,3 +82,15 @@ M
 
 ## Affected entities
 All
+
+## As built (2026-11-17)
+- **Stop** is the Recurring setting of a recurring bonus that started in an earlier week: "Keeps going", "Last paid this week" (end week = this week) or "Stopped from this week" (end week = last week). A bonus stopped from this week stays on the panel, marked "not paid this week", so it can be resumed. A bonus cannot be added before the schedules are loaded.
+- The register's This Week sheet has a new End Week column. Week cells that a spreadsheet turned into m/d/yy still read back.
+- A bonus row's formulas reference the Bonus cell when the report shows Bonus, otherwise the amount itself.
+- Every page: the PDF heading is drawn on every page after the tables, with "Page x of y" at the bottom. The Excel repeats rows 1 to 3 (title, dates line, headings) on every printed page, with a page-number footer.
+- The accountant file's Gross Total is always worked to the cent from its own columns. Our check against this week's payroll deposits would show any difference.
+- A typed note that mentions cash, checks or the report is printed as typed, with a warning on the card.
+- Checked on all six real weeks:
+  - pay unchanged;
+  - the accountant file checks out on its own and matches the week's payroll deposits.
+- Checked on the real week Nov 8–14 with bonuses added on every pay method: 0 formula mismatches in LibreOffice, in both files.
