@@ -73,7 +73,7 @@ test('test_final_and_diff_optional_and_saved', async () => {
   assert.equal(xlNum(dane[C.final + 1]), 150);
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, []);
   // Saved in the settings file's Tool Settings (FC-00077: as the report's column list) and read back.
-  await api.exportPayrollSettingsExcel(false);
+  await api.exportToolSettingsExcel(); // FC-00083
   const ts = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Tool Settings');
   assert.ok(ts.rows.some(r => r && r[1] && r[1].value === 'Payroll report · Columns' && /^Employee, .*Cash, Entity \(off\), Rounded Final, Diff, Mode \(off\), /.test(r[2].value)));
   // A settings file from before the picker still ticks or unticks the two columns.

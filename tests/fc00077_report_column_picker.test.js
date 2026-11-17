@@ -183,7 +183,7 @@ test('test_choice_saved_in_settings_snapshot_and_undoable', async () => {
   api.setReportColumnOn('rate', true);
   assert.deepEqual(keysOn(api).slice(0, 7), ['payDate', 'employee', 'acctType', 'method', 'hours', 'ot', 'rate']);
   api.setReportColumnOn('rate', false);
-  await api.exportPayrollSettingsExcel(false);
+  await api.exportToolSettingsExcel(); // FC-00083
   const ts = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Tool Settings');
   const rows = ts.rows.slice(2).map(r => [r[1].value, r[2].value]);
   assert.deepEqual(rows.find(r => r[0] === 'Payroll report · Columns'), ['Payroll report · Columns', text]);
@@ -239,7 +239,7 @@ test('test_snapshot_from_before_the_picker_keeps_final_and_diff', async () => {
   api.session.toolSettings = { reportFinalDiff: 'Include' };
   assert.equal(api.reportShowsFinalDiff(), true);
   assert.deepEqual(api._fc13PreviewModel().headers.slice(-2), ['Rounded Final', 'Diff']);
-  await api.exportPayrollSettingsExcel(false);
+  await api.exportToolSettingsExcel(); // FC-00083
   const ts = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Tool Settings');
   const row = ts.rows.slice(2).map(r => [r[1].value, r[2].value]).find(r => r[0] === 'Payroll report · Columns');
   assert.match(row[1], /Cash, Entity \(off\), Rounded Final, Diff, Mode \(off\)/);

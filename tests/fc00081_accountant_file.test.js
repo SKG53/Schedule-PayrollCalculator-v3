@@ -141,8 +141,9 @@ test('test_week_note_is_undoable_and_kept_out_of_the_settings_file', async () =>
   const line = api.session.log.filter(e => e.type === 'toolSetting').at(-1);
   assert.match(api._toolSettingLabel(line.target.field), /^Accountant note this week · Avery Atest · week of /);
   await api.exportPayrollSettingsExcel(false);
-  const ts = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Tool Settings');
-  assert.ok(!ts.rows.some(r => r && r.some(c => c && /Back pay/.test(String(c.value)))), 'a note for one week stays out of the register');
+  assert.ok(!api.__lastExcelWorkbook.worksheets.some(w => w.rows.some(r => r && r.some(c => c && /Back pay/.test(String(c.value))))), 'a note for one week stays out of the register');
+  await api.exportToolSettingsExcel();
+  assert.ok(!api.__lastExcelWorkbook.worksheets.some(w => w.rows.some(r => r && r.some(c => c && /Back pay/.test(String(c.value))))), 'and out of Tool Settings');
   api.revertFromHistory(line.id);
   assert.equal(api.getAcctWeekNote(0, 'Avery Atest'), '');
 });

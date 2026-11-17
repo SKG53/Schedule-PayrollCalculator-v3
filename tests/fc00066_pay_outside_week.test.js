@@ -92,7 +92,7 @@ test('test_settings_file_round_trips_paid_outside_rows', () => {
   const out = add('Avery', '2026-08-16', '09:00', '13:30');
   api.approveReviewRow(out.id);
   api.setRowPayOutside(out.id, true);
-  const rows = api._toolSettingsRows().filter(x => /^Paid outside the pay week/.test(x[0]));
+  const rows = api._paidOutSettingsRows().filter(x => /^Paid outside the pay week/.test(x[0]));
   assert.equal(rows.length, 1);
   assert.match(rows[0][0], /^Paid outside the pay week · \S+ · 2026-08-16$/);
   assert.equal(rows[0][1], '09:00–13:30 · 4.50 h · paid in the 08/09/26–08/15/26 run');
@@ -115,7 +115,7 @@ test('test_next_run_blocks_matching_row_and_says_why', () => {
   const out = first.add('Avery', '2026-08-16', '09:00', '13:30');
   first.api.approveReviewRow(out.id); first.api.setRowPayOutside(out.id, true);
   const id = first.api.ensureRosterRecord(0, 'Avery').id;
-  const fileRows = first.api._toolSettingsRows().filter(x => /^Paid outside/.test(x[0]));
+  const fileRows = first.api._paidOutSettingsRows().filter(x => /^Paid outside/.test(x[0]));
   const { api, e, add } = nextRun(fileRows, id);
   const again = add('Avery', '2026-08-16', '09:02', '13:28');
   const other = add('Avery', '2026-08-17', '09:00', '17:00');
@@ -137,7 +137,7 @@ test('test_undo_block_pays_and_logs', () => {
   const out = first.add('Avery', '2026-08-16', '09:00', '13:30');
   first.api.approveReviewRow(out.id); first.api.setRowPayOutside(out.id, true);
   const id = first.api.ensureRosterRecord(0, 'Avery').id;
-  const { api, add } = nextRun(first.api._toolSettingsRows().filter(x => /^Paid outside/.test(x[0])), id);
+  const { api, add } = nextRun(first.api._paidOutSettingsRows().filter(x => /^Paid outside/.test(x[0])), id);
   const again = add('Avery', '2026-08-16', '09:00', '13:30');
   api.approveReviewRow(again.id);
   api.syncActualsFromReview();
@@ -156,7 +156,7 @@ test('test_non_matching_rows_not_blocked', () => {
   const out = first.add('Avery', '2026-08-16', '09:00', '13:30');
   first.api.approveReviewRow(out.id); first.api.setRowPayOutside(out.id, true);
   const id = first.api.ensureRosterRecord(0, 'Avery').id;
-  const { api, e, add } = nextRun(first.api._toolSettingsRows().filter(x => /^Paid outside/.test(x[0])), id);
+  const { api, e, add } = nextRun(first.api._paidOutSettingsRows().filter(x => /^Paid outside/.test(x[0])), id);
   const evening = add('Avery', '2026-08-16', '17:00', '21:00');
   const bram = add('Bram', '2026-08-16', '09:00', '13:30');
   const otherDay = add('Avery', '2026-08-18', '09:00', '13:30');
@@ -211,7 +211,7 @@ test('test_untoggled_row_same_outside_day_not_paid', () => {
   api.approveReviewRow(am.id); api.approveReviewRow(pm.id);
   api.setRowPayOutside(am.id, true);
   assert.equal(avery(api).actualHours, 4, 'only the row chosen is paid, not every row of that day');
-  const rows = api._toolSettingsRows().filter(x => /^Paid outside/.test(x[0]));
+  const rows = api._paidOutSettingsRows().filter(x => /^Paid outside/.test(x[0]));
   assert.equal(rows[0][1], '09:00–13:00 · 4.00 h · paid in the 08/09/26–08/15/26 run', 'and only it is recorded');
 });
 
@@ -220,7 +220,7 @@ test('test_settings_record_written_without_payroll_tab', () => {
   const out = add('Avery', '2026-08-16', '09:00', '13:00');
   api.setRowPayOutside(out.id, true, true);
   out.approved = true; // approved on Actuals Intake; payroll not rebuilt yet
-  const rows = api._toolSettingsRows().filter(x => /^Paid outside/.test(x[0]));
+  const rows = api._paidOutSettingsRows().filter(x => /^Paid outside/.test(x[0]));
   assert.equal(rows.length, 1, 'the settings file brings payroll up to date before writing');
 });
 
@@ -228,10 +228,10 @@ test('test_same_run_record_dropped_after_undo', () => {
   const { api, add } = setup();
   const out = add('Avery', '2026-08-16', '09:00', '13:00');
   api.approveReviewRow(out.id); api.setRowPayOutside(out.id, true);
-  const file = api._toolSettingsRows().filter(x => /^Paid outside/.test(x[0]));
+  const file = api._paidOutSettingsRows().filter(x => /^Paid outside/.test(x[0]));
   api._ingestToolSettings(file); // this week's own file loaded again
   api.setRowPayOutside(out.id, false);
-  assert.equal(api._toolSettingsRows().filter(x => /^Paid outside/.test(x[0])).length, 0, 'undone in this run → not written');
+  assert.equal(api._paidOutSettingsRows().filter(x => /^Paid outside/.test(x[0])).length, 0, 'undone in this run → not written');
   assert.equal(api.paidBeforeRecord(out, api.entities[0]), null, 'and never blocks its own run');
 });
 

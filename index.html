@@ -1179,11 +1179,11 @@ function _tngNum(id){const m=/^TNG(\d{5})$/.exec(String(id||'').trim().toUpperCa
 function _tngFmt(n){return'TNG'+String(n).padStart(5,'0');}
 let _tngWrittenOut=0; // the highest TNG ID already written to a file in this browser session (Undo cannot lower it)
 function _tngHighWater(){
-  let hi=Math.max(session._tngHigh||0,_tngWrittenOut);
+  let hi=Math.max(session._tngHigh||0,_tngWrittenOut,_tngBrowserHigh()); // FC-00083: the highest seen in this browser
   Object.keys(session.roster.byId||{}).forEach(k=>{const r=session.roster.byId[k];if(r&&r.tng)hi=Math.max(hi,_tngNum(r.tng));});
   return hi;
 }
-function _noteTngSeen(id){const n=_tngNum(id);if(n>(session._tngHigh||0))session._tngHigh=n;}
+function _noteTngSeen(id){const n=_tngNum(id);if(n>(session._tngHigh||0))session._tngHigh=n;_noteBrowserTngHigh(n);}
 function _empIdNum(id){const m=/_(\d{5})$/.exec(id||'');return m?parseInt(m[1],10):1e9;}
 // The people the register lists: everyone the settings file would carry.
 function _registerRecords(){
@@ -1207,10 +1207,12 @@ function _retireExecMethods(){
 function assignTngIds(recs){
   const list=(recs||_registerRecords()).filter(r=>r&&r.id&&!r.tng);
   if(!list.length)return 0;
+  if(!_okToIssueTngIds(list.length))return 0; // FC-00083
   list.sort((a,b)=>{const ca=_entityCodeFor(a.entity),cb=_entityCodeFor(b.entity);if(ca!==cb)return ca<cb?-1:1;return _empIdNum(a.id)-_empIdNum(b.id);});
   let n=_tngHighWater();
   list.forEach(r=>{n++;r.tng=_tngFmt(n);});
   session._tngHigh=n;
+  _noteBrowserTngHigh(n); // FC-00083
   return list.length;
 }
 function tngOf(entId,empName){const r=_resolveRecordNoMint(entId,empName);return r&&r.tng?r.tng:'';}
@@ -2830,6 +2832,7 @@ function openSnapshotData(snap,label){
   if(_busyForSnapshot()){showToast('An action is still running. Open the snapshot when it finishes.','err');return{ok:false,error:'busy'};}
   if(_sessionHasData()&&!confirm('Open this snapshot?\n\nIt replaces everything in the tool now. You can go back with "Undo Open snapshot".'))return{ok:false,error:'declined'};
   _withCheckpoint('Open snapshot'+(label?' · '+label:''),()=>{_applySnapshot(snap);_retireExecMethods();},{restoreUi:true});
+  {let hi=0;Object.keys(session.roster.byId||{}).forEach(k=>{const r=session.roster.byId[k];if(r&&r.tng)hi=Math.max(hi,_tngNum(r.tng));});hi=Math.max(hi,session._tngHigh||0);_noteBrowserTngHigh(hi);} // FC-00083
   _rerenderAll();
   _lastSavedSig=_snapshotSig();
   const missing=missingImages();
@@ -2950,12 +2953,16 @@ function _toolSettingsRows(){
   // FC-00045: name display, written as words a person can read and edit.
   const nk=Object.keys(session.toolSettings||{}).filter(k=>k.startsWith('names:'));
   ['names:scope','names:all',...NAME_EXPORT_KEYS.map(k=>'names:'+k)].filter(k=>nk.includes(k)&&session.toolSettings[k]).forEach(k=>rows.push([_toolSettingLabel(k),_nameSettingValueText(k,session.toolSettings[k])]));
-  // FC-00056: the highest employee ID ever issued per entity, so a number is never handed out
-  // twice even when the person who held it is missing from a later file.
-  const hw=_idHighWater();Object.keys(hw).sort().forEach(code=>{rows.push([ID_HIGH_WATER_LABEL+' · '+code,hw[code]]);_idWrittenOut[code]=Math.max(_idWrittenOut[code]||0,hw[code]);});
-  _paidOutSettingsRows().forEach(r=>rows.push(r)); // FC-00066
-  // FC-00078: the highest TNG ID ever issued, and each entity's fixed code.
+  // FC-00083: the IDs, entity codes and paid days are about employees: they are in the Employee
+  // Register (_registerIdRows, _paidOutSettingsRows), never in the Tool Settings file.
+  return rows;
+}
+// FC-00083: the Employee Register's identity rows (Register Info sheet): the highest TNG ID ever
+// issued, the highest former employee ID per entity (FC-00056) and each entity's fixed code.
+function _registerIdRows(){
+  const rows=[];
   {const hi=_tngHighWater();if(hi>0)rows.push([TNG_HIGH_LABEL,_tngFmt(hi)]);}
+  const hw=_idHighWater();Object.keys(hw).sort().forEach(code=>{rows.push([ID_HIGH_WATER_LABEL+' · '+code,hw[code]]);_idWrittenOut[code]=Math.max(_idWrittenOut[code]||0,hw[code]);});
   entities.filter(e=>e.name&&_entityCodeFor(e.id)).forEach(e=>rows.push([ENTITY_CODE_LABEL+' · '+e.name,_entityCodeFor(e.id)]));
   return rows;
 }
@@ -3437,7 +3444,7 @@ function stageSettingsData(rows,colMap,includeBreaks,toolRows,label,opts){
     if(!entityName&&!empName)return;
     list.push({i,row,entityName,empName,id:_rowCell(row,colMap,'employee id','employeeid','employee_id')});
   });
-  _staged={rows:list,colMap,includeBreaks:!!includeBreaks,toolRows:toolRows||[],bonusRows:(opts&&opts.bonusRows)||[],label:label||'settings file',skip:new Set(),entityChoice:{},pendingEntry:(opts&&opts.pendingEntry)||null,openedEntities:(opts&&opts.openedEntities)||[],preview:null};
+  _staged={rows:list,colMap,includeBreaks:!!includeBreaks,toolRows:toolRows||[],bonusRows:(opts&&opts.bonusRows)||[],regInfo:(opts&&opts.regInfo)||null,label:label||'settings file',skip:new Set(),entityChoice:{},pendingEntry:(opts&&opts.pendingEntry)||null,openedEntities:(opts&&opts.openedEntities)||[],preview:null};
   _staged.preview=_computeStagePreview();
   _renderStageOverlay(true);
   return _staged;
@@ -3638,6 +3645,7 @@ function applyStagedSettings(){
     Object.values(pend).forEach(p=>session.pendingSettings.push({entityName:p.entityName,rows:_cloneState(p.rows),colMap:Object.assign({},st.colMap),includeBreaks:st.includeBreaks,label:st.label}));
   },beforeState?{beforeState}:undefined);
   _staged=null;_renderStageOverlay(false);
+  if(st.regInfo)_setRegisterLoaded(st.regInfo); // FC-00083: the week check
   _rerenderAll();
   const np=Object.keys(pend).length;
   if(np)showToast('Saved for later: settings for '+Object.values(pend).map(p=>p.entityName).join(', ')+' apply when that entity is added','ok');
@@ -3749,7 +3757,8 @@ function _syncDownloads(){
   list.push(
     {key:'timecards',label:'Reviewed timecards',desc:'Every punch row with its approval, times as real Excel times — re-importable on Actuals Intake.',formats:{xlsx:true},suffix:'AllEmployeesTimecards',run:{xlsx:()=>exportActualsIntakeExcel(),pdf:()=>exportActualsIntakePdf()}},
     {key:'accountant',label:'Accountant file',desc:'Everyone paid by deposit, by entity, Employees and Management, with the pay period and the deposit pay date. Only what the accountant needs: no cash, no checks.',formats:{xlsx:true,pdf:false},suffix:'AccountantFile',run:{xlsx:()=>exportAccountantFile(),pdf:()=>exportAccountantPdf()}}, // FC-00074, FC-00081
-    {key:'settings',label:'Employee Register (settings file)',desc:'Every person\'s TNG ID, name, aliases, and each entity\'s rate, pay method, Management and Active, plus tool settings. Load it first next week. Also viewable on the Employee Register tab (PDF, CSV).',formats:{xlsx:true},suffix:'EmployeeRegister',run:{xlsx:()=>exportPayrollSettingsExcel(_settingsWithBreaks())}},
+    {key:'settings',label:'Employee Register',desc:'Employees only: every person\'s TNG ID, name, type, and each entity\'s rate, pay method, Management and Active; their bonuses, each with its week; the days already paid; the highest IDs. Save it every week and load it first next week. Also on the Employee Register tab (PDF, CSV).',formats:{xlsx:true},suffix:'EmployeeRegister',run:{xlsx:()=>exportPayrollSettingsExcel(_settingsWithBreaks())}},
+    {key:'toolsettings',label:'Tool Settings',desc:'The report\'s columns, the week-over-week warning levels, the file labels and how names print. No employees. Save it when you change a setting; load it with the same Load button.',formats:{xlsx:false},suffix:'ToolSettings',run:{xlsx:()=>exportToolSettingsExcel()}}, // FC-00083
     {key:'snapshot',label:'Snapshot',desc:'The whole session in one file, to reopen every screen exactly as it is now.',formats:{json:true},suffix:'Snapshot'}
   );
   DOWNLOADS.length=0;list.forEach(d=>DOWNLOADS.push(d));
@@ -4431,6 +4440,7 @@ function handleFile(file){
 function parseSchedule(rows,idx){
   const out=_withCheckpoint('Schedule load · '+(_entLabel(idx)||'entity'),()=>_parseScheduleImpl(rows,idx));
   checkPendingSettings(); // FC-00038: settings waiting for this entity are offered now
+  _checkRegisterWeekNow(); // FC-00083
   return out;
 }
 function _parseScheduleImpl(rows,idx){
@@ -12837,21 +12847,23 @@ async function exportPayrollSettingsExcel(includeBreaks){
   const widths=baseW.concat(breakW);
   ws.columns.forEach((col,i)=>{col.width=widths[i]||14;});
   ws.views=[{state:'frozen',ySplit:4}];
-  // Owner-level settings (thresholds, file labels) ride along on their own sheet.
-  const ts=ewb.addWorksheet('Tool Settings');
-  const tsh=ts.addRow(['Setting','Value']);tsh.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};});
-  _toolSettingsRows().forEach(r=>ts.addRow(r));
-  ts.columns.forEach((col,i)=>{col.width=i===0?34:16;});
+  // FC-00083: employees only. Tool settings have their own file (exportToolSettingsExcel).
   // FC-00078: the register's People sheet (one row per person, for reading) and its stamp.
   _writeRegisterPeopleSheet(ewb);
-  _writeThisWeekSheet(ewb); // FC-00079
+  _writeBonusesSheet(ewb); // FC-00079, FC-00083
+  // FC-00066, FC-00083: the days already paid in an earlier run, so they are never paid twice.
+  const pd=ewb.addWorksheet('Paid Days');
+  const pdh=pd.addRow(['Paid day','Times paid']);pdh.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};});
+  _paidOutSettingsRows().forEach(r=>pd.addRow(r));
+  pd.columns.forEach((col,i)=>{col.width=i===0?54:30;});
   const info=_registerStamp();
   const ri=ewb.addWorksheet('Register Info');
   ri.addRow(['Employee Register']).font={bold:true,size:13};
-  [['Register for week',info.week||''],['Saved at',info.savedAt],['Highest TNG ID issued',info.high?_tngFmt(info.high):'']].forEach(r=>ri.addRow(r));
-  ri.columns.forEach((col,i)=>{col.width=i===0?26:22;});
+  [['Register for week',info.week||''],['Saved at',info.savedAt]].concat(_registerIdRows()).forEach(r=>ri.addRow(r));
+  ri.columns.forEach((col,i)=>{col.width=i===0?34:22;});
   _tngWrittenOut=Math.max(_tngWrittenOut,info.high||0);
   _rememberNewestRegister(info);
+  _noteBrowserTngHigh(info.high||0);
   const fname=(includeBreaks?'Employee_Register_with_Breaks_':'Employee_Register_')+new Date().toISOString().slice(0,10)+'.xlsx';
   downloadBlob(await ewb.xlsx.writeBuffer(),fname);
   showToast(`Exported ${fname} — ${rows.length} employee setting${rows.length===1?'':'s'}`+(includeBreaks?' (incl. breaks)':''),'ok');
@@ -12877,19 +12889,20 @@ function registerRows(){
 }
 const REGISTER_COLS=[['TNG ID','tng',11],['Name','name',24],['Entity','entity',16],['Former ID','id',15],['Employment Type','type',10],['Management','mgmt',11],['Active','active',8],['Pay Method','method',15],['Pay','pay',12],['Rate','rate',9],['Flat / Salary','flat',12],['Deposit Amount','deposit',12],['Accountant Name','acctName',22],['Aliases','aliases',24],['Note','note',30]];
 function _registerCell(r,k){const v=r[k];if(k==='mgmt'||k==='active')return v?'Yes':'No';if(k==='rate'||k==='flat'||k==='deposit')return v==null?'':v;return v==null?'':v;}
-// FC-00079: this run's bonuses, and every recurring Weekly bonus, so they load back next week.
+// FC-00079, FC-00083: every bonus, each with its week (and end week), on the register's Bonuses
+// sheet. A bonus counts only in its own week(s) (FC-00082), so keeping them all is safe.
 const THIS_WEEK_HEADERS=['TNG ID','Entity','Employee','Employee ID','Bonus Type','Amount','Paid By','Recurring','Week','End Week','Note'];
 function _bonusRowsForFile(){
   const week=_runWeekStart(),rows=[];
   entities.forEach(e=>Object.keys(session.roster.byId).forEach(k=>{
     const r=session.roster.byId[k];if(!r||r.entity!==e.id||!Array.isArray(r.bonuses))return;
-    r.bonuses.filter(b=>_bonusCounts(b,week)||(b.type==='weekly'&&b.recurring)).forEach(b=>rows.push([r.tng||'',e.name||'',r.canonical_name,r.id,BONUS_TYPE_LABEL[b.type],+b.amount||0,BONUS_PAY_LABEL[b.pay],b.recurring?'Yes':'',b.week||'',b.endWeek||'',b.note||'']));
+    void week;r.bonuses.filter(b=>(b.amount||0)>0).forEach(b=>rows.push([r.tng||'',e.name||'',r.canonical_name,r.id,BONUS_TYPE_LABEL[b.type],+b.amount||0,BONUS_PAY_LABEL[b.pay],b.recurring?'Yes':'',b.week||'',b.endWeek||'',b.note||'']));
   }));
   return rows;
 }
-function _writeThisWeekSheet(ewb){
-  const ws=ewb.addWorksheet('This Week');
-  ws.addRow(['This run · week of '+(_runWeekStart()||'—')]).font={bold:true,size:13};
+function _writeBonusesSheet(ewb){
+  const ws=ewb.addWorksheet('Bonuses');
+  ws.addRow(['Bonuses · saved with the week of '+(_runWeekStart()||'—')]).font={bold:true,size:13};
   ws.addRow(['Bonuses: each belongs to its Week (the schedule week\'s first day). A Weekly bonus with Recurring = Yes counts from its Week through its End Week (blank: still going); any other counts only in its Week.']).font={italic:true,size:9,color:{argb:'FF888880'}};
   const h=ws.addRow(THIS_WEEK_HEADERS);h.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};});
   _bonusRowsForFile().forEach(r=>{const x=ws.addRow(r);x.getCell(6).numFmt=XL_FMT_MONEY;});
@@ -12951,16 +12964,20 @@ function _registerIsOlder(a,b){
 // Before a register (settings) file is staged: warn when it is older than the newest this browser
 // has loaded or saved, so an old file can never hand out a TNG ID a second time. Returns false
 // when the owner cancels.
-function _checkRegisterAge(wb){
-  let newest=null;try{newest=JSON.parse(localStorage.getItem(REGISTER_NEWEST_KEY)||'null');}catch(_){}
+function _readRegisterInfo(wb){
   const name=wb.SheetNames.find(n=>/register\s*info/i.test(n));
-  const info={week:'',savedAt:'',high:0};
+  const info={week:'',savedAt:'',high:0,found:!!name};
   if(name){
     XLSX.utils.sheet_to_json(wb.Sheets[name],{header:1,defval:'',raw:false}).forEach(r=>{
       const lab=String(r[0]||'').trim().toLowerCase(),v=String(r[1]||'').trim();
-      if(lab==='register for week')info.week=v;else if(lab==='saved at')info.savedAt=v;else if(lab==='highest tng id issued')info.high=_tngNum(v);
+      if(lab==='register for week')info.week=_isoOfCell(v);else if(lab==='saved at')info.savedAt=v;else if(lab==='highest tng id issued')info.high=_tngNum(v);
     });
   }
+  return info;
+}
+function _checkRegisterAge(wb){
+  let newest=null;try{newest=JSON.parse(localStorage.getItem(REGISTER_NEWEST_KEY)||'null');}catch(_){}
+  const info=_readRegisterInfo(wb),name=info.found;
   if(info.high)_noteTngSeen(_tngFmt(info.high));
   _bonusDefaultWeek=info.week||''; // FC-00082
   if(newest&&(!name||_registerIsOlder(info,newest))){
@@ -12970,6 +12987,85 @@ function _checkRegisterAge(wb){
   }
   if(name)_rememberNewestRegister(info);
   return true;
+}
+// ================================================================
+// FC-00083 — the register week check, and the Tool Settings file
+// ================================================================
+// A new week starts from last week's register. The register's week (Register Info) is compared
+// with the schedules' week: the same week or the week before is fine; anything else warns. After
+// an older register, new TNG IDs need a confirmation. The highest TNG ID ever seen in this browser
+// (registers, snapshots, IDs issued) is kept, so an ID is never issued twice here.
+let _regLoaded=null;      // {week, high, legacy}: the register loaded this session
+let _regWarnedKey='';     // the register/run pair already warned about
+let _regNewIdAnswer=null; // {week, ok}: the answer to "issue new IDs from an older register?"
+_registerSnapshotPart('registerLoaded',()=>_regLoaded?Object.assign({},_regLoaded):null,v=>{_regLoaded=v&&typeof v==='object'?Object.assign({},v):null;_regWarnedKey='';_regNewIdAnswer=null;});
+function _setRegisterLoaded(info){
+  _regLoaded={week:info.week||'',high:info.high||0,legacy:!!info.legacy};
+  _regWarnedKey='';_regNewIdAnswer=null;
+  _checkRegisterWeekNow();
+}
+function registerWeekStatus(){
+  const run=_runWeekStart(),reg=(_regLoaded&&_regLoaded.week)||'';
+  if(!_regLoaded)return{state:'none',run,reg};
+  if(!reg)return{state:'unknown',run,reg};
+  if(!run)return{state:'norun',run,reg};
+  if(reg===run||reg===_isoAddDays(run,-7))return{state:'ok',run,reg};
+  return{state:reg<run?'older':'newer',run,reg};
+}
+function _checkRegisterWeekNow(){
+  const st=registerWeekStatus();
+  if(st.state!=='older'&&st.state!=='newer')return true;
+  const key=st.reg+'|'+st.run;if(_regWarnedKey===key)return false;_regWarnedKey=key;
+  const d=_fmtIsoShort;
+  if(!_simulating)alert(st.state==='older'
+    ?`This Employee Register is from the week of ${d(st.reg)}; you are running the week of ${d(st.run)}.\n\nLoad the register saved with last week's payroll.`
+    :`This Employee Register is from the week of ${d(st.reg)}, after the week you are running (${d(st.run)}).\n\nCheck that the register and the schedules are for the same payroll.`);
+  return false;
+}
+// New TNG IDs from an older register: asked once per register.
+function _okToIssueTngIds(count){
+  const st=registerWeekStatus();
+  if(st.state!=='older')return true;
+  if(_regNewIdAnswer&&_regNewIdAnswer.week===st.reg)return _regNewIdAnswer.ok;
+  if(_simulating)return false;
+  const ok=confirm(`Issue ${count} new TNG ID${count===1?'':'s'} from an older register?\n\nThis register is from the week of ${_fmtIsoShort(st.reg)}; you are running the week of ${_fmtIsoShort(st.run)}. The highest TNG ID known here is ${_tngFmt(_tngHighWater())}, but a register saved after this one may have used the next numbers.\n\nOK: issue them after ${_tngFmt(_tngHighWater())}.\nCancel: leave them without an ID until last week's register is loaded.`);
+  _regNewIdAnswer={week:st.reg,ok};
+  return ok;
+}
+const TNG_BROWSER_HIGH_KEY='pv26_tng_high';
+function _tngBrowserHigh(){const v=parseInt(_prefGet(TNG_BROWSER_HIGH_KEY)||'0',10);return v>0?v:0;}
+function _noteBrowserTngHigh(n){n=+n||0;if(n>_tngBrowserHigh())_prefSet(TNG_BROWSER_HIGH_KEY,String(n));}
+function _registerWeekLine(){
+  const st=registerWeekStatus(),d=_fmtIsoShort,hi=_tngFmt(_tngHighWater());
+  if(st.state==='none')return'No Employee Register loaded this session · highest TNG ID known '+hi;
+  if(st.state==='unknown')return'Loaded an older settings file (no week on it) · highest TNG ID known '+hi;
+  if(st.state==='norun')return'Register: week of '+d(st.reg)+' · load the schedules to check it · highest TNG ID '+hi;
+  if(st.state==='ok')return'✓ Register: week of '+d(st.reg)+(st.reg===st.run?' (this week)':' (last week\'s)')+' · highest TNG ID '+hi;
+  if(st.state==='older')return'⚠ Register: week of '+d(st.reg)+', older than last week (running '+d(st.run)+') · highest TNG ID known '+hi;
+  return'⚠ Register: week of '+d(st.reg)+', after the week you are running ('+d(st.run)+') · highest TNG ID '+hi;
+}
+// The Tool Settings file: report columns, warning levels, file labels, how names print. No employees.
+async function exportToolSettingsExcel(){
+  const wb=new ExcelJS.Workbook();wb.creator='Schedule & Payroll Calculator';
+  const ts=wb.addWorksheet('Tool Settings');
+  const h=ts.addRow(['Setting','Value']);h.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};});
+  _toolSettingsRows().forEach(r=>ts.addRow(r));
+  ts.columns.forEach((col,i)=>{col.width=i===0?34:60;});
+  const ab=wb.addWorksheet('About');
+  ab.addRow(['TNG Payroll · Tool Settings']).font={bold:true,size:13};
+  [['Saved at',new Date().toISOString().slice(0,19).replace('T',' ')],['Load it with the same Load button as the Employee Register. It holds no employees.']].forEach(r=>ab.addRow(r));
+  ab.columns.forEach((col,i)=>{col.width=i===0?26:30;});
+  const fname='TNG_ToolSettings_'+new Date().toISOString().slice(0,10)+'.xlsx';
+  downloadBlob(await wb.xlsx.writeBuffer(),fname);
+  if(!_dlCapture)showToast('Exported '+fname,'ok');
+}
+function _importToolSettingsWb(wb,sheetName,fileName){
+  const rows=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:'',raw:false}).slice(1);
+  let n=0;
+  _withCheckpoint('Tool Settings · '+(fileName||'file'),()=>{n=_ingestToolSettings(rows);});
+  _rerenderAll();
+  showToast('Tool Settings loaded: '+n+' setting'+(n===1?'':'s')+' changed'+(n?'':' (already the same)'),'ok');
+  return n;
 }
 // The Employee Register tab.
 let _regFilter={q:'',entity:'',status:'active'};
@@ -13006,7 +13102,8 @@ function renderRegister(){
       <input type="search" placeholder="Search name, TNG ID, alias…" value="${escHtml(_regFilter.q)}" oninput="setRegisterFilter('q',this.value)">
       <select onchange="setRegisterFilter('entity',this.value)"><option value="">All entities</option>${ents.map(e=>`<option value="${e.id}"${String(_regFilter.entity)===String(e.id)?' selected':''}>${escHtml(e.name)}</option>`).join('')}</select>
       <select onchange="setRegisterFilter('status',this.value)">${[['active','Active'],['inactive','Inactive'],['all','Active and inactive']].map(([v,l])=>`<option value="${v}"${_regFilter.status===v?' selected':''}>${l}</option>`).join('')}</select>
-      <span class="reg-count">${new Set(all.map(r=>r.tng)).size} people · ${all.length} entity records · highest TNG ID issued ${escHtml(_tngFmt(_tngHighWater()))}</span>
+      <span class="reg-count">${new Set(all.map(r=>r.tng)).size} people · ${all.length} entity records</span>
+      <span class="reg-week reg-week-${registerWeekStatus().state}">${escHtml(_registerWeekLine())}</span>
       <span class="reg-dl"><button class="btn" onclick="exportPayrollSettingsExcel(false)">Excel</button><button class="btn" onclick="exportRegisterPdf()">PDF</button><button class="btn" onclick="exportRegisterCsv()">CSV</button></span>
     </div>${candHtml}
     <div class="reg-scroll"><table class="reg-table"><thead><tr><th>TNG ID</th><th>Name</th><th>Entity</th><th>Former ID</th><th>Type</th><th>Mgmt</th><th>Active</th><th>Pay Method</th><th>Pay</th><th>Rate</th><th>Flat / Salary</th><th>Deposit Amt</th><th>Accountant Name</th><th>Note</th><th></th></tr></thead><tbody>${body||'<tr><td colspan="15" class="reg-empty">Nobody yet: load the Employee Register (settings file) or a schedule.</td></tr>'}</tbody></table></div>
@@ -13049,6 +13146,9 @@ function importPayrollSettingsFile(file,includeBreaks,opts){
   reader.onload=function(e){
     try{
       const wb=XLSX.read(e.target.result,{type:'array',cellDates:false});
+      // FC-00083: a Tool Settings file (no employees) loads its settings and nothing else.
+      const tsOnly=wb.SheetNames.find(n=>/tool\s*settings/i.test(n));
+      if(tsOnly&&!wb.SheetNames.some(n=>/payroll\s*settings/i.test(n))){_importToolSettingsWb(wb,tsOnly,file.name);return;}
       if(!_checkRegisterAge(wb))return; // FC-00078: an older register asks first
       const sheetName=wb.SheetNames.find(n=>/payroll\s*settings/i.test(n))||wb.SheetNames[0];
       const data=XLSX.utils.sheet_to_json(wb.Sheets[sheetName],{header:1,defval:'',raw:false});
@@ -13064,14 +13164,18 @@ function importPayrollSettingsFile(file,includeBreaks,opts){
       // includeBreaks=true: file's break columns (if present) will overwrite per-day overrides + entity default break.
       // includeBreaks=false: even if the file HAS break columns, they are intentionally ignored — existing
       // break state stays untouched. This is the safety mechanism the user asked for.
-      const twName=wb.SheetNames.find(n=>/this\s*week/i.test(n)); // FC-00079
+      const twName=wb.SheetNames.find(n=>/^\s*(bonuses|this\s*week)\s*$/i.test(n)); // FC-00079, FC-00083
       const bonusRows=twName?XLSX.utils.sheet_to_json(wb.Sheets[twName],{header:1,defval:'',raw:false}):[];
-      const tsName=wb.SheetNames.find(n=>/tool\s*settings/i.test(n));
-      const tsRows=tsName?XLSX.utils.sheet_to_json(wb.Sheets[tsName],{header:1,defval:'',raw:false}).slice(1):[];
+      // FC-00083: an older settings file carries its Tool Settings sheet (employees and settings in one
+      // file) and loads both. A register carries its IDs and codes on Register Info and its paid
+      // days on Paid Days; both read through the same label/value reader.
+      const sheetRows=(re,skip)=>{const n=wb.SheetNames.find(x=>re.test(x));return n?XLSX.utils.sheet_to_json(wb.Sheets[n],{header:1,defval:'',raw:false}).slice(skip):[];};
+      const tsRows=sheetRows(/tool\s*settings/i,1).concat(sheetRows(/register\s*info/i,1),sheetRows(/paid\s*days/i,1));
+      const regInfo=_readRegisterInfo(wb);
       // FC-00038: show what the file would change; nothing is applied until Apply.
       // FC-00047: loaded first (Schedules tab), the file opens its own entities.
       const opened=opts&&opts.createEntities?_openFileEntities(data.slice(headerRow+1),colMap):[];
-      stageSettingsData(data.slice(headerRow+1),colMap,!!includeBreaks,tsRows,file.name||'settings file',{openedEntities:opened,bonusRows});
+      stageSettingsData(data.slice(headerRow+1),colMap,!!includeBreaks,tsRows,file.name||'settings file',{openedEntities:opened,bonusRows,regInfo:{week:regInfo.week,high:regInfo.high,legacy:!regInfo.found}});
     }catch(err){alert('Error reading file: '+err.message);}
   };
   reader.readAsArrayBuffer(file);

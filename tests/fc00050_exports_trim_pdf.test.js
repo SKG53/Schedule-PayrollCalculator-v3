@@ -100,7 +100,7 @@ test('test_header_repeats_entity_block_not_split', async () => {
 
 test('test_removed_reports_absent_from_downloads_and_payroll_tab', () => {
   const api = setup();
-  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'timecards', 'accountant', 'settings', 'snapshot']); // FC-00074: the accountant file card
+  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'timecards', 'accountant', 'settings', 'toolsettings', 'snapshot']); // FC-00074: the accountant file card
   assert.deepEqual(Object.keys(api.DOWNLOADS.find(d => d.key === 'timecards').formats), ['xlsx'], 'the Timecards PDF is gone');
   const html = fs.readFileSync(path.join(__dirname, '..', 'index.html'), 'utf8');
   for (const f of ['exportCashExcel()', 'exportDepositPdf()', 'exportTimecardExcel()', 'exportPayrollCalcPdf()', 'exportFullExcel()', 'onclick="exportManager()"']) {

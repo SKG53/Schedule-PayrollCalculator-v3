@@ -106,12 +106,15 @@ test('test_swing_thresholds_and_edit', async () => {
   // Saved in the snapshot and the settings file, logged and revertable.
   const s2 = await snap(cur);
   assert.deepEqual(s2.state.toolSettings, { wowHours: 12, wowPayPct: 1000 });
-  await cur.exportPayrollSettingsExcel(false);
+  await cur.exportToolSettingsExcel(); // FC-00083: tool settings have their own file
   const ts = cur.__lastExcelWorkbook.worksheets.find(x => x.name === 'Tool Settings');
   const tsRows = ts.rows.slice(2).map(r => [r[1].value, r[2].value]);
   assert.deepEqual(tsRows.filter(r => !/^(Highest employee ID issued|Highest TNG ID issued|Entity code)/.test(r[0])), [['Week-over-week hours swing', 12], ['Week-over-week pay swing %', 1000], ['Payroll report · Columns', 'Employee, Type, Method, Hours, Over time, Rate, Bonus, Total, Deposit, Check, Cash, Entity (off), Rounded Final (off), Diff (off), Mode (off), H:MM (off), Break (off), Scheduled Hours (off), Hours vs Schedule (off), Avg In vs Schedule (off), Avg Out vs Schedule (off), Accountant Name (off), Pay Date (off)']]); // FC-00077, FC-00080
-  // FC-00056: the settings file also carries the highest employee ID ever issued, per entity.
-  assert.ok(tsRows.some(r => /^Highest employee ID issued · [A-Z0-9]{3}$/.test(r[0]) && r[1] > 0));
+  // FC-00056, FC-00083: the highest employee ID ever issued, per entity, is in the Employee Register.
+  assert.ok(!tsRows.some(r => /^Highest/.test(r[0])), 'no IDs in the Tool Settings file');
+  await cur.exportPayrollSettingsExcel(false);
+  const ri = cur.__lastExcelWorkbook.worksheets.find(x => x.name === 'Register Info').rows.slice(2).filter(Boolean).map(r => [r[1].value, r[2] && r[2].value]);
+  assert.ok(ri.some(r => /^Highest employee ID issued · [A-Z0-9]{3}$/.test(r[0]) && r[1] > 0));
   const fresh = week(W2, THIS);
   assert.equal(fresh._ingestToolSettings([['Week-over-week hours swing', '6'], ['Unknown thing', 3]]), 1);
   assert.equal(fresh.getToolSetting('wowHours'), 6);

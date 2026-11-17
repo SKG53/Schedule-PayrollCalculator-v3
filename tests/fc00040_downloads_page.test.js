@@ -46,12 +46,12 @@ test('test_lists_every_export_with_defaults', () => {
   // FC-00059: one card per report; every entity also has its own payroll report (not in the batch by default).
   api._syncDownloads();
   // FC-00074: the accountant file is back as its own card, in the batch by default.
-  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'payroll:0', 'payroll:1', 'timecards', 'accountant', 'settings', 'snapshot']);
+  assert.deepEqual(api.DOWNLOADS.map(d => d.key), ['payroll', 'payroll:0', 'payroll:1', 'timecards', 'accountant', 'settings', 'toolsettings', 'snapshot']);
   const ticks = Object.fromEntries(api.DOWNLOADS.map(d => [d.key, Object.keys(d.formats).filter(f => api.downloadFileNames(d.key).some(n => n.endsWith('.' + f))).join('+')]));
-  assert.deepEqual(ticks, { payroll: 'xlsx+pdf', 'payroll:0': '', 'payroll:1': '', timecards: 'xlsx', accountant: 'xlsx', settings: 'xlsx', snapshot: 'json' });
+  assert.deepEqual(ticks, { payroll: 'xlsx+pdf', 'payroll:0': '', 'payroll:1': '', timecards: 'xlsx', accountant: 'xlsx', settings: 'xlsx', toolsettings: '', snapshot: 'json' });
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  for (const t of ['Payroll report — combined', 'Payroll report — NIRVANA 11TH', 'Payroll report — ZION', 'Reviewed timecards', 'Employee Register (settings file)', 'Snapshot', 'Download batch as files', 'Download batch as one zip', "exportCardNow('payroll','xlsx')", "exportCardNow('payroll','pdf')"]) assert.ok(html.includes(t), t);
+  for (const t of ['Payroll report — combined', 'Payroll report — NIRVANA 11TH', 'Payroll report — ZION', 'Reviewed timecards', 'Employee Register', 'Snapshot', 'Download batch as files', 'Download batch as one zip', "exportCardNow('payroll','xlsx')", "exportCardNow('payroll','pdf')"]) assert.ok(html.includes(t), t);
   for (const t of ['Cash-only report', 'Manager schedule report', 'Time Card Data', 'Full report']) assert.ok(!html.includes(t), t + ' removed');
   assert.ok(html.includes('Accountant file'), 'FC-00074: the accountant file card');
 });
@@ -65,7 +65,7 @@ test('test_file_names_follow_convention', () => {
   // An edited label is used everywhere and saved in the settings file.
   api.setEntityFileLabel(1, 'Zion Dist!');
   assert.deepEqual(api.downloadFileNames('snapshot'), ['Nirvana_ZionDist_0809to0815_Snapshot.json']);
-  return api.exportPayrollSettingsExcel(false).then(() => {
+  return api.exportToolSettingsExcel().then(() => { // FC-00083
     const ts = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Tool Settings');
     const rows = ts.rows.slice(2).map(r => [r[1].value, r[2].value]).filter(r => /^File label/.test(r[0]));
     assert.deepEqual(rows.at(-1), ['File label · ZION', 'ZionDist']);

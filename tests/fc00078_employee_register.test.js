@@ -15,7 +15,8 @@ async function registerFile(api) {
   const head = ps.rows[hi].slice(1).map(c => c.value);
   const rows = ps.rows.slice(hi + 1).filter(Boolean).map(r => head.map((h, i) => { const v = r[i + 1] && r[i + 1].value; return v == null ? '' : String(v); }));
   const cm = {}; head.forEach((h, i) => { cm[h.toLowerCase()] = i; });
-  const tool = sheet('Tool Settings').rows.slice(2).filter(Boolean).map(r => [r[1].value, r[2].value]);
+  // FC-00083: the IDs and entity codes are on Register Info; the register has no Tool Settings sheet.
+  const tool = sheet('Register Info').rows.slice(2).filter(Boolean).map(r => [r[1].value, r[2] && r[2].value]);
   return { wb, sheet, head, rows, cm, tool };
 }
 

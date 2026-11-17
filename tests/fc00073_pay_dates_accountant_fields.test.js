@@ -58,8 +58,11 @@ test('test_pay_dates_in_snapshot_not_in_settings_file', async () => {
   const api = setup();
   api.setPayDateByHand('deposit', '2026-08-20');
   await api.exportPayrollSettingsExcel(false);
+  const reg = api.__lastExcelWorkbook;
+  assert.ok(!reg.worksheets.some(w => w.rows.some(r => r && r[1] && /^Pay date/.test(String(r[1].value)))), 'a pay date belongs to one week');
+  await api.exportToolSettingsExcel();
   const ts = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Tool Settings');
-  assert.ok(!ts.rows.some(r => r && r[1] && /^Pay date/.test(String(r[1].value))), 'a pay date belongs to one week');
+  assert.ok(!ts.rows.some(r => r && r[1] && /^Pay date/.test(String(r[1].value))), 'nor in Tool Settings');
   const snap = await api.buildSnapshot();
   assert.equal(snap.state.toolSettings['payDate:deposit|2026-08-09'], '2026-08-20|hand');
   assert.equal(api._toolSettingLabel('payDate:deposit|2026-08-09'), 'Pay date · Deposit · week of 08/09/26');

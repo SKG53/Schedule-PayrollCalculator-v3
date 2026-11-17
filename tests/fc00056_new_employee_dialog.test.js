@@ -80,8 +80,8 @@ test('test_settings_file_carries_the_person_and_the_highest_id', async () => {
   const ps = wb.worksheets.find(w => w.name === 'Payroll Settings');
   const cells = ps.rows.filter(Boolean).map(r => r.slice(1).map(c => c && c.value));
   assert.ok(cells.some(r => r.includes('Wren Hale') && r.includes('EMP_' + code + '_00010')), 'the new person and their ID');
-  const ts = wb.worksheets.find(w => w.name === 'Tool Settings');
-  const t = ts.rows.slice(2).map(r => [r[1].value, r[2].value]);
+  const ts = wb.worksheets.find(w => w.name === 'Register Info'); // FC-00083
+  const t = ts.rows.slice(2).filter(Boolean).map(r => [r[1].value, r[2] && r[2].value]);
   assert.ok(t.some(([k, v]) => k === 'Highest employee ID issued · ' + code && v === 10), JSON.stringify(t));
   // Loading that file in a fresh session: the next ID is _00011.
   const b = loadApp();

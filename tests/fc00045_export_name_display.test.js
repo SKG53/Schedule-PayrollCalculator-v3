@@ -130,7 +130,7 @@ test('test_choice_saved_in_settings_file_and_snapshot', async () => {
   api.setExportNameScope('per');
   api.setExportNameMode('all', 'firstLast');
   api.setExportNameMode('payroll', 'first');
-  await api.exportPayrollSettingsExcel(false);
+  await api.exportToolSettingsExcel(); // FC-00083
   const ts = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Tool Settings');
   const rows = ts.rows.slice(2).map(r => [r[1].value, r[2].value]);
   assert.deepEqual(rows.filter(r => /^Names on exports/.test(r[0])), [

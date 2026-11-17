@@ -77,7 +77,7 @@ test('test_bonuses_saved_in_register_and_snapshot_and_undoable', async () => {
   api.addBonus(0, 'Avery Atest', { type: 'weekly', amount: 50, recurring: true, note: 'lead shifts' });
   api.addBonus(0, 'Bram Btest', { type: 'specialty', amount: 75, pay: 'deposit' });
   await api.exportPayrollSettingsExcel(false);
-  const tw = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'This Week');
+  const tw = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Bonuses'); // FC-00083
   const rows = tw.rows.filter(Boolean).map(r => r.slice(1).map(c => (c && c.value != null ? String(c.value) : '')));
   assert.ok(rows.some(r => r[2] === 'Avery Atest' && r[4] === 'Weekly' && r[7] === 'Yes' && r[10] === 'lead shifts'));
   assert.ok(rows.some(r => r[2] === 'Bram Btest' && r[4] === 'Specialty' && r[6] === 'Deposit'));
