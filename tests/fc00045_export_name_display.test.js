@@ -101,6 +101,8 @@ test('test_settings_and_timecards_keep_saved_names', async () => {
   assert.ok(flat.includes('"Avery Stone"') && !flat.includes('AVERY S.'));
   // Only the tool settings changed; names and IDs did not.
   const st2 = JSON.parse(api._stateSig(api._captureState())), st1 = JSON.parse(before);
+  // FC-00078: saving the register gives each person their TNG ID; nothing else in the roster moves.
+  Object.values(st2.roster.byId).forEach(r => { assert.match(r.tng, /^TNG\d{5}$/); delete r.tng; });
   assert.deepEqual(st2.roster, st1.roster);
   assert.deepEqual(st2.entities, st1.entities);
 });

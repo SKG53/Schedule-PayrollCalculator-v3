@@ -580,6 +580,8 @@ function loadApp(opts) {
       payDates, setPayDateByHand, _setPayDate, _payDatesLine, _fmtPayDate, _fridayAfter, _runWeekIsos, getAcctField, setAcctField, _normAcctType,
       acctFileModel, exportAccountantFile, parseAccountantRows, applyAccountantFile, acctMatchRow, acctSetSectionEntity, acctUseTheirNote, acctUseAllTheirNotes, clearAccountantFile, acctCompare,
       _acctMatchRow, _acctSectionList, acctSectionOf, _acctStatusReasons, _acctPanelHtml, getAcctFile: () => _acctFile, setAcctFile: (v) => { _acctFile = v; }, _acctDateIso, _personFields,
+      // FC-00078
+      assignTngIds, setRegisterFilter, tngOf, isManagement, setManagement, linkSamePerson, unlinkPerson, samePersonCandidates, registerRows, renderRegister, exportRegisterCsv, exportRegisterPdf, _checkRegisterAge, _registerIsOlder, _resolveEntityCode, _tngHighWater, _personRecords, TNG_ID_RE,
       // FC-00077
       reportColumns, setReportColumns, setReportColumnOn, moveReportColumn, resetReportColumns, _reportColsParse, _reportColsFormat, _reportLayoutKeys, REPORT_COL_KEYS, COMBINED_HIDDEN, _reportColsBarHtml, _rcDragStart, _rcDragOver, _rcDrop, _rcDragEnd, _rowPayDateText, _COMBINED_COL_DEFS,
       COMBINED_COLS, COMBINED_HEADERS, _writeHoursDetailSheet, _fc13PreviewModel, setPreviewKey, _unconfirmedNamesRaw, STATS_XL_HEADERS,

@@ -93,8 +93,9 @@ test('test_payroll_tab_exec_makes_flat', () => {
   const k = api.wKey(0, 'Eden Etest');
   assert.equal(api.payMethod[k], 'exec');
   assert.ok(api.flatWages[k] != null, 'Executive PR is Flat');
+  // FC-00078: Executive PR is retired as a choice on the Payroll tab (still read from older files).
   const html = api.__sandbox.document.getElementById('payrollCalcTable').innerHTML;
-  assert.match(html, /setPayMethodForRow\(\d+,'exec'\)"[^>]*>Executive PR<\/button>/);
+  assert.doesNotMatch(html, />Executive PR<\/button>/);
 });
 
 test('test_settings_file_exec_always_flat', () => {
@@ -104,7 +105,9 @@ test('test_settings_file_exec_always_flat', () => {
   api._ingestPayrollSettings([['Alpha Test', 'Ivy Itest', '', 'Hourly', '', 'Executive PR', ''], ['Alpha Test', 'Jay Jtest', '', 'Flat', '$1,000.00', 'Executive PR', '']], cm, false);
   assert.equal(api.flatWages[api.wKey(0, 'Ivy Itest')], 0, 'typed Hourly still loads as Flat');
   assert.equal(api.flatWages[api.wKey(0, 'Jay Jtest')], 1000);
-  assert.equal(api.payMethod[api.wKey(0, 'Jay Jtest')], 'exec');
+  // FC-00078: Executive PR is retired: the same flat amount, paid by Deposit, ticked Management.
+  assert.equal(api.payMethod[api.wKey(0, 'Jay Jtest')], 'deposit');
+  assert.equal(api.isManagement(0, 'Jay Jtest'), true);
 });
 
 test('test_leaving_exec_goes_back_to_hourly', () => {

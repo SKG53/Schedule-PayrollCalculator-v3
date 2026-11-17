@@ -118,7 +118,7 @@ test('test_batch_zip_with_entity_reports', async () => {
   assert.deepEqual(Object.keys(zips[0].files).sort(), [
     'Hefner_0809to0815_AllEmployeesPayroll.xlsx', 'Nirvana_Hefner_0809to0815_AccountantFile.xlsx',
     'Nirvana_Hefner_0809to0815_AllEmployeesPayroll.pdf', 'Nirvana_Hefner_0809to0815_AllEmployeesPayroll.xlsx',
-    'Nirvana_Hefner_0809to0815_AllEmployeesPayroll_Settings.xlsx', 'Nirvana_Hefner_0809to0815_AllEmployeesTimecards.xlsx'].sort());
+    'Nirvana_Hefner_0809to0815_EmployeeRegister.xlsx', 'Nirvana_Hefner_0809to0815_AllEmployeesTimecards.xlsx'].sort());
 });
 
 test('test_one_preview_in_export_format', () => {
