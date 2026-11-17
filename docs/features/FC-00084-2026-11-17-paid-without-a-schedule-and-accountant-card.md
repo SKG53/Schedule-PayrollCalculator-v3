@@ -1,6 +1,6 @@
 # FC-00084 — People paid without a schedule; the accountant section moves to the Register tab and the Exports card
 
-**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** drafting · **Affected entities:** All
+**Date:** 2026-11-17 · **Slice:** M · **Risk:** Medium · **Status:** done · **Affected entities:** All
 
 ## What
 
@@ -106,3 +106,30 @@ None.
 - the accountant columns on the Register tab;
 - the Exports card's dates, check and notes;
 - the page section removed.
+
+## As built (2026-11-17)
+- **Who counts as paid without a schedule:** a person ticked "Paid Without Schedule" in the register, with a weekly (flat) amount. The tool already paid a flat-amount person who is not on the schedule. The tick lists them in the new section and drives the weekly check.
+- **Adding a person:** the form is at the foot of the section. Adding someone already on that entity's schedule this week is refused, because the schedule already pays them. One Undo removes the person.
+- **Register file:** three new columns on Payroll Settings:
+  - Paid Without Schedule (Yes);
+  - Last Paid: what was paid this week, 0 when not paid;
+  - Last Paid Week.
+  Their weekly amount stays in Flat Amount. Loading the register sets "last week's amount" from Flat Amount.
+- **Statuses:**
+  - **New this week:** no amount from an earlier register.
+  - **Same as last week ($X): keep or change:** not yet checked.
+  - **Kept:** also the status when the register is from the same week.
+  - **Changed from $X.**
+  - **Not paid this week.**
+  - **Inactive: not paid.**
+- **"Not paid this week" and Keep:** kept with the run, so Undo, History and the snapshot carry them. They are not saved in the register.
+- **Reminder:** shown on the Register tab and on the Payroll tab. It counts the people not yet checked and only appears once the run week is known.
+- **On the Payroll tab:** these people appear in the all-entity preview and in every export. The per-entity Payroll grid shows schedule and timecard rows only, as before.
+- **Accountant:**
+  - **Register tab:** the Accountant Name and Standing Note are editable there. A blank Accountant Name shows the tool's name as a hint. Employment Type was already a dropdown.
+  - **Exports card:** the two pay dates, the self-check lines and "Notes for the accountant this week" (with a count).
+  - **Removed:** the page section and `_acctPanelHtml`.
+- **Checked on the real Nov 8–14 week,** with two people added through the form: one Management by Deposit, one Deposit + Cash.
+  - The total went up by exactly their two amounts.
+  - The accountant file checks out and ties for every entity.
+  - LibreOffice recalculated the report's 1,074 formulas and the accountant file's 53 formulas with 0 mismatches.

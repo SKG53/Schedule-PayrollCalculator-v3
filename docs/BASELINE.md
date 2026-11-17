@@ -682,3 +682,19 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
 - **Tool Settings file:** `exportToolSettingsExcel()` (`TNG_ToolSettings_<date>.xlsx`, sheets Tool Settings and About). The `toolsettings` Exports card. `importPayrollSettingsFile` routes a file with Tool Settings and no Payroll Settings to `_importToolSettingsWb` (one checkpoint). A register's Register Info and Paid Days rows, and an older file's Tool Settings rows, all go through `_ingestToolSettings`.
 - **Week check:** `_readRegisterInfo(wb)`; `_setRegisterLoaded` on Apply; `registerWeekStatus()` returns none, unknown, norun, ok, older or newer (ok = the same week or the week before). `_checkRegisterWeekNow()` runs after Apply and after `parseSchedule`, once per register and week. `_okToIssueTngIds` is the confirmation inside `assignTngIds`. `_registerWeekLine()` is the Register tab's line. The `registerLoaded` snapshot part.
 - **Highest TNG ID per browser:** `TNG_BROWSER_HIGH_KEY` (`_tngBrowserHigh`, `_noteBrowserTngHigh`), part of `_tngHighWater()`. It is raised by `_noteTngSeen`, `assignTngIds`, the register save and `openSnapshotData`.
+
+## Added by FC-00084 (2026-11-17)
+
+- **Paid without a schedule:**
+  - **Record fields:** `nosched:'Yes'` and `ns_carry` ({amount, paid, week}, from the loaded register), both set through `rosterFieldSet`.
+  - **This week's choice:** the tool-setting key `nsWeek:<id>|<week>` ('keep' or 'skip'), labelled by `_toolSettingLabel`. It is not written to either file.
+  - **Status:** `noSchedRecords()`, `noSchedStatus(rec)` (unchecked, kept, changed, skip, new, inactive), `noSchedStatusText`, `noSchedUnchecked()` and `_nsReminderHtml`, shown on the Register and Payroll tabs.
+  - **Setters:** `keepNoSched`, `setNoSchedSkip`, `setNoSchedAmount`, `setNoSchedMethod`, `setNoSchedDeposit`, `setNoSchedActive`, and `addNoSchedPerson(entIdx, first, last, {amount, method, deposit, mgmt})` (one checkpoint).
+  - **Section:** `_noSchedSectionHtml()` on the Register tab.
+  - **Pay:** `getFlatWageRows` already pays them; `_nsSkipped` leaves out a person marked not paid this week.
+- **Register file:** `PAYROLL_SETTINGS_HEADERS` adds Paid Without Schedule, Last Paid and Last Paid Week, written in `_gatherPayrollSettingsRows` and read in `_ingestPayrollSettings`.
+- **Accountant:**
+  - `_acctCardHtml()` is the Accountant file card's extra (pay dates, self-check, `<details>` week notes) and replaces `_acctPanelHtml`.
+  - The Register tab edits `acct_name` and `acct_note`.
+  - Status reasons now point to the card and to the Register tab.
+
