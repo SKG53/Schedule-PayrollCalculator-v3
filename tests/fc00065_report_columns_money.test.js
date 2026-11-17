@@ -24,17 +24,18 @@ function setup() {
   api.flatWages[api.wKey(0, 'Cora')] = 1234.5; api.payMethod[api.wKey(0, 'Cora')] = 'deposit';
   return api;
 }
-const lastPdfBody = (api) => api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1].options.body.map(r => r.map(c => (c && typeof c === 'object' ? c.content : c)));
+const { pdfBody } = require('./xl-helpers');
+const lastPdfBody = (api) => pdfBody(api).map(r => r.map(c => (c && typeof c === 'object' ? c.content : c)));
 
 test('test_no_hmm_column_in_excel_pdf_preview', async () => {
   const api = setup();
   assert.ok(!api.COMBINED_HEADERS.includes('H:MM'));
   api.setReportFinalDiff(true); // FC-00071
   await api.exportCombinedExcel();
-  assert.equal(api.COMBINED_HEADERS.length, 12); // FC-00077: Contract Check shows whenever it is ticked
+  assert.equal(api.COMBINED_HEADERS.length, 13); // FC-00077: Contract Check shows whenever it is ticked; FC-00080: Type and Bonus
   const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0];
-  const hdr = ws.rows.find(r => r && r[1] && r[1].value === 'Entity').slice(1).map(c => c.value);
-  assert.deepEqual(hdr, ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Contract Check', 'Cash', 'Rounded Final', 'Diff']);
+  const hdr = ws.rows.find(r => r && r[1] && r[1].value === 'Employee').slice(1).map(c => c.value);
+  assert.deepEqual(hdr, ['Employee', 'Type', 'Method', 'Hours', 'Over time', 'Rate', 'Bonus', 'Total', 'Deposit', 'Check', 'Cash', 'Rounded Final', 'Diff']);
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, [], 'every formula still agrees');
   await api.exportCombinedPdf();
   const head = api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1].options.head[0].map(c => (c && typeof c === 'object' ? c.content : c));
@@ -56,9 +57,9 @@ test('test_money_text_has_commas_and_sign_first', async () => {
   await api.exportCombinedPdf();
   const body = lastPdfBody(api);
   const C = api.COMBINED_COLS;
-  const cora = body.find(r => /Cora/i.test(r[1]));
+  const cora = body.find(r => /Cora/i.test(r[0]));
   assert.equal(cora[C.total], '$1,234.50', 'flat amount with a comma');
-  const bram = body.find(r => /Bram/i.test(r[1]));
+  const bram = body.find(r => /Bram/i.test(r[0]));
   assert.equal(bram[C.diff], '-$0.16', '52.16 paid as $52: sign before the dollar sign');
   assert.ok(!body.some(r => r.some(c => /\$-/.test(String(c)))), 'no "$-" anywhere');
   assert.ok(!body.some(r => r.some(c => /\$\d{4,}/.test(String(c)))), 'no money of 1,000 or more without a comma');
@@ -69,10 +70,10 @@ test('test_total_labels_span_the_label_columns', async () => {
   await api.exportCombinedExcel();
   const ws = api.__lastExcelWorkbook.worksheets[0];
   const rowOf = (label) => ws.rows.findIndex(r => r && r[1] && r[1].value === label);
-  const sub = rowOf('Alpha Test subtotal'), grand = rowOf('GRAND TOTAL');
-  const span = api.COMBINED_COLS.hours; // Entity..Method
-  assert.ok(ws.merges.some(([r1, c1, r2, c2]) => r1 === sub && r2 === sub && c1 === 1 && c2 === span), 'subtotal label spans Entity–Method');
-  assert.ok(ws.merges.some(([r1, c1, r2, c2]) => r1 === grand && r2 === grand && c1 === 1 && c2 === span), 'grand total label spans Entity–Method');
+  const sub = rowOf('Employees subtotal'), grand = rowOf('ALPHA TEST TOTAL'); // FC-00080
+  const span = api.COMBINED_COLS.hours; // Employee..Method
+  assert.ok(ws.merges.some(([r1, c1, r2, c2]) => r1 === sub && r2 === sub && c1 === 1 && c2 === span), 'subtotal label spans Employee–Method');
+  assert.ok(ws.merges.some(([r1, c1, r2, c2]) => r1 === grand && r2 === grand && c1 === 1 && c2 === span), 'entity total label spans Employee–Method');
 });
 
 test('test_pay_unchanged_by_the_column_change', () => {

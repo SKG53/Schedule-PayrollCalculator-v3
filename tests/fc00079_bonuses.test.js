@@ -52,19 +52,23 @@ test('test_report_bonus_column_and_excel_values', async () => {
   api.addBonus(0, 'Avery Atest', { type: 'specialty', amount: 50, pay: 'deposit' });
   api.addBonus(0, 'Eden Etest', { type: 'monthly', amount: 20, pay: 'cash' });
   const m = api._fc13PreviewModel();
-  const H = m.headers, cell = (n, h) => m.rows.find(r => r.kind === 'data' && r.cells[1] === n).cells[H.indexOf(h)];
+  const H = m.headers, cell = (n, h) => m.rows.find(r => r.kind === 'data' && r.cells[0] === n).cells[H.indexOf(h)]; // FC-00080: Employee first
   assert.equal(cell('Avery Atest', 'Bonus'), '$50.00');
-  assert.equal(cell('Avery Atest', 'Actual Total'), '$575.00');
+  assert.equal(cell('Avery Atest', 'Total'), '$575.00');
+  assert.equal(cell('Avery Atest', 'Hours'), '40.00', 'FC-00080: straight-time hours');
+  assert.equal(cell('Avery Atest', 'Over time'), '2.50');
   assert.equal(cell('Avery Atest', 'Deposit'), '$575.00');
   assert.equal(cell('Eden Etest', 'Deposit'), '$532.00');
   assert.equal(cell('Eden Etest', 'Cash'), '$20.00');
   await api.exportCombinedExcel();
   const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0], C = api.COMBINED_COLS;
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, [], 'every formula still agrees');
-  const ev = ws.rows.find(r => r && r[2] && r[2].value === 'Eden Etest');
+  const ev = ws.rows.find(r => r && r[1] && r[1].value === 'Eden Etest');
+  const av = ws.rows.find(r => r && r[1] && r[1].value === 'Avery Atest');
+  assert.equal(xlNum(av[C.hours + 1]), 40, 'a bonus row\'s hours still follow the Hours sheet');
   assert.equal(xlNum(ev[C.bonus + 1]), 20);
   assert.equal(xlNum(ev[C.cash + 1]), 20);
-  const sub = ws.rows.find(r => r && r[1] && r[1].value === 'Alpha Test subtotal');
+  const sub = ws.rows.find(r => r && r[1] && r[1].value === 'Employees subtotal');
   assert.equal(xlNum(sub[C.bonus + 1]), 70);
 });
 

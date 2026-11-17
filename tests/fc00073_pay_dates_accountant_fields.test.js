@@ -38,13 +38,13 @@ test('test_change_date_warns_first', () => {
 test('test_pay_dates_on_the_report', async () => {
   const api = setup();
   api.setPayDateByHand('deposit', '2026-08-20');
-  const line = 'Pay dates · Deposit: Thu 08/20/26 · Cash and Contract Check: Fri 08/21/26';
+  const line = 'Deposit paid Thu 08/20/26   |   Cash and Check paid Fri 08/21/26'; // FC-00080
   assert.equal(api._payDatesLine(), line);
   await api.exportCombinedExcel();
   const ws = api.__lastExcelWorkbook.worksheets[0];
   assert.equal(ws.rows[2][1].value, line, 'under the title, in the row that was blank');
   assert.ok(ws.merges.some(([r1, c1, r2]) => r1 === 2 && r2 === 2 && c1 === 1));
-  assert.equal(ws.rows[3][1].value, 'Entity', 'the header stays in its row');
+  assert.equal(ws.rows[3][1].value, 'Employee', 'the header stays in its row');
   const texts = [];
   const orig = api.__sandbox.window.jspdf.jsPDF;
   api.__sandbox.window.jspdf = { jsPDF: function (o) { const d = orig(o); d.text = (t) => texts.push(t); return d; } };

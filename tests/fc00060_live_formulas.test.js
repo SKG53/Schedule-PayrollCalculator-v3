@@ -62,7 +62,7 @@ test('test_hours_sheet_follows_the_day_rule', async () => {
   assert.equal(days[1][col('Break set (min)')].value, 5, 'the per-day break is written and used');
   assert.equal(days[2][col('+1')].value, 0);
   assert.equal(days[2][col('+1') + 3].value, 1, 'the after-midnight pair starts the next day');
-  const rep = sheet(api, 'Report').rows.find(r => r && r[2] && r[2].value === 'Avery');
+  const rep = sheet(api, 'Report').rows.find(r => r && r[1] && r[1].value === 'Avery'); // FC-00080: Employee is the first column
   assert.equal(xlNum(rep[api.COMBINED_COLS.hours + 1]), pay.actualHours);
 });
 
@@ -72,7 +72,7 @@ test('test_changing_the_break_minimum_recalculates', async () => {
   const wb = api.__lastExcelWorkbook, hs = sheet(api, 'Hours'), rp = sheet(api, 'Report');
   const hdr = hs.rows.find(r => r && r[1] && r[1].value === 'Entity').map(c => c && c.value);
   const bram = hs.rows.find(r => r && r[2] && r[2].value === 'Bram');
-  const grand = rp.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL');
+  const grand = rp.rows.find(r => r && r[1] && / TOTAL$/.test(r[1].value)); // FC-00080: one entity, its total
   const T = api.COMBINED_COLS.total + 1;
   const before = xlEval(wb, rp, grand[T].value.formula);
   bram[hdr.indexOf('Break min (min)')].value = 60; // 30 more minutes of break on an 8:45 day with no gap

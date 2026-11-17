@@ -1,10 +1,9 @@
-// FC-00072: Executive PR — a fixed weekly amount the accountant pays by deposit. It is its own pay
-// method (always Flat), printed in an "Executive PR" block under its entity with its own
-// subtotal; the GRAND TOTAL stays the hourly payroll, followed by EXECUTIVE PR TOTAL and
-// TOTAL WITH EXECUTIVE PR. Invented names and figures only.
+// FC-00072: Executive PR — a fixed weekly amount the accountant pays by deposit, always Flat.
+// FC-00078 retired it as a pay method; FC-00080 prints an old row of it under MANAGEMENT.
+// Invented names and figures only.
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { xlNum, xlFormulaMismatches } = require('./xl-helpers');
+const { xlNum, xlFormulaMismatches, pdfBody, pdfRowText } = require('./xl-helpers');
 const { setup, rowOf } = require('./fc70-helpers');
 
 test('test_exec_method_label_sort_and_parse', () => {
@@ -25,27 +24,29 @@ test('test_exec_person_is_flat_weekly_deposit', () => {
   assert.equal(g.otPaidH || 0, 0);
 });
 
+// FC-00080: Executive PR is retired (FC-00078). A row still paid that way (an old snapshot) prints
+// under its entity's MANAGEMENT group, and the entity total and the GRAND TOTAL include it.
 test('test_report_exec_block_and_totals', async () => {
   const api = setup({ exec: true });
   await api.exportCombinedExcel();
   const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0], C = api.COMBINED_COLS;
-  const at = (label) => ws.rows.findIndex(r => r && r[1] && r[1].value === label);
-  const sub = at('Alpha Test subtotal'), lab = at('Executive PR — Alpha Test'), esub = at('Alpha Test Executive PR subtotal');
-  const gale = ws.rows.findIndex(r => r && r[2] && r[2].value === 'Gale Gtest');
-  assert.ok(sub > 0 && lab === sub + 1 && gale === lab + 1 && esub === gale + 1, 'the block sits under the entity, after its subtotal');
-  assert.ok(ws.merges.some(([r1, c1, r2]) => r1 === lab && r2 === lab && c1 === 1), 'the label spans the row');
+  const at = (label, from) => ws.rows.findIndex((r, i) => i > (from || 0) && r && r[1] && r[1].value === label);
+  const band = at('ALPHA TEST'), emp = at('EMPLOYEES', band), esub = at('Employees subtotal', band);
+  const mg = at('MANAGEMENT', band), gale = at('Gale Gtest'), msub = at('Management subtotal', band), tot = at('ALPHA TEST TOTAL');
+  assert.ok(band > 0 && emp === band + 1 && esub < mg && gale === mg + 1 && msub === gale + 1 && tot === msub + 1, 'Management after Employees, then the entity total');
   assert.equal(ws.rows[gale][C.method + 1].value, 'Executive PR');
-  assert.equal(ws.rows[gale][C.rate + 1].value, '', 'no rate printed');
+  assert.equal(ws.rows[gale][C.rate + 1].value, 'flat');
   assert.equal(xlNum(ws.rows[gale][C.total + 1]), 900);
   assert.equal(xlNum(ws.rows[gale][C.deposit + 1]), 900);
-  assert.equal(xlNum(ws.rows[sub][C.total + 1]), 525 + 510 + 510 + 150 + 532, 'the entity subtotal has no Executive PR');
-  const grand = at('GRAND TOTAL'), ex = at('EXECUTIVE PR TOTAL'), all = at('TOTAL WITH EXECUTIVE PR');
-  assert.ok(grand > 0 && ex === grand + 1 && all === ex + 1);
-  assert.equal(xlNum(ws.rows[grand][C.total + 1]), 525 + 510 + 510 + 150 + 532 + 320, 'GRAND TOTAL unchanged');
-  assert.equal(ws.rows[ex][C.total + 1].value.formula, 'SUM(' + String.fromCharCode(65 + C.total) + esub + ')');
-  assert.equal(xlNum(ws.rows[ex][C.deposit + 1]), 900);
-  assert.equal(xlNum(ws.rows[all][C.total + 1]), 2547 + 900);
-  assert.equal(xlNum(ws.rows[all][C.deposit + 1]), 525 + 300 + 532 + 320 + 900, 'every deposit the accountant pays');
+  assert.equal(xlNum(ws.rows[esub][C.total + 1]), 525 + 510 + 510 + 150 + 532);
+  assert.equal(xlNum(ws.rows[msub][C.total + 1]), 900);
+  const L = String.fromCharCode(65 + C.total);
+  assert.equal(ws.rows[tot][C.total + 1].value.formula, 'SUM(' + L + esub + ',' + L + msub + ')');
+  assert.equal(xlNum(ws.rows[tot][C.total + 1]), 2227 + 900);
+  const grand = at('GRAND TOTAL — ALL ENTITIES');
+  assert.equal(xlNum(ws.rows[grand][C.total + 1]), 2547 + 900);
+  assert.equal(xlNum(ws.rows[grand][C.deposit + 1]), 525 + 300 + 532 + 320 + 900, 'every deposit the accountant pays');
+  assert.ok(!ws.rows.some(r => r && r[1] && /EXECUTIVE PR/.test(String(r[1].value))), 'no Executive PR totals any more');
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, []);
   // Hourly-labor sheets leave Executive PR out.
   ['Stats', 'Labor Cost'].forEach(n => {
@@ -58,18 +59,13 @@ test('test_report_exec_block_and_totals', async () => {
 test('test_pdf_and_preview_exec_block', async () => {
   const api = setup({ exec: true });
   await api.exportCombinedPdf();
-  const call = api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1];
-  const txt = call.options.body.map(r => r.map(c => (c && typeof c === 'object' ? c.content : c)));
-  const lab = txt.findIndex(r => r[0] === 'Executive PR — Alpha Test');
-  assert.ok(lab > 0 && txt[lab + 1][1] === 'Gale Gtest' && txt[lab + 2][0] === 'Alpha Test Executive PR subtotal');
-  const ex = txt.findIndex(r => r[0] === 'EXECUTIVE PR TOTAL');
-  assert.ok(ex > txt.findIndex(r => r[0] === 'GRAND TOTAL'));
-  assert.equal(txt[ex + 1][0], 'TOTAL WITH EXECUTIVE PR');
+  const txt = pdfBody(api).map(pdfRowText);
+  const mg = txt.findIndex(r => r[0] === 'MANAGEMENT');
+  assert.ok(mg > 0 && txt[mg + 1][0] === 'Gale Gtest' && txt[mg + 2][0] === 'Management subtotal' && txt[mg + 3][0] === 'ALPHA TEST TOTAL');
   const m = api._fc13PreviewModel();
-  const kinds = m.rows.map(r => r.kind);
-  assert.ok(kinds.includes('section') && kinds.includes('execSub') && kinds.includes('execGrand') && kinds.includes('allGrand'));
-  const html = api.renderPayrollExportPreviewHtml();
-  assert.match(html, /fc13-section-row/);
+  const k = m.rows.findIndex(r => r.kind === 'group' && r.cells[0] === 'MANAGEMENT');
+  assert.equal(m.rows[k + 1].cells[0], 'Gale Gtest');
+  assert.match(api.renderPayrollExportPreviewHtml(), /fc13-group-row[^>]*><td[^>]*>MANAGEMENT</);
 });
 
 test('test_exec_only_entity', async () => {
@@ -79,8 +75,9 @@ test('test_exec_only_entity', async () => {
   api.setRosterActive(1, 'Fern Ftest', false);
   await api.exportCombinedExcel();
   const ws = api.__lastExcelWorkbook.worksheets[0];
-  assert.ok(!ws.rows.some(r => r && r[1] && r[1].value === 'Beta Test subtotal'), 'no hourly block');
-  assert.ok(ws.rows.some(r => r && r[1] && r[1].value === 'Beta Test Executive PR subtotal'));
+  const band = ws.rows.findIndex(r => r && r[1] && r[1].value === 'BETA TEST');
+  assert.equal(ws.rows[band + 1][1].value, 'MANAGEMENT', 'an entity with nobody under Employees prints only Management');
+  assert.ok(ws.rows.some(r => r && r[1] && r[1].value === 'BETA TEST TOTAL'));
 });
 
 test('test_payroll_tab_exec_makes_flat', () => {
@@ -128,7 +125,7 @@ test('test_editable_copy_total_with_exec_sums', async () => {
   api._fc24MakeCopy();
   await api._fc24ExportScratchExcel();
   const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0];
-  const all = ws.rows.find(r => r && r[1] && r[1].value === 'TOTAL WITH EXECUTIVE PR');
+  const all = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL — ALL ENTITIES'); // FC-00080
   const fx = all.filter(c => c && c.value && c.value.formula).map(c => c.value.formula);
   assert.ok(fx.length && fx.every(f => /^SUM\(/.test(f)), 'SUM skips a blank cell (no #VALUE!)');
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, []);

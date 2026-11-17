@@ -5,7 +5,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { loadApp, resetToSingleEntity } = require('./load-app');
-const { xlNum, xlHidesZero } = require('./xl-helpers');
+const { xlNum, xlHidesZero, pdfBody } = require('./xl-helpers');
 
 const WEEK = ['Aug 9 2026', 'Aug 10 2026', 'Aug 11 2026', 'Aug 12 2026', 'Aug 13 2026', 'Aug 14 2026', 'Aug 15 2026'];
 const SHIFT = ['', '9AM - 5PM', '', '', '', '', ''];
@@ -37,7 +37,8 @@ function setup() {
   return api;
 }
 
-const isTotal = (label) => typeof label === 'string' && (label.endsWith(' subtotal') || label === 'GRAND TOTAL');
+// FC-00080: group subtotals, each entity's TOTAL and the GRAND TOTAL — ALL ENTITIES.
+const isTotal = (label) => typeof label === 'string' && (label.endsWith(' subtotal') || label.endsWith(' TOTAL') || label === 'GRAND TOTAL — ALL ENTITIES');
 // FC-00065: Excel's $#,##0.00 — thousands commas, sign before the dollar sign.
 const usd = (v) => (v < 0 ? '-' : '') + '$' + Math.abs(v).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
 const money = (v) => (v === '' || v == null ? '' : usd(Number(v)));
@@ -64,17 +65,16 @@ test('test_combined_pdf_totals_match_excel_and_preview', async () => {
     .map(r => Array.from({ length: N }, (_, i) => (i === 0 ? r[1].value : shownCol(api, r[i + 1], i + 1))));
 
   await api.exportCombinedPdf();
-  const call = api.__lastAutoTableCalls[api.__lastAutoTableCalls.length - 1];
   // FC-00065: the label cell spans Entity–Method (colSpan); expand it back to one cell per column.
   const expand = (r) => r.flatMap(c => (c && typeof c === 'object' && c.colSpan > 1 ? [c, ...Array(c.colSpan - 1).fill('')] : [c]));
-  const pdfTotals = call.options.body.filter(r => isTotal(r[0].content))
+  const pdfTotals = pdfBody(api).filter(r => isTotal(r[0].content))
     .map(r => expand(r).map(c => (c && typeof c === 'object' ? c.content : c)));
-  call.options.body.filter(r => isTotal(r[0].content)).forEach(r => assert.equal(r[0].colSpan, api.COMBINED_COLS.hours, 'label spans Entity–Method'));
+  pdfBody(api).filter(r => isTotal(r[0].content)).forEach(r => assert.equal(r[0].colSpan, api.COMBINED_COLS.hours, 'label spans Entity–Method'));
 
   const previewTotals = api._fc13PreviewModel().rows
-    .filter(r => r.kind === 'subtotal' || r.kind === 'grand').map(r => r.cells);
+    .filter(r => r.kind === 'subtotal' || r.kind === 'enttotal' || r.kind === 'grand').map(r => r.cells);
 
-  assert.equal(excelTotals.length, 3, 'two entity subtotals + grand total');
+  assert.equal(excelTotals.length, 5, 'two Employees subtotals, two entity totals and the grand total');
   assert.deepEqual(pdfTotals, excelTotals, 'PDF total rows must equal the Excel total rows');
   assert.deepEqual(pdfTotals, previewTotals, 'PDF total rows must equal the preview total rows');
   const C = api.COMBINED_COLS;

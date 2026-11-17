@@ -64,20 +64,22 @@ test('test_payroll_pdf_figures_equal_combined_excel', async () => {
   const api = setup(4, 2);
   await api.exportCombinedExcel();
   const ws = api.__lastExcelWorkbook.worksheets[0];
-  const xl = ws.rows.slice(1).filter(r => r && r[2] && typeof r[2].value === 'string' && /test$/i.test(r[2].value || ''))
-    .map(r => [r[2].value, r[6].value && r[6].value.result != null ? r[6].value.result : r[6].value]);
+  // FC-00080: Employee is the first column.
+  const C = api.COMBINED_COLS, E = C.employee + 1, T = C.total + 1;
+  const xl = ws.rows.slice(1).filter(r => r && r[E] && typeof r[E].value === 'string' && /test$/i.test(r[E].value || '') && r[C.method + 1] && r[C.method + 1].value)
+    .map(r => [r[E].value, r[T].value && r[T].value.result != null ? r[T].value.result : r[T].value]);
   const n0 = api.__lastAutoTableCalls.length;
   await api.exportCombinedPdf();
   const body = pdfCalls(api, n0).flatMap(c => c.options.body);
-  const pdf = body.filter(r => Array.isArray(r) && typeof r[1] === 'string' && /TEST$/i.test(r[1])).map(r => [r[1], r[5]]);
+  const pdf = body.filter(r => Array.isArray(r) && r.length > 1 && /TEST$/i.test(r[C.employee].content)).map(r => [r[C.employee].content, r[C.total].content]);
   assert.equal(pdf.length, xl.length, 'same data rows');
   pdf.forEach(([name, total], i) => {
     assert.equal(name, xl[i][0], 'same order and names');
     assert.equal(total, '$' + Number(xl[i][1]).toFixed(2), 'same Actual Total to the cent');
   });
   // Subtotal and grand total rows are in both.
-  assert.ok(body.some(r => r[0] && r[0].content === 'GRAND TOTAL'));
-  assert.ok(ws.rows.some(r => r && r[1] && r[1].value === 'GRAND TOTAL'));
+  assert.ok(body.some(r => r[0] && r[0].content === 'GRAND TOTAL — ALL ENTITIES'));
+  assert.ok(ws.rows.some(r => r && r[1] && r[1].value === 'GRAND TOTAL — ALL ENTITIES'));
 });
 
 test('test_header_repeats_entity_block_not_split', async () => {
@@ -85,12 +87,14 @@ test('test_header_repeats_entity_block_not_split', async () => {
   const n0 = api.__lastAutoTableCalls.length;
   await api.exportCombinedPdf();
   const calls = pdfCalls(api, n0);
-  assert.ok(calls.length >= 2, 'more than one page');
-  calls.forEach(c => assert.deepEqual(c.options.head[0].slice(0, 2), ['Entity', 'Employee'], 'the header is on every page'));
-  // Every entity's rows sit in exactly one page (each block fits a page).
-  ['Alpha Test', 'Beta Test', 'Gamma Test'].forEach(ent => {
-    const pages = calls.map((c, i) => c.options.body.some(r => r[0] === ent) ? i : -1).filter(i => i >= 0);
-    assert.equal(pages.length, 1, ent + ' is not split across pages');
+  // FC-00080: each entity starts its own page; the header repeats.
+  assert.equal(calls.length, 3, 'one page per entity');
+  calls.forEach(c => assert.deepEqual(c.options.head[0].slice(0, 2), ['Employee', 'Type'], 'the header is on every page'));
+  calls.forEach(c => assert.equal(c.options.showHead, 'everyPage'));
+  ['ALPHA TEST', 'BETA TEST', 'GAMMA TEST'].forEach((ent, k) => {
+    const pages = calls.map((c, i) => c.options.body.some(r => r[0] && r[0].content === ent) ? i : -1).filter(i => i >= 0);
+    assert.deepEqual(pages, [k], ent + ' is on its own page');
+    assert.equal(calls[k].options.body.filter(r => r.length > 1 && /TEST$/i.test(r[0].content)).length, 20, ent + ': all 20 people on that page');
   });
 });
 
@@ -115,10 +119,10 @@ test('test_kept_exports_unchanged', async () => {
   // FC-00065: no H:MM column on the payroll report.
   // FC-00070/FC-00071: Over time after Hours; Rounded Final and Diff only when included.
   // FC-00077: Contract Check shows whenever it is ticked (ticked by default).
-  assert.deepEqual(ws.rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Contract Check', 'Cash']);
+  assert.deepEqual(ws.rows[3].slice(1).map(c => c.value), ['Employee', 'Type', 'Method', 'Hours', 'Over time', 'Rate', 'Bonus', 'Total', 'Deposit', 'Check', 'Cash']); // FC-00080
   api.setReportFinalDiff(true);
   await api.exportCombinedExcel();
-  assert.deepEqual(api.__lastExcelWorkbook.worksheets[0].rows[3].slice(1).map(c => c.value), ['Entity', 'Employee', 'Method', 'Hours', 'Over time', 'Rate', 'Actual Total', 'Deposit', 'Contract Check', 'Cash', 'Rounded Final', 'Diff']);
+  assert.deepEqual(api.__lastExcelWorkbook.worksheets[0].rows[3].slice(1).map(c => c.value), ['Employee', 'Type', 'Method', 'Hours', 'Over time', 'Rate', 'Bonus', 'Total', 'Deposit', 'Check', 'Cash', 'Rounded Final', 'Diff']);
   await api.exportActualsIntakeExcel();
   assert.ok(api.__lastExcelWorkbook.worksheets.length >= 1);
 });
@@ -128,12 +132,12 @@ test('test_names_default_first_last_saved_choice_wins', async () => {
   assert.equal(api.exportNameMode('payroll'), 'firstLast');
   await api.exportCombinedExcel();
   let ws = api.__lastExcelWorkbook.worksheets[0];
-  assert.ok(ws.rows.some(r => r && r[2] && r[2].value === 'AVERY ATEST'), 'FIRST LAST in capitals');
+  assert.ok(ws.rows.some(r => r && r[1] && r[1].value === 'AVERY ATEST'), 'FIRST LAST in capitals');
   api._ingestToolSettings([['Names on exports · all exports', 'As saved']]);
   assert.equal(api.exportNameMode('payroll'), 'saved', 'a settings file choice wins');
   await api.exportCombinedExcel();
   ws = api.__lastExcelWorkbook.worksheets[0];
-  assert.ok(ws.rows.some(r => r && r[2] && r[2].value === 'Avery Atest'));
+  assert.ok(ws.rows.some(r => r && r[1] && r[1].value === 'Avery Atest'));
 });
 
 test('test_old_settings_and_snapshot_with_removed_kinds_load', async () => {

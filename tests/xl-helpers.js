@@ -66,4 +66,13 @@ function xlFormulaMismatches(wb, ws) {
   }));
   return { n, bad };
 }
-module.exports = { xlNum, xlHidesZero, xlEval, xlFormulaMismatches, colNum };
+// FC-00080: the payroll PDF draws one table per entity page. These join the tables of the last
+// PDF made (the autoTable calls on the same document) into one body / one list of parsed cells.
+function pdfCalls(api) {
+  const all = api.__lastAutoTableCalls; const last = all[all.length - 1];
+  return last ? all.filter(c => c.doc === last.doc) : [];
+}
+function pdfBody(api) { return pdfCalls(api).flatMap(c => c.options.body); }
+// A row's cells as text, a spanned label expanded back to one cell per column.
+function pdfRowText(r) { return r.flatMap(c => (c && typeof c === 'object' && c.colSpan > 1 && r.length > 1 ? [c, ...Array(c.colSpan - 1).fill('')] : [c])).map(c => (c && typeof c === 'object' ? c.content : c)); }
+module.exports = { xlNum, xlHidesZero, xlEval, xlFormulaMismatches, colNum, pdfCalls, pdfBody, pdfRowText };

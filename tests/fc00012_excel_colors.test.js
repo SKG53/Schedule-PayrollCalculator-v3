@@ -113,30 +113,29 @@ test('test_export_applies_entity_palette', async () => {
 
   const fills = fillMapFor(sheet);
 
-  // Locate each entity's first data row by its Entity-column (col 1) text and assert the
-  // palette's body fill landed there, and that the Cash column got the cash tint
-  // (named in api.COMBINED_COLS).
+  // FC-00080: each entity is a block: its band (the entity name), a group heading, then its rows.
+  // The rows carry the entity's body fill; Cash is one highlighter yellow for every entity.
   const CASH = api.COMBINED_COLS.cash + 1;
-  const nirvanaRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Nirvana 11th');
-  const zionRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Zion');
-  const hefnerRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Hefner' && /Devon/.test(row[2].value || ''));
+  const firstRowOf = (name) => { const b = findRowIndex(sheet, row => row[1] && row[1].value === name.toUpperCase()); return b > 0 ? b + 2 : -1; };
+  const nirvanaRow = firstRowOf('Nirvana 11th'), zionRow = firstRowOf('Zion'), hefnerRow = firstRowOf('Hefner');
   assert.ok(nirvanaRow > 0 && zionRow > 0 && hefnerRow > 0, 'expected to find one data row per entity');
+  [[nirvanaRow, 'N11'], [zionRow, 'ZIO'], [hefnerRow, 'HEF']].forEach(([r, code]) => {
+    assert.equal(fills[`${r},1`], api.FC12_PALETTES[code].body, code + ' body fill');
+    assert.equal(fills[`${r},${CASH}`], api.REPORT_COLORS.cashData, code + ' Cash column is the one cash yellow');
+    assert.equal(fills[`${r - 2},1`], api.FC12_PALETTES[code].band, code + ' band in the darker shade');
+    assert.equal(sheet.rows[r - 2][1].font.color.argb, 'FFFFFFFF', 'white letters on the band');
+  });
 
-  assert.equal(fills[`${nirvanaRow},1`], api.FC12_PALETTES.N11.body, 'Nirvana 11th body fill');
-  assert.equal(fills[`${nirvanaRow},${CASH}`], api.FC12_PALETTES.N11.cash, 'Nirvana 11th Cash column fill');
-  assert.equal(fills[`${zionRow},1`], api.FC12_PALETTES.ZIO.body, 'Zion body fill');
-  assert.equal(fills[`${zionRow},${CASH}`], api.FC12_PALETTES.ZIO.cash, 'Zion Cash column fill');
-  assert.equal(fills[`${hefnerRow},1`], api.FC12_PALETTES.HEF.body, 'Hefner body fill');
-  assert.equal(fills[`${hefnerRow},${CASH}`], api.FC12_PALETTES.HEF.cash, 'Hefner Cash column fill');
+  // The header row is white, its Cash heading yellow.
+  const headerRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Employee');
+  assert.equal(fills[`${headerRow},1`], 'FFFFFFFF', 'header fill');
+  assert.equal(fills[`${headerRow},${CASH}`], api.REPORT_COLORS.cashData, 'Cash heading');
 
-  // Header row (row 3: title, blank, header) gets the shared header fill for every palette.
-  const headerRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Entity');
-  assert.equal(fills[`${headerRow},1`], 'FFE8E8E4', 'header fill');
-
-  // Subtotal rows use the gray subtotal fill, not the entity body color.
+  // Subtotal rows are light grey, their Cash cell a darker yellow.
   const nirvanaSubtotalRow = findRowIndex(sheet, row => row[1] && /subtotal/i.test(row[1].value || ''));
   assert.ok(nirvanaSubtotalRow > 0);
-  assert.equal(fills[`${nirvanaSubtotalRow},1`], api.FC12_PALETTES.N11.subtotal, 'subtotal fill matches the palette (currently the shared gray)');
+  assert.equal(fills[`${nirvanaSubtotalRow},1`], api.REPORT_COLORS.sub, 'subtotal fill');
+  assert.equal(fills[`${nirvanaSubtotalRow},${CASH}`], api.REPORT_COLORS.cashSub, 'subtotal Cash fill');
 
   // Cash-Only export: the Cash Portion column (last column) gets the palette's cash tint,
   // and the body columns get the palette's body color.
@@ -181,14 +180,13 @@ test('test_export_flat_employee_row_shape', async () => {
   const wb = api.__lastExcelWorkbook;
   const sheet = wb.worksheets.find(w => w.name === 'Report');
 
-  const flatRowIdx = findRowIndex(sheet, row => row[2] && typeof row[2].value === 'string' && row[2].value.includes('(flat)'));
+  const flatRowIdx = findRowIndex(sheet, row => row[1] && row[1].value === 'Emery');
   assert.ok(flatRowIdx > 0, 'expected to find the flat employee row');
   const row = sheet.rows[flatRowIdx];
 
-  // Name gets " (flat)" suffix (col 2 = Employee).
-  assert.equal(row[2].value, 'Emery (flat)');
-  // Hours cell (col 4) is blank for a flat employee.
-  assert.equal(row[4].value, '', 'Hours must be blank for a flat-amount employee');
+  // FC-00080: the name prints plain; Rate says "flat".
+  // Hours cell is blank for a flat employee.
+  assert.equal(row[api.COMBINED_COLS.hours + 1].value, '', 'Hours must be blank for a flat-amount employee');
   // Rate cell reads the literal text "flat" (named in api.COMBINED_COLS).
   assert.equal(row[api.COMBINED_COLS.rate + 1].value, 'flat', 'Rate must read the text "flat"');
   // Still gets Hefner's palette body fill like every other Hefner row.
@@ -219,8 +217,9 @@ test('test_export_unknown_entity_code_falls_back_to_default_palette', async () =
   await api.exportCombinedExcel();
   const wb = api.__lastExcelWorkbook;
   const sheet = wb.worksheets.find(w => w.name === 'Report');
-  const patRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Some New Client LLC');
+  const patRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Pathway');
   assert.ok(patRow > 0);
   assert.equal(sheet.rows[patRow][1].fill.fgColor.argb, api.FC12_PALETTES.DEFAULT.body, 'unknown entity code falls back to DEFAULT body fill');
-  assert.equal(sheet.rows[patRow][api.COMBINED_COLS.cash + 1].fill.fgColor.argb, api.FC12_PALETTES.DEFAULT.cash, 'unknown entity code falls back to DEFAULT cash fill');
+  assert.equal(sheet.rows[patRow][api.COMBINED_COLS.cash + 1].fill.fgColor.argb, api.REPORT_COLORS.cashData, 'Cash is the one cash yellow');
+  assert.equal(sheet.rows[patRow - 2][1].fill.fgColor.argb, api.FC12_PALETTES.DEFAULT.band, 'DEFAULT band');
 });

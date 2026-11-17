@@ -80,26 +80,24 @@ test('test_preview_renders_expected_row_count', () => {
   const html = api.renderPayrollExportPreviewHtml();
   assert.ok(html.length > 0, 'expected non-empty preview HTML');
 
-  // 4 employees (Avery, Beacon, Devon, Emery) across 3 entities.
-  // N + 3 subtotal + 2 blank-separator + 1 grand + 1 header + 1 title + 1 pay-dates line (FC-00073) = N + 9 rows.
+  // 4 employees (Avery, Beacon, Devon, Emery) across 3 entities. FC-00080: per entity a band, an
+  // EMPLOYEES heading, the rows, a subtotal and the entity's total; the grand total closes it.
   const N = 4;
+  const count = (k) => (html.match(new RegExp('fc13-' + k + '-row', 'g')) || []).length;
   const rowCount = (html.match(/<tr\b/g) || []).length;
-  const payDateRows = (html.match(/fc13-note-row[^>]*><td[^>]*>Pay dates · /g) || []).length;
+  const payDateRows = (html.match(/fc13-note-row[^>]*><td[^>]*>Deposit paid /g) || []).length;
   assert.equal(payDateRows, 1, 'the pay dates line under the title');
-  assert.equal(rowCount, N + 9, `expected ${N + 9} rows (N=${N} data + 3 subtotal + 2 blank + 1 grand + 1 header + 1 title + 1 pay dates)`);
-
-  const titleRows = (html.match(/fc13-title-row/g) || []).length;
-  const hdrRows = (html.match(/fc13-hdr-row/g) || []).length;
-  const dataRows = (html.match(/fc13-data-row/g) || []).length;
-  const subtotalRows = (html.match(/fc13-subtotal-row/g) || []).length;
-  const blankRows = (html.match(/fc13-blank-row/g) || []).length;
-  const grandRows = (html.match(/fc13-grand-row/g) || []).length;
-  assert.equal(titleRows, 1, 'exactly one title row');
-  assert.equal(hdrRows, 1, 'exactly one header row');
-  assert.equal(dataRows, N, `exactly ${N} employee data rows`);
-  assert.equal(subtotalRows, 3, 'exactly one subtotal row per entity (3 entities)');
-  assert.equal(blankRows, 2, 'exactly one blank separator row between entities (2 gaps for 3 entities)');
-  assert.equal(grandRows, 1, 'exactly one grand total row');
+  assert.equal(count('title'), 1, 'exactly one title row');
+  assert.equal(count('hdr'), 1, 'exactly one header row');
+  assert.equal(count('band'), 3, 'one band per entity');
+  assert.equal(count('group'), 3, 'one EMPLOYEES heading per entity (nobody is Management)');
+  assert.equal(count('data'), N, `exactly ${N} employee data rows`);
+  assert.equal(count('subtotal'), 3, 'one Employees subtotal per entity');
+  assert.equal(count('enttotal'), 3, 'one total per entity');
+  assert.equal(count('blank'), 2, 'one blank row between entities');
+  assert.equal(count('grand'), 1, 'exactly one grand total row');
+  assert.equal(rowCount, 1 + 1 + 1 + 3 + 3 + N + 3 + 3 + 2 + 1);
+  assert.match(html, />GRAND TOTAL — ALL ENTITIES</);
 });
 
 test('test_preview_readonly_no_inputs', () => {
@@ -129,19 +127,15 @@ test('test_preview_uses_fc12_palette_colors', () => {
 
   const html = api.renderPayrollExportPreviewHtml();
   // FC12_PALETTES ARGB fills, minus the leading alpha byte, must appear as #RRGGBB CSS colors.
-  const n11Body = '#' + api.FC12_PALETTES.N11.body.slice(2);
-  const n11Cash = '#' + api.FC12_PALETTES.N11.cash.slice(2);
-  const zioBody = '#' + api.FC12_PALETTES.ZIO.body.slice(2);
-  const hefBody = '#' + api.FC12_PALETTES.HEF.body.slice(2);
-  assert.ok(html.includes(n11Body), 'Nirvana 11th body fill must appear in the preview');
-  assert.ok(html.includes(n11Cash), 'Nirvana 11th Cash column tint must appear in the preview');
-  assert.ok(html.includes(zioBody), 'Zion body fill must appear in the preview');
-  assert.ok(html.includes(hefBody), 'Hefner body fill must appear in the preview');
-  // Subtotal (BFBFBF) and grand total (A6A6A6) fills are shared across all palettes.
-  assert.ok(html.includes('#BFBFBF'), 'subtotal rows use the shared BFBFBF gray');
-  assert.ok(html.includes('#A6A6A6'), 'grand total row uses the shared A6A6A6 gray');
-  // Header fill E8E8E4.
-  assert.ok(html.includes('#E8E8E4'), 'header row uses the shared E8E8E4 fill');
+  const css = (a) => '#' + a.slice(2);
+  ['N11', 'ZIO', 'HEF'].forEach(k => {
+    assert.ok(html.includes(css(api.FC12_PALETTES[k].body)), k + ' body fill must appear in the preview');
+    assert.ok(html.includes(css(api.FC12_PALETTES[k].band)), k + ' band must appear in the preview');
+  });
+  // FC-00080: one cash yellow, grey subtotals, darker entity totals, a black grand total.
+  const RC = api.REPORT_COLORS;
+  [RC.cashData, RC.cashSub, RC.cashTot, RC.sub, RC.tot, RC.grand].forEach(a => assert.ok(html.includes(css(a)), a));
+  assert.ok(!html.includes(css(api.FC12_PALETTES.N11.cash)), 'the old per-entity cash tint is gone');
 });
 
 test('test_preview_flat_employee_row_shape', () => {
@@ -149,9 +143,9 @@ test('test_preview_flat_employee_row_shape', () => {
   makeThreeEntityFixture(api);
 
   const html = api.renderPayrollExportPreviewHtml();
-  assert.ok(html.includes('Emery (flat)'), 'flat employee name must be suffixed " (flat)"');
-  // Rate cell renders the literal text "flat" for a flat-amount employee.
-  assert.match(html, /Emery \(flat\)[\s\S]*?<td[^>]*>flat<\/td>/, 'flat employee Rate cell must read "flat"');
+  // FC-00080: the name prints plain; the Rate cell reads "flat".
+  assert.ok(!html.includes('Emery (flat)'));
+  assert.match(html, />Emery<[\s\S]*?<td[^>]*>flat<\/td>/, 'flat employee Rate cell must read "flat"');
 });
 
 test('test_preview_cells_have_tooltip_title_attributes', () => {

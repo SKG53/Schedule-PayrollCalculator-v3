@@ -11,6 +11,7 @@
 // what a live export's autoTable() call would paint.
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const { pdfBody, pdfRowText } = require('./xl-helpers');
 // FC-00050: these tests check the saved spelling, so they ask for "As saved" names.
 const { loadApp, resetToSingleEntity } = require('./load-app');
 
@@ -60,54 +61,29 @@ function lastCallParsedCells(api) {
 }
 
 test('test_pdf_export_applies_palette_via_didparse', async () => {
+  // FC-00080: one table per entity page. Rows: band, EMPLOYEES, data, subtotal, entity total
+  // (and, on the last page, a spacer and the grand total). Fills are set on each cell.
   const api = loadApp({ savedNames: true });
   makeTwoEntityFixture(api);
 
   await api.exportCombinedPdf();
-  const cells = lastCallParsedCells(api);
-
-  // Body-section cells only (head cells never get a fillColor from didParseCell — they
-  // keep the static headStyles fill instead).
-  const bodyCells = cells.filter(c => c.section === 'body');
-  assert.ok(bodyCells.length > 0, 'expected body cells to have been parsed');
-
-  const nirvanaBodyFill = api._argbToRgbTriplet(api._paletteForEntity(api.entities[0]).body);
-  const nirvanaCashFill = api._argbToRgbTriplet(api._paletteForEntity(api.entities[0]).cash);
-  const zionBodyFill = api._argbToRgbTriplet(api._paletteForEntity(api.entities[1]).body);
-  const zionSubtotalFill = api._argbToRgbTriplet(api._paletteForEntity(api.entities[1]).subtotal);
-  const grandFill = api._argbToRgbTriplet(api.FC14_PRESETS.Plain.grand);
-
-  // Column 0 (Entity) of Nirvana's first data row -> body fill.
-  const nirvanaRow0Col0 = bodyCells.find(c => c.rowIndex === 0 && c.colIndex === 0);
-  assert.ok(nirvanaRow0Col0, 'expected a parsed cell at row 0 col 0');
-  assert.deepEqual(nirvanaRow0Col0.fillColor, nirvanaBodyFill, 'Nirvana body fill via didParseCell');
-
-  // Combined mode's Cash column (named in api.COMBINED_COLS) -> cash tint, not plain body.
-  const nirvanaRow0Col7 = bodyCells.find(c => c.rowIndex === 0 && c.colIndex === api.COMBINED_COLS.cash);
-  assert.ok(nirvanaRow0Col7, 'expected a parsed cell at row 0 col 7 (Cash column)');
-  assert.deepEqual(nirvanaRow0Col7.fillColor, nirvanaCashFill, 'Nirvana Cash column fill via didParseCell');
-
-  // Nirvana subtotal row (row index 1: data row 0, subtotal row 1) -> subtotal fill + bold.
-  const nirvanaSubtotal = bodyCells.find(c => c.rowIndex === 1 && c.colIndex === 0);
-  assert.ok(nirvanaSubtotal, 'expected a parsed cell at the Nirvana subtotal row');
-  assert.deepEqual(nirvanaSubtotal.fillColor, api._argbToRgbTriplet(api._paletteForEntity(api.entities[0]).subtotal), 'Nirvana subtotal fill via didParseCell');
-  assert.equal(nirvanaSubtotal.fontStyle, 'bold', 'subtotal row is bold');
-
-  // Zion's data row is row index 2 (after Nirvana's data row + subtotal row).
-  const zionRow = bodyCells.find(c => c.rowIndex === 2 && c.colIndex === 0);
-  assert.ok(zionRow, 'expected a parsed cell at the Zion data row');
-  assert.deepEqual(zionRow.fillColor, zionBodyFill, 'Zion body fill via didParseCell');
-
-  // Zion subtotal row (row index 3) -> Zion's subtotal fill, not Nirvana's.
-  const zionSubtotal = bodyCells.find(c => c.rowIndex === 3 && c.colIndex === 0);
-  assert.ok(zionSubtotal, 'expected a parsed cell at the Zion subtotal row');
-  assert.deepEqual(zionSubtotal.fillColor, zionSubtotalFill, 'Zion subtotal fill via didParseCell');
-
-  // Grand total row (row index 4, the last row) -> the shared Plain-preset grand fill.
-  const grandRow = bodyCells.find(c => c.rowIndex === 4 && c.colIndex === 0);
-  assert.ok(grandRow, 'expected a parsed cell at the grand total row');
-  assert.deepEqual(grandRow.fillColor, grandFill, 'grand total fill via didParseCell');
-  assert.equal(grandRow.fontStyle, 'bold', 'grand total row is bold');
+  const calls = api.__lastAutoTableCalls.slice(-2);
+  assert.equal(calls.length, 2);
+  const at = (call, r, c) => call.parsedCells.find(x => x.section === 'body' && x.rowIndex === r && x.colIndex === c);
+  const RC = api.REPORT_COLORS, rgb = api._argbToRgbTriplet, CASH = api.COMBINED_COLS.cash;
+  [0, 1].forEach(i => {
+    const pal = api._paletteForEntity(api.entities[i]), call = calls[i];
+    assert.deepEqual(at(call, 0, 0).fillColor, rgb(pal.band), 'band in the darker shade');
+    assert.deepEqual(at(call, 2, 0).fillColor, rgb(pal.body), 'data row body fill');
+    assert.deepEqual(at(call, 2, CASH).fillColor, rgb(RC.cashData), 'Cash is the one cash yellow');
+    assert.deepEqual(at(call, 3, 0).fillColor, rgb(RC.sub), 'subtotal fill');
+    assert.equal(at(call, 3, 0).fontStyle, 'bold', 'subtotal row is bold');
+    assert.deepEqual(at(call, 4, 0).fillColor, rgb(RC.tot), 'entity total fill');
+  });
+  const grand = at(calls[1], 6, 0);
+  assert.deepEqual(grand.fillColor, rgb(RC.grand), 'grand total fill');
+  assert.equal(grand.fontStyle, 'bold', 'grand total row is bold');
+  assert.equal(calls[1].options.body[6][0].content, 'GRAND TOTAL — ALL ENTITIES');
 });
 
 test('test_pdf_export_uses_user_selected_fc00014_preset', async () => {
@@ -128,7 +104,7 @@ test('test_pdf_export_uses_user_selected_fc00014_preset', async () => {
   const sunsetBodyFill = api._argbToRgbTriplet(api.FC14_PRESETS.Sunset.body);
   const defaultGreenBodyFill = api._argbToRgbTriplet(api.FC14_PRESETS['Green'].body);
 
-  const nirvanaRow0Col0 = bodyCells.find(c => c.rowIndex === 0 && c.colIndex === 0);
+  const nirvanaRow0Col0 = api.__lastAutoTableCalls.slice(-2)[0].parsedCells.find(c => c.section === 'body' && c.rowIndex === 2 && c.colIndex === 0); // FC-00080: Nirvana's page, first data row
   assert.ok(nirvanaRow0Col0);
   assert.deepEqual(nirvanaRow0Col0.fillColor, sunsetBodyFill, 'PDF picks up the user-selected Sunset preset');
   assert.notDeepEqual(nirvanaRow0Col0.fillColor, defaultGreenBodyFill, 'PDF must not fall back to the hardcoded default once a preset is chosen');
@@ -206,11 +182,9 @@ test('test_pdf_flat_employee_row_shape_preserved', async () => {
   api.flatWagesDisplayNames['emery'] = 'Emery';
 
   await api.exportCombinedPdf();
-  const calls = api.__lastAutoTableCalls;
-  const lastCall = calls[calls.length - 1];
-  const flatRow = lastCall.options.body.find(row => typeof row[1] === 'string' && row[1].includes('(flat)'));
+  const body = pdfBody(api).map(pdfRowText);
+  const flatRow = body.find(row => row[0] === 'Emery');
   assert.ok(flatRow, 'expected to find the flat employee row in the PDF body');
-  assert.equal(flatRow[1], 'Emery (flat)');
-  assert.equal(flatRow[3], '', 'Hours must be blank for a flat-amount employee');
+  assert.equal(flatRow[api.COMBINED_COLS.hours], '', 'Hours must be blank for a flat-amount employee');
   assert.equal(flatRow[api.COMBINED_COLS.rate], 'flat', 'Rate must read the text "flat"');
 });

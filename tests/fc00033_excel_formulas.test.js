@@ -65,12 +65,12 @@ test('test_combined_rows_are_formulas_that_reproduce_tool_values', async () => {
   assert.ok(n >= 8 * 4, 'every pay row carries deposit/cash/final/diff formulas');
   assert.deepEqual(xlFormulaMismatches(wb, wb.worksheets.find(w => w.name === 'Hours')).bad, [], 'Hours sheet formulas agree');
   const data = api._collectExportData().flatMap(d => d.rows);
-  const rowFor = (name) => ws.rows.find(r => r && r[2] && r[2].value === name);
+  const rowFor = (name) => ws.rows.find(r => r && r[C.employee] && r[C.employee].value === name); // FC-00080: Employee is the first column
   for (const name of ['Ann', 'Ben', 'Dee', 'Ermine', 'Falcon', 'Gravel', 'Harbor']) {
     const r = rowFor(name), b = data.find(x => x._empName === name)._breakdown;
     const L = (k) => String.fromCharCode(64 + C[k]);
-    // FC-00070: a Deposit row adds half its Over time (0 at 40 h or less).
-    const H = b.method === 'deposit' ? '\\(' + L('hours') + '\\d+\\+0\\.5\\*' + L('ot') + '\\d+\\)' : L('hours') + '\\d+';
+    // FC-00080: Hours is the straight-time part; a Deposit row adds 1.5 × its Over time.
+    const H = b.method === 'deposit' ? '\\(' + L('hours') + '\\d+\\+1\\.5\\*' + L('ot') + '\\d+\\)' : L('hours') + '\\d+';
     assert.match(r[C.total].value.formula, new RegExp('^ROUND\\(' + H + '\\*' + L('rate') + '\\d+,2\\)$'), name + ' Actual Total = hours x rate');
     assert.match(r[C.hours].value.formula, /^ROUND\(SUM\('Hours'!/, name + ' Hours come from the Hours sheet');
     assert.equal(xlNum(r[C.total]), b.actualFinal);
@@ -82,13 +82,13 @@ test('test_combined_rows_are_formulas_that_reproduce_tool_values', async () => {
     assert.equal(typeof r[C.rate].value, 'number', name + ' rate is a number so the formula can use it');
   }
   // Flat amount is an input value; its split still flows from it.
-  const cy = rowFor('Cy (flat)');
+  const cy = rowFor('Cy');
   assert.equal(cy[C.total].value, 300);
   assert.ok(isFx(cy[C.cash]), 'flat row cash is still a formula');
-  // Zero amounts are numbers shown as a dash, never the text "—".
+  // FC-00080: zero amounts are numbers shown blank, never the text "—".
   const dee = rowFor('Dee');
   assert.equal(xlNum(dee[C.cash]), 0);
-  assert.match(dee[C.cash].numFmt, /"—"$/);
+  assert.match(dee[C.cash].numFmt, /;""$/);
 });
 
 test('test_subtotals_sum_rows_and_grand_sums_subtotals', async () => {
@@ -97,14 +97,18 @@ test('test_subtotals_sum_rows_and_grand_sums_subtotals', async () => {
   const ws = api.__lastExcelWorkbook.worksheets[0];
   const subs = ws.rows.map((r, i) => [r, i]).filter(([r]) => r && r[1] && / subtotal$/.test(r[1].value));
   assert.equal(subs.length, 2);
+  // FC-00080: each entity's TOTAL sums its group subtotals; the grand total sums the entity totals.
+  const ents = ws.rows.map((r, i) => [r, i]).filter(([r]) => r && r[1] && /^[A-Z ]+ TOTAL$/.test(r[1].value) && !/^GRAND/.test(r[1].value));
+  assert.equal(ents.length, 2);
   // Columns by name: Actual Total, Deposit, Hours, Rounded Final are summed (FC-00059/65).
   const C = api.COMBINED_COLS, col = (k) => C[k] + 1, L = (k) => String.fromCharCode(65 + C[k]);
   subs.forEach(([r]) => assert.equal(r[col('total')].value.formula.replace(/\d+/g, 'n'), 'SUM(' + L('total') + 'n:' + L('total') + 'n)'));
   subs.forEach(([r]) => assert.equal(r[col('hours')].value.formula.replace(/\d+/g, 'n'), 'SUM(' + L('hours') + 'n:' + L('hours') + 'n)', 'hours subtotal'));
-  const grand = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL');
-  assert.equal(grand[col('total')].value.formula, 'SUM(' + subs.map(([, i]) => L('total') + i).join(',') + ')');
-  assert.equal(grand[col('deposit')].value.formula, 'SUM(' + subs.map(([, i]) => L('deposit') + i).join(',') + ')');
-  assert.equal(grand[col('final')].value.formula, 'SUM(' + subs.map(([, i]) => L('final') + i).join(',') + ')', 'rounded final grand total');
+  ents.forEach(([r], k) => assert.equal(r[col('total')].value.formula, 'SUM(' + L('total') + subs[k][1] + ')'));
+  const grand = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL — ALL ENTITIES');
+  assert.equal(grand[col('total')].value.formula, 'SUM(' + ents.map(([, i]) => L('total') + i).join(',') + ')');
+  assert.equal(grand[col('deposit')].value.formula, 'SUM(' + ents.map(([, i]) => L('deposit') + i).join(',') + ')');
+  assert.equal(grand[col('final')].value.formula, 'SUM(' + ents.map(([, i]) => L('final') + i).join(',') + ')', 'rounded final grand total');
 });
 
 test('test_editing_an_input_moves_the_totals', async () => {
@@ -114,7 +118,7 @@ test('test_editing_an_input_moves_the_totals', async () => {
   _wb = wb;
   const ws = wb.worksheets[0];
   const hs = wb.worksheets.find(w => w.name === 'Hours');
-  const grand = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL');
+  const grand = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL — ALL ENTITIES');
   const C = api.COMBINED_COLS, col = (k) => C[k] + 1;
   const before = evaluate(ws, grand[col('total')].value.formula);
   // FC-00060: change Ann's clock-out on the Hours sheet by one hour: hours, pay and totals follow.
@@ -123,7 +127,7 @@ test('test_editing_an_input_moves_the_totals', async () => {
   const annDay = hs.rows.find(r => r && r[2] && r[2].value === 'Ann');
   annDay[outCol].value += 1 / 24; // one more hour at $15.37
   assert.equal(Math.round((evaluate(ws, grand[col('total')].value.formula) - before) * 100) / 100, 15.37);
-  const ann = ws.rows.find(r => r && r[2] && r[2].value === 'Ann');
+  const ann = ws.rows.find(r => r && r[col('employee')] && r[col('employee')].value === 'Ann');
   assert.equal(evaluate(ws, ann[col('cash')].value.formula), Math.round(evaluate(ws, ann[col('total')].value.formula)), 'cash re-rounds');
 });
 

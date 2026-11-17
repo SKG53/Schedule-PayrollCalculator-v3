@@ -110,8 +110,8 @@ test('test_export_copy_excel_matches_cells', async () => {
   const s = api._fc24GetScratch();
   const ann = rowIndex(s, 'data', 'Ann');
   api._fc24EditCell(0, 0, 'EDITED TITLE');
-  api._fc24EditCell(ann, 1, 'Ann Edited');
   const C = api.COMBINED_COLS; // columns by name
+  api._fc24EditCell(ann, C.employee, 'Ann Edited');
   api._fc24EditCell(ann, C.hours, '7.5');       // Hours
   api._fc24EditCell(ann, C.rate, '$16.00');     // Rate
   api._fc24EditCell(ann, C.cash, '$1,234.56');  // Cash
@@ -123,10 +123,10 @@ test('test_export_copy_excel_matches_cells', async () => {
 
   const ws = api.__lastExcelWorkbook.worksheets[0];
   assert.equal(ws.rows[1][1].value, 'EDITED TITLE');
-  assert.match(ws.rows[3][1].value, /^Pay dates · /, 'FC-00073: the pay dates line');
+  assert.match(ws.rows[3][1].value, /^Deposit paid /, 'FC-00073: the pay dates line');
   const hdr = ws.rows[4];
   assert.deepEqual(hdr.slice(1).map(c => c.value), s.rows.find(r => r.kind === 'hdr').cells);
-  const data = ws.rows.find(r => r && r[2] && r[2].value === 'Ann Edited');
+  const data = ws.rows.find(r => r && r[C.employee + 1] && r[C.employee + 1].value === 'Ann Edited');
   assert.ok(data, 'edited row written');
   assert.equal(data[C.hours + 1].value, 7.5); assert.equal(data[C.hours + 1].numFmt, '0.00');
   assert.equal(data[C.rate + 1].value, 16); assert.match(data[C.rate + 1].numFmt, /\$/);
@@ -138,9 +138,12 @@ test('test_export_copy_excel_matches_cells', async () => {
   // Grand total row carries its (unedited) snapshot values.
   const g = s.rows[s.rows.length - 1];
   const gRow = ws.rows[ws.rows.length - 1];
-  assert.equal(gRow[1].value, 'GRAND TOTAL');
+  assert.equal(gRow[1].value, 'GRAND TOTAL — ALL ENTITIES');
   assert.equal(xlNum(gRow[C.total + 1]), parseFloat(g.cells[C.total].replace(/[$,]/g, '')));
-  assert.match(gRow[C.total + 1].value.formula, /^SUM\(/, 'grand total is a live SUM of the subtotals');
+  assert.match(gRow[C.total + 1].value.formula, /^SUM\(/, 'grand total is a live SUM of the entity totals');
+  // FC-00080: an entity's total is a SUM of its group subtotals.
+  const et = ws.rows.find(r => r && r[1] && r[1].value === 'ALPHA TEST TOTAL');
+  assert.match(et[C.total + 1].value.formula, /^SUM\(/);
 });
 
 test('test_export_copy_pdf_matches_cells', async () => {
@@ -161,7 +164,7 @@ test('test_export_copy_pdf_matches_cells', async () => {
   assert.deepEqual(call.options.head[0], s.rows.find(r => r.kind === 'hdr').cells);
   const bodyRows = s.rows.filter(r => r.kind !== 'title' && r.kind !== 'hdr');
   assert.equal(call.options.body.length, bodyRows.length);
-  const benBody = call.options.body.find(r => r[1] === 'Ben');
+  const benBody = call.options.body.find(r => r[0] === 'Ben');
   assert.equal(benBody[5], '$999.99');
   assert.equal(call.options.columnStyles[api.COMBINED_HEADERS.indexOf('Hours')].halign, 'right');
 });
@@ -171,9 +174,9 @@ test('test_refresh_and_discard_copy', () => {
   api._fc24MakeCopy();
   const s = api._fc24GetScratch();
   const ann = rowIndex(s, 'data', 'Ann');
-  api._fc24EditCell(ann, 1, 'Changed');
+  api._fc24EditCell(ann, 0, 'Changed');
   assert.equal(api._fc24RefreshCopy(), true);
-  assert.equal(api._fc24GetScratch().rows[ann].cells[1], 'Ann', 'refresh re-snapshots from the live preview');
+  assert.equal(api._fc24GetScratch().rows[ann].cells[0], 'Ann', 'refresh re-snapshots from the live preview');
   assert.equal(api._fc24DiscardCopy(), true);
   assert.equal(api._fc24GetScratch(), null);
   assert.doesNotMatch(api.__sandbox.document.getElementById('fc13PreviewHost').innerHTML, /fc24-scratch-panel/);

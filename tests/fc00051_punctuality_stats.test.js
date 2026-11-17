@@ -167,7 +167,7 @@ test('test_stats_sheet_in_combined_excel_payroll_sheet_unchanged', async () => {
   assert.equal(Math.round(avery[H('Late %')] * 100), 67, 'late % = late days / days worked (a formula)');
   assert.ok(vals.some(r => r[0] === 'Alpha Test total'));
   // The payroll sheet is the same with or without the Stats sheet.
-  assert.equal(wb.worksheets[0].rows[3][1].value, 'Entity');
+  assert.equal(wb.worksheets[0].rows[3][1].value, 'Employee'); // FC-00080
 });
 
 test('test_pay_identical', () => {

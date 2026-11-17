@@ -38,29 +38,32 @@ async function printed(api, kind = 'combined') {
   const ws = api.__lastExcelWorkbook.worksheets[0];
   const header = ws.rows.findIndex(r => r && r.some(c => c && c.value === 'Employee'));
   const col = ws.rows[header].findIndex(c => c && c.value === 'Employee');
-  return ws.rows.slice(header + 1).filter(r => r && r[col] && typeof r[col].value === 'string' && r[1] && r[1].value === 'Alpha Test').map(r => r[col].value);
+  // FC-00080: the payroll report has no Entity column; its people are the rows with a Method.
+  const ent = ws.rows[header].findIndex(c => c && c.value === 'Entity');
+  const meth = ws.rows[header].findIndex(c => c && c.value === 'Method');
+  return ws.rows.slice(header + 1).filter(r => r && r[col] && typeof r[col].value === 'string' && (ent > 0 ? (r[ent] && r[ent].value === 'Alpha Test') : (r[meth] && r[meth].value))).map(r => r[col].value);
 }
 const sig = (api) => api._stateSig(api._captureState());
 
 test('test_three_options_format_names', async () => {
   const api = setup();
   // FC-00050: FIRST LAST is the default.
-  assert.deepEqual(await printed(api), ['AVERY STONE', 'AVERY TOBIN', 'BRAM M.', 'QUILL PELL', 'QUILL PENN', 'WREN (flat)']);
+  assert.deepEqual(await printed(api), ['AVERY STONE', 'AVERY TOBIN', 'BRAM M.', 'QUILL PELL', 'QUILL PENN', 'WREN']);
   api.setExportNameMode('all', 'saved');
-  assert.deepEqual(await printed(api), ['Avery Stone', 'Avery Tobin', 'Bram M.', 'Quill Pell', 'Quill Penn', 'Wren (flat)']);
+  assert.deepEqual(await printed(api), ['Avery Stone', 'Avery Tobin', 'Bram M.', 'Quill Pell', 'Quill Penn', 'Wren']);
   api.setExportNameMode('all', 'firstLast');
-  assert.deepEqual(await printed(api), ['AVERY STONE', 'AVERY TOBIN', 'BRAM M.', 'QUILL PELL', 'QUILL PENN', 'WREN (flat)']);
+  assert.deepEqual(await printed(api), ['AVERY STONE', 'AVERY TOBIN', 'BRAM M.', 'QUILL PELL', 'QUILL PENN', 'WREN']);
   api.setExportNameMode('all', 'first');
   const first = await printed(api);
   assert.equal(first[2], 'BRAM');
-  assert.equal(first[5], 'WREN (flat)');
+  assert.equal(first[5], 'WREN');
 });
 
 test('test_first_only_disambiguates_within_entity', async () => {
   const api = setup();
   api.setExportNameMode('all', 'first');
   // Two Averys: different last initials. Two Quills: same initial P, so full names.
-  assert.deepEqual(await printed(api), ['AVERY S.', 'AVERY T.', 'BRAM', 'QUILL PELL', 'QUILL PENN', 'WREN (flat)']);
+  assert.deepEqual(await printed(api), ['AVERY S.', 'AVERY T.', 'BRAM', 'QUILL PELL', 'QUILL PENN', 'WREN']);
   // In another entity, a lone Avery is just AVERY.
   api.entities.push({ id: 1, name: 'Beta Test', code: '', employees: [], dateLabels: WEEK.slice(), newDateLabels: ['', '', '', '', '', '', ''], newWeekStartVal: '', breakMinutes: 0, breakMinutesSet: true, actualDays: [], intake: null });
   api._syncEntityCode(api.entities[1]);
@@ -119,7 +122,7 @@ test('test_flat_label_kept_and_unrecognized_names_follow_option', async () => {
   // FC-00048: the word "orphan" no longer prints on exports.
   assert.ok(names.includes('OZZIE ROOK'), names.join(' | '));
   assert.ok(!names.some(n => /orphan/i.test(n)), names.join(' | '));
-  assert.ok(names.includes('WREN (flat)'));
+  assert.ok(names.includes('WREN'), 'FC-00080: a flat amount shows as "flat" in Rate, the name prints plain');
 });
 
 test('test_choice_saved_in_settings_file_and_snapshot', async () => {

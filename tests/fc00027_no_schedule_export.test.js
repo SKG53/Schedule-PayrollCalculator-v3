@@ -42,9 +42,9 @@ test('test_combined_excel_and_pdf_carry_no_schedule_entity', async () => {
   const api = setup();
   await api.exportCombinedExcel();
   const ws = api.__lastExcelWorkbook.worksheets[0];
-  const janeRow = ws.rows.find(r => r && r[2] && /^Jane/.test(String(r[2].value)));
+  const janeRow = ws.rows.find(r => r && r[1] && /^Jane/.test(String(r[1].value))); // FC-00080: Employee is the first column
   assert.ok(janeRow, 'Jane in the Combined Excel');
-  const grand = ws.rows.filter(r => r && r[1] && r[1].value === 'GRAND TOTAL').pop();
+  const grand = ws.rows.filter(r => r && r[1] && r[1].value === 'GRAND TOTAL — ALL ENTITIES').pop();
   assert.equal(xlNum(grand[api.COMBINED_COLS.total + 1]), 120 + 160, 'grand total = 8h x $15 + 8h x $20');
 
   await api.exportCashPdf();
@@ -55,8 +55,8 @@ test('test_combined_excel_and_pdf_carry_no_schedule_entity', async () => {
 test('test_previews_include_no_schedule_entity', () => {
   const api = setup();
   const model = api._fc13PreviewModel();
-  assert.ok(model.rows.some(r => r.kind === 'data' && /^Jane/.test(r.cells[1])), 'combined preview shows Jane');
-  assert.ok(model.rows.some(r => r.kind === 'subtotal' && r.cells[0] === 'NoSched Co subtotal'));
+  assert.ok(model.rows.some(r => r.kind === 'data' && /^Jane/.test(r.cells[0])), 'combined preview shows Jane');
+  assert.ok(model.rows.some(r => r.kind === 'enttotal' && r.cells[0] === 'NOSCHED CO TOTAL'));
   // FC-00059: the all-entity preview is merged into the one export preview.
   api.renderPayroll();
   const host = api.__sandbox.document.getElementById('fc13PreviewHost');

@@ -50,16 +50,19 @@ test('test_excel_over_time_column_and_formulas', async () => {
   assert.equal(api.COMBINED_HEADERS[C.ot], 'Over time');
   assert.equal(C.ot, C.hours + 1, 'Over time sits after Hours');
   const L = (k) => String.fromCharCode(65 + C[k]);
-  const avery = ws.rows.find(r => r && r[2] && r[2].value === 'Avery Atest');
+  const avery = ws.rows.find(r => r && r[1] && r[1].value === 'Avery Atest'); // FC-00080: Employee is the first column
   const n = ws.rows.indexOf(avery);
-  assert.equal(avery[C.ot + 1].value.formula, 'MAX(0,ROUND(' + L('hours') + n + '-40,2))');
+  // FC-00080: Over time reads the Hours sheet; Hours is the straight-time part (worked − Over time).
+  assert.match(avery[C.ot + 1].value.formula, /^MAX\(0,ROUND\(ROUND\(SUM\('Hours'!\$[A-Z]+\$\d+:\$[A-Z]+\$\d+\),2\)-40,2\)\)$/);
   assert.equal(xlNum(avery[C.ot + 1]), 2.5);
-  assert.equal(avery[C.total + 1].value.formula, 'ROUND((' + L('hours') + n + '+0.5*' + L('ot') + n + ')*' + L('rate') + n + ',2)');
+  assert.match(avery[C.hours + 1].value.formula, new RegExp('^ROUND\\(SUM\\(.+\\),2\\)-' + L('ot') + n + '$'));
+  assert.equal(xlNum(avery[C.hours + 1]), 40, 'straight-time hours');
+  assert.equal(avery[C.total + 1].value.formula, 'ROUND((' + L('hours') + n + '+1.5*' + L('ot') + n + ')*' + L('rate') + n + ',2)');
   assert.equal(xlNum(avery[C.total + 1]), 525);
-  const bram = ws.rows.find(r => r && r[2] && r[2].value === 'Bram Btest');
+  const bram = ws.rows.find(r => r && r[1] && r[1].value === 'Bram Btest');
   assert.equal(bram[C.ot + 1].value, '', 'no Over time for Cash');
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, [], 'every formula agrees with the tool');
-  const sub = ws.rows.find(r => r && r[1] && r[1].value === 'Alpha Test subtotal');
+  const sub = ws.rows.find(r => r && r[1] && r[1].value === 'Employees subtotal');
   assert.equal(xlNum(sub[C.ot + 1]), 2.5, 'Over time is totalled');
 });
 
@@ -69,10 +72,14 @@ test('test_overtime_formula_follows_an_edited_hour', async () => {
   const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0];
   const { xlEval } = require('./xl-helpers');
   const C = api.COMBINED_COLS;
-  const eden = ws.rows.find(r => r && r[2] && r[2].value === 'Eden Etest');
-  // Eden (Deposit, 38 h): typing 44 hours in the report moves 4 hours into Over time.
-  eden[C.hours + 1].value = 44;
+  const eden = ws.rows.find(r => r && r[1] && r[1].value === 'Eden Etest');
+  // Eden (Deposit, 38 h): six more hours on one day of the Hours sheet put 4 hours into Over time.
+  const hs = wb.worksheets.find(w => w.name === 'Hours');
+  const hdr = hs.rows.find(r => r && r[1] && r[1].value === 'Entity');
+  const out1 = hdr.findIndex(c => c && c.value === 'Out 1');
+  hs.rows.find(r => r && r[2] && r[2].value === 'Eden Etest')[out1].value += 6 / 24;
   assert.equal(xlEval(wb, ws, eden[C.ot + 1].value.formula), 4);
+  assert.equal(xlEval(wb, ws, eden[C.hours + 1].value.formula), 40, 'straight time stops at 40');
   assert.equal(xlEval(wb, ws, eden[C.total + 1].value.formula), Math.round(14 * (44 + 2) * 100) / 100);
 });
 
@@ -99,7 +106,7 @@ test('test_outside_week_day_never_counts_toward_40', async () => {
   assert.equal(r._breakdown.actualFinal, 588, 'straight time');
   await api.exportCombinedExcel();
   const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0], C = api.COMBINED_COLS;
-  const row = ws.rows.find(x => x && x[2] && x[2].value === 'Eden Etest');
+  const row = ws.rows.find(x => x && x[1] && x[1].value === 'Eden Etest');
   assert.match(row[C.ot + 1].value.formula, /-4-40,2\)\)$/);
   assert.deepEqual(xlFormulaMismatches(wb, ws).bad, []);
 });

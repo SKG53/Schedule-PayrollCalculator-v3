@@ -39,7 +39,8 @@ function setup() {
   return { api, rows, saved };
 }
 const report = (api) => api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Report');
-const names = (ws) => ws.rows.filter(r => r && r[2] && typeof r[2].value === 'string' && r[1] && !/subtotal|TOTAL/.test(r[1].value) && r[1].value !== 'Entity').map(r => r[2].value);
+// FC-00080: the people are the rows with a Method (Employee is the first column, Method the third).
+const names = (ws) => ws.rows.filter(r => r && r[1] && typeof r[1].value === 'string' && r[3] && r[3].value && r[3].value !== 'Method').map(r => r[1].value);
 
 test('test_cards_with_excel_and_pdf_buttons_one_place', () => {
   const { api } = setup();
@@ -66,8 +67,9 @@ test('test_entity_report_has_only_that_entity', async () => {
   const ws = report(api);
   assert.match(ws.rows[1][1].value, /^PAYROLL REPORT — HEFNER/);
   assert.deepEqual(names(ws).sort(), ['BO BEST', 'CY COLE']);
-  const grand = ws.rows.find(r => r && r[1] && r[1].value === 'GRAND TOTAL');
-  assert.equal(xlNum(grand[api.COMBINED_COLS.total + 1]), 15 * 8 + 15 * 4.25, 'the grand total is this entity only');
+  const grand = ws.rows.find(r => r && r[1] && r[1].value === 'HEFNER TOTAL');
+  assert.equal(xlNum(grand[api.COMBINED_COLS.total + 1]), 15 * 8 + 15 * 4.25, 'the total is this entity only');
+  assert.ok(!ws.rows.some(r => r && r[1] && /^GRAND TOTAL/.test(r[1].value)), 'FC-00080: one entity, no grand total');
   assert.equal(api.getExportScope(), null, 'scope is put back after the export');
 });
 
@@ -89,7 +91,7 @@ test('test_entity_pdf_fits_and_has_only_that_entity', async () => {
   await api.exportCardNow('payroll:0', 'pdf');
   assert.deepEqual(saved, ['Nirvana_0809to0815_AllEmployeesPayroll.pdf']);
   const body = api.__lastAutoTableCalls.slice(n0).flatMap(c => c.options.body);
-  const cells = body.map(r => (r[1] && typeof r[1] === 'object' ? r[1].content : r[1]));
+  const cells = body.map(r => (r[0] && typeof r[0] === 'object' ? r[0].content : r[0]));
   assert.ok(cells.includes('ANN ABLE') && !cells.includes('BO BEST'));
 });
 
@@ -129,7 +131,7 @@ test('test_one_preview_in_export_format', () => {
   const m = api._fc13PreviewModel();
   assert.deepEqual(m.headers, api.COMBINED_HEADERS);
   const C = api.COMBINED_COLS;
-  const cy = m.rows.find(r => r.kind === 'data' && r.cells[1] === 'CY COLE');
+  const cy = m.rows.find(r => r.kind === 'data' && r.cells[0] === 'CY COLE');
   assert.equal(cy.cells[C.hours], '4.25', 'decimal hours');
   assert.ok(!m.headers.includes('H:MM'), 'no H:MM column (FC-00065)');
   const sub = m.rows.filter(r => r.kind === 'subtotal');
@@ -139,7 +141,7 @@ test('test_one_preview_in_export_format', () => {
   api.setPreviewKey('payroll:1');
   const m1 = api._fc13PreviewModel();
   assert.match(m1.rows[0].cells[0], /^PAYROLL REPORT — HEFNER/);
-  assert.ok(!m1.rows.some(r => r.kind === 'data' && r.cells[1] === 'ANN ABLE'));
+  assert.ok(!m1.rows.some(r => r.kind === 'data' && r.cells[0] === 'ANN ABLE'));
 });
 
 test('test_preview_flags_unconfirmed_off_schedule_person', () => {
@@ -148,7 +150,7 @@ test('test_preview_flags_unconfirmed_off_schedule_person', () => {
   const r = api.processReviewRow({ empName: 'Zed Newby', date: '2026-08-10', clockIn1: '09:00', clockOut1: '12:00', confidence: 0.95, source: 'TC', originalName: 'z.jpg' }, e);
   e.intake.reviewRows.push(r); api.approveReviewRow(r.id); api.syncActualsFromReview();
   const m = api._fc13PreviewModel();
-  const z = m.rows.find(x => x.kind === 'data' && /ZED/.test(x.cells[1]));
+  const z = m.rows.find(x => x.kind === 'data' && /ZED/.test(x.cells[0]));
   assert.match(z.flag, /not confirmed/, 'flagged on screen, as the old all-entity preview did');
   assert.match(api.renderPayrollExportPreviewHtml(), /not confirmed/);
 });

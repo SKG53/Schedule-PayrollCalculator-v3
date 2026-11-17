@@ -137,8 +137,9 @@ test('test_export_uses_selected_palette', async () => {
   await api.exportCombinedExcel();
   let sheet = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Report');
   let fills = fillMapFor(sheet);
-  let dataRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Nirvana 11th');
-  assert.ok(dataRow > 0);
+  // FC-00080: the entity's band, its EMPLOYEES heading, then its first row.
+  let dataRow = findRowIndex(sheet, row => row[1] && row[1].value === 'NIRVANA 11TH') + 2;
+  assert.ok(dataRow > 2);
   assert.equal(fills[`${dataRow},1`], api.FC14_PRESETS['Green'].body, 'default export uses the code default palette');
 
   // Select a non-default preset, then export again — the export must reflect the new choice.
@@ -146,14 +147,11 @@ test('test_export_uses_selected_palette', async () => {
   await api.exportCombinedExcel();
   sheet = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Report');
   fills = fillMapFor(sheet);
-  dataRow = findRowIndex(sheet, row => row[1] && row[1].value === 'Nirvana 11th');
-  assert.ok(dataRow > 0);
+  dataRow = findRowIndex(sheet, row => row[1] && row[1].value === 'NIRVANA 11TH') + 2;
+  assert.ok(dataRow > 2);
   assert.equal(fills[`${dataRow},1`], api.FC14_PRESETS['Lavender'].body, 'export must use the selected Lavender preset body fill');
-  assert.equal(fills[`${dataRow},${api.COMBINED_COLS.cash + 1}`], api.FC14_PRESETS['Lavender'].cash, 'export must use the selected Lavender preset cash fill');
-
-  const subtotalRow = findRowIndex(sheet, row => row[1] && /subtotal/i.test(row[1].value || ''));
-  assert.ok(subtotalRow > 0);
-  assert.equal(fills[`${subtotalRow},1`], api.FC14_PRESETS['Lavender'].subtotal, 'subtotal row must also use the selected preset');
+  assert.equal(fills[`${dataRow - 2},1`], api.FC14_PRESETS['Lavender'].band, 'the band uses the selected preset\'s darker shade');
+  assert.equal(fills[`${dataRow},${api.COMBINED_COLS.cash + 1}`], api.REPORT_COLORS.cashData, 'Cash stays the one cash yellow');
 
   // The FC-00013 preview must reflect the same selection (both consumers share _paletteForEntity).
   const html = api.renderPayrollExportPreviewHtml();
