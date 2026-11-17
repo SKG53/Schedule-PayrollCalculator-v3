@@ -579,8 +579,8 @@ function loadApp(opts) {
       // FC-00070 to FC-00075
       collectAllFlags, _toolSettingLabel, _normalizePayMethod, PAYTYPE_SORT_ORDER, retryAllFailedOcr, _isCreditsErr, _failedOcrCount, _failedOcrJobs, OCR_CREDITS_MSG, renderOcrFileList, _applyDepositOt, setReportFinalDiff, reportShowsFinalDiff, _setCombinedLayout, COMBINED_XL_WIDTHS, COMBINED_PDF_WIDTHS, _withoutExec, _reportModel, _reportSortFn, _reportColKeyOf, _reportIsMgmt, REPORT_COLORS, _bandOf, setPayMethodForRow,
       payDates, setPayDateByHand, _setPayDate, _payDatesLine, _fmtPayDate, _fridayAfter, _runWeekIsos, getAcctField, setAcctField, _normAcctType,
-      acctFileModel, exportAccountantFile, parseAccountantRows, applyAccountantFile, acctMatchRow, acctSetSectionEntity, acctUseTheirNote, acctUseAllTheirNotes, clearAccountantFile, acctCompare,
-      _acctMatchRow, _acctSectionList, acctSectionOf, _acctStatusReasons, _acctPanelHtml, getAcctFile: () => _acctFile, setAcctFile: (v) => { _acctFile = v; }, _acctDateIso, _personFields,
+      acctFileModel, exportAccountantFile, exportAccountantPdf, acctTieOut, _acctData, _acctSpec, _acctLine, getAcctWeekNote, setAcctWeekNote, ACCT_COLS,
+      _acctStatusReasons, _acctPanelHtml, _personFields,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078
