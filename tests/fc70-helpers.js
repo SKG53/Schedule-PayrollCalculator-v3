@@ -47,6 +47,14 @@ function setup(opts) {
   }
   return api;
 }
+// FC-00085: the accountant file is written only when complete (deposit pay date and every
+// employment type set). Tests that write it make it complete first.
+function completeAccountant(api, iso) {
+  const c = api.__sandbox.confirm; api.__sandbox.confirm = () => true;
+  api.setPayDateByHand('deposit', iso || '2026-08-20');
+  api.__sandbox.confirm = c;
+  api._acctData().forEach(d => d.rows.forEach(r => { if (!r._acct.type) api.setAcctField(r._entityId, r._empName, 'acct_type', 'W2'); }));
+}
 const rowOf = (api, name) => api._collectExportData().flatMap(d => d.rows).find(r => r._empName === name);
 
-module.exports = { setup, rowOf, WEEK, ISO, SHIFT, days };
+module.exports = { setup, rowOf, WEEK, ISO, SHIFT, days, completeAccountant };

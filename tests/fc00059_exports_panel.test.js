@@ -36,6 +36,7 @@ function setup() {
   api._rerenderAll();
   const saved = [];
   api.__sandbox.document.createElement = () => { const el = { style: {}, click() { saved.push(el.download); } }; return el; };
+  require('./fc70-helpers').completeAccountant(api); // FC-00085: the accountant file is written only when complete
   return { api, rows, saved };
 }
 const report = (api) => api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Report');

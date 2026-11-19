@@ -18,20 +18,20 @@ test('test_default_pool_order_and_employee_locked', () => {
   const api = setup();
   const list = api.reportColumns();
   assert.deepEqual(list.map(c => c.key), api.REPORT_COL_KEYS, 'every column in the pool, standard order');
-  assert.equal(list.length, 23); // FC-00079 adds Bonus
-  assert.deepEqual(keysOn(api), ['employee', 'acctType', 'method', 'hours', 'ot', 'rate', 'bonus', 'total', 'deposit', 'contract', 'cash'], 'FC-00080: the standard columns; the extras start unticked');
+  assert.equal(list.length, 24); // FC-00079 adds Bonus; FC-00085 Deposit Entity
+  assert.deepEqual(keysOn(api), ['employee', 'acctType', 'method', 'hours', 'ot', 'rate', 'bonus', 'total', 'deposit', 'contract', 'cash', 'depEnt'], 'FC-00080: the standard columns; the extras start unticked (FC-00085: Deposit Entity is on, shown only when used)');
   assert.equal(api.setReportColumnOn('employee', false), false, 'Employee is always on');
   assert.ok(keysOn(api).includes('employee'));
-  assert.equal(api._reportColsParse('Cash, Bogus, Employee (off), Hours (OFF)').filter(c => c.on).map(c => c.key).join(','), 'cash,employee', 'unknown words ignored; Employee forced on');
+  assert.equal(api._reportColsParse('Cash, Bogus, Employee (off), Hours (OFF)').filter(c => c.on).map(c => c.key).join(','), 'cash,employee,depEnt', 'unknown words ignored; Employee forced on; FC-00085: Deposit Entity starts on (shown only when used)');
   assert.equal(api._reportColsFormat(api.reportColumns()), api.getToolSetting('reportColumns'));
   const parsed = api._reportColsParse('Cash, Hours');
   assert.deepEqual(parsed.slice(0, 2), [{ key: 'cash', on: true }, { key: 'hours', on: true }]);
-  assert.ok(parsed.slice(2).every(c => !c.on || c.key === 'employee'), 'columns missing from the words start left out');
-  assert.equal(parsed.length, 23);
+  assert.ok(parsed.slice(2).every(c => !c.on || c.key === 'employee' || c.key === 'depEnt'), 'columns missing from the words start left out (FC-00085: except Deposit Entity, which shows only when used)');
+  assert.equal(parsed.length, 24);
   // FC-00080: a list saved before the redesign takes the new standard columns; the optional
   // columns keep their tick.
   const old = api._reportColsParse('Entity, Employee, Method, Hours, Over time, Rate, Bonus (off), Actual Total, Deposit, Contract Check, Cash, Rounded Final, Diff, Mode (off), H:MM (off), Break (off), Scheduled Hours (off), Hours vs Schedule (off), Avg In vs Schedule (off), Avg Out vs Schedule (off), Accountant Name, Employment Type (off), Pay Date (off)');
-  assert.deepEqual(old.filter(c => c.on).map(c => c.key), ['employee', 'acctType', 'method', 'hours', 'ot', 'rate', 'bonus', 'total', 'deposit', 'contract', 'cash', 'final', 'diff', 'acctName']);
+  assert.deepEqual(old.filter(c => c.on).map(c => c.key), ['employee', 'acctType', 'method', 'hours', 'ot', 'rate', 'bonus', 'total', 'deposit', 'contract', 'cash', 'final', 'diff', 'acctName', 'depEnt']);
   assert.deepEqual(old.map(c => c.key), api.REPORT_COL_KEYS);
   // Old names still read.
   assert.equal(api._reportColKeyOf('Actual Total'), 'total');
@@ -206,7 +206,7 @@ test('test_choice_saved_in_settings_snapshot_and_undoable', async () => {
 test('test_chip_bar_and_drag_to_move', () => {
   const api = setup();
   const html = api._reportColsBarHtml();
-  assert.equal((html.match(/class="rc-chip /g) || []).length, 23, 'one chip per column');
+  assert.equal((html.match(/class="rc-chip /g) || []).length, 24, 'one chip per column');
   assert.match(html, /data-key="employee"[^>]*>.*?<input type="checkbox" checked disabled/, 'Employee cannot be unticked');
   assert.match(html, /data-key="mode"[^>]*>.*?<input type="checkbox" onchange="setReportColumnOn\('mode',this\.checked\)">Mode/, 'an extra starts unticked');
   assert.doesNotMatch(html, /rc-hidden-note/, 'nothing hidden by default');

@@ -6,7 +6,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { xlNum, xlFormulaMismatches, pdfCalls, pdfBody, pdfRowText } = require('./xl-helpers');
-const { setup } = require('./fc70-helpers');
+const { setup, completeAccountant } = require('./fc70-helpers');
 
 const HEAD = ['Employee', 'Employment Type', 'Regular Hours', 'Overtime Hours', 'Rate', 'Salary', 'Bonus', 'Gross Total', 'Notes'];
 
@@ -67,6 +67,7 @@ test('test_excel_layout_and_formulas', async () => {
   api.setAcctField(0, 'Gale Gtest', 'acct_note', 'Standing note');
   api.setAcctWeekNote(0, 'Gale Gtest', 'This week only');
   api.addBonus(0, 'Cora Ctest', { type: 'monthly', amount: 25, pay: 'deposit' });
+  completeAccountant(api); // FC-00085: written only when complete
   await api.exportAccountantFile();
   const wb = api.__lastExcelWorkbook, ws = wb.worksheets[0];
   assert.equal(wb.worksheets.length, 1, 'one sheet: no Hours, Stats or Labor Cost');
@@ -104,6 +105,7 @@ test('test_pdf_matches_the_excel', async () => {
   const saved = [];
   const orig = api.__sandbox.window.jspdf.jsPDF;
   api.__sandbox.window.jspdf = { jsPDF: function (o) { const d = orig(o); d.save = (n) => saved.push(n); return d; } };
+  completeAccountant(api); // FC-00085: written only when complete
   await api.exportAccountantPdf();
   assert.ok(saved.length === 1 && /_AccountantFile\.pdf$/.test(saved[0]), saved.join());
   const calls = pdfCalls(api);

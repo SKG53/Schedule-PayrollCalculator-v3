@@ -587,6 +587,8 @@ function loadApp(opts) {
       acctFileModel, exportAccountantFile, exportAccountantPdf, acctTieOut, _acctData, _acctSpec, _acctLine, getAcctWeekNote, setAcctWeekNote, ACCT_COLS,
       _acctStatusReasons, _acctCardHtml, _personFields,
       _downloadsHtml, noSchedRecords, isNoSched, noSchedStatus, noSchedStatusText, noSchedUnchecked, _nsReminderText, _nsReminderHtml, keepNoSched, setNoSchedSkip, setNoSchedAmount, setNoSchedMethod, setNoSchedDeposit, setNoSchedActive, addNoSchedPerson, _noSchedSectionHtml, _nsSkipped, _nsWeekKey, getFlatWageRows,
+      // FC-00085
+      shortWeekInfo, _bothFor, setShortWeekChoice, shortWeekList, shortWeekUndecided, _shortWeekHtml, _swKey, acctBlockers, _acctCheckOrBail, getDepositEntityId, getDepositEntityName, depositElsewhere, setDepositEntity, _entityFromSection, _anyDepositElsewhere, rateConflicts, setPersonRate, _rateConflictHtml, _spreadRate, _rateSiblings, punchedBreakMin, breakSummary, _breakRowHtml, setWage,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078

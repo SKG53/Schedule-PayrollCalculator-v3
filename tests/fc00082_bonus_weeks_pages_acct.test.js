@@ -4,7 +4,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { xlNum, xlEval, xlFormulaMismatches, pdfCalls } = require('./xl-helpers');
-const { setup } = require('./fc70-helpers');
+const { setup, completeAccountant } = require('./fc70-helpers');
 
 const W = '2026-08-09'; // the fixture's run week (Sunday)
 
@@ -149,6 +149,7 @@ test('test_heading_on_every_pdf_page', async () => {
   const saved = [];
   const orig = api.__sandbox.window.jspdf.jsPDF;
   api.__sandbox.window.jspdf = { jsPDF: function (o) { const d = orig(o); d.save = (n) => saved.push(n); return d; } };
+  completeAccountant(api); // FC-00085: written only when complete
   await api.exportAccountantPdf();
   doc = pdfCalls(api)[0].doc;
   [1, 2].forEach(p => {
@@ -165,6 +166,7 @@ test('test_heading_on_every_printed_excel_page', async () => {
   let ws = api.__lastExcelWorkbook.worksheets[0];
   assert.equal(ws.pageSetup.printTitlesRow, '1:3', 'title, dates line and headings repeat');
   assert.match(ws.headerFooter.oddFooter, /Page &P of &N/);
+  completeAccountant(api); // FC-00085: written only when complete
   await api.exportAccountantFile();
   ws = api.__lastExcelWorkbook.worksheets[0];
   assert.equal(ws.pageSetup.printTitlesRow, '1:3');
@@ -188,6 +190,7 @@ test('test_a_row_that_does_not_check_out_blocks_the_file', async () => {
   assert.match(c.problems[0], /^Eden Etest \(Alpha Test\): Gross Total \$\d/);
   const alerts = []; api.__sandbox.alert = (m) => alerts.push(m);
   const before = api.__lastExcelWorkbook;
+  completeAccountant(api); // FC-00085: written only when complete
   await api.exportAccountantFile();
   assert.equal(api.__lastExcelWorkbook, before, 'no file');
   assert.match(alerts[0], /^The accountant file was not written: it does not check out on its own\./);
@@ -197,6 +200,7 @@ test('test_a_row_that_does_not_check_out_blocks_the_file', async () => {
 test('test_no_process_words_on_the_accountant_file', async () => {
   const api = setup({ exec: true });
   api.setPayDateByHand('deposit', '2026-08-20');
+  completeAccountant(api); // FC-00085: written only when complete
   await api.exportAccountantFile();
   const ws = api.__lastExcelWorkbook.worksheets[0];
   const words = ws.rows.flatMap(r => (r || []).map(c => (c && typeof c.value === 'string' ? c.value : ''))).join(' | ');

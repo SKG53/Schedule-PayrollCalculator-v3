@@ -94,6 +94,18 @@ h1{font-size:26px;font-weight:700;letter-spacing:-0.5px}
 .info-chip .days{font-size:12px;color:var(--text3)}
 .info-chip.overtime .hrs{color:var(--dark-orange)}
 .info-chip.overtime{border-color:rgba(194,65,12,0.3);background:rgba(194,65,12,0.04)}
+/* FC-00085: breaks per person, short-week deposits, one rate per person */
+.brk-row td{font-size:11px;padding:2px 6px;background:#FAFAF7;color:var(--text3);border-top:none}
+.brk-row .brk-lbl{font-weight:600;text-transform:uppercase;letter-spacing:0.3px;font-size:10px}
+.brk-row .brk-none{color:#B91C1C;text-transform:none;letter-spacing:0;font-weight:600}
+.brk-row .brk-cell{text-align:center;font-family:'IBM Plex Mono',monospace}
+.brk-row .brk-zero{color:#B91C1C;background:#FDECEC;font-weight:600}
+.brk-row .brk-off{text-align:center;color:#CCC}
+.brk-row .brk-wk{text-align:center;font-family:'IBM Plex Mono',monospace;font-weight:600;background:#EFEEE9}
+.sw-panel,.rate-panel{border:1px solid rgba(194,65,12,0.35);background:rgba(194,65,12,0.05);border-radius:8px;padding:8px 12px;margin:0 0 10px;font-size:13px}
+.sw-panel .sw-row,.rate-panel .rate-row{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin-top:6px}
+.sw-panel .sw-done{color:#166534;font-weight:600}
+.sw-panel .btn.on{background:var(--accent,#1f6feb);color:#fff}
 
 /* === FLAGS === */
 .flags-bar{margin-bottom:14px;display:none}
@@ -1226,6 +1238,34 @@ function assignTngIds(recs){
   _noteBrowserTngHigh(n); // FC-00083
   return list.length;
 }
+// FC-00085 — one hourly rate per person (same TNG ID) at every entity they work at. A flat-amount
+// record keeps its own amount. Changing the rate anywhere changes it everywhere (one Undo).
+function _rateSiblings(entId,empName){const rec=_resolveRecordNoMint(entId,empName);return rec&&rec.tng?_personRecords(rec).filter(o=>o!==rec&&flatWages[o.id]==null):[];}
+function _spreadRate(entId,empName,screen){
+  const k=wKey(entId,empName),v=wageRates[k];if(typeof v!=='number')return 0;
+  let n=0;
+  _rateSiblings(entId,empName).forEach(o=>{if(wageRates[o.id]!==v){dispatch({type:'wage',screen:screen||'payroll',target:{kind:'employee',entity:o.entity,id:o.id,field:'wage'},from:wageRates[o.id],to:v,meta:{empName:o.canonical_name,sameRate:true}});n++;}});
+  return n;
+}
+// People whose entity records carry different hourly rates (active records only).
+function rateConflicts(){
+  const by={};
+  Object.keys((session.roster||{}).byId||{}).forEach(k=>{const r=session.roster.byId[k];if(!r||!r.tng||rosterActive[k]===false||flatWages[k]!=null||typeof wageRates[k]!=='number')return;(by[r.tng]=by[r.tng]||[]).push({id:k,entity:r.entity,entityName:(entities.find(e=>e.id===r.entity)||{}).name||'',name:r.canonical_name,rate:wageRates[k]});});
+  return Object.keys(by).filter(t=>new Set(by[t].map(x=>x.rate)).size>1).map(t=>({tng:t,name:by[t][0].name,items:by[t]}));
+}
+function setPersonRate(tng,rate){
+  const v=parseFloat(rate);if(!(v>0))return false;
+  const recs=Object.keys(session.roster.byId).map(k=>session.roster.byId[k]).filter(r=>r&&r.tng===tng&&flatWages[r.id]==null&&wageRates[r.id]!==v);
+  if(!recs.length)return false;
+  _withCheckpoint('Rate for one person',()=>recs.forEach(r=>dispatch({type:'wage',screen:'register',target:{kind:'employee',entity:r.entity,id:r.id,field:'wage'},from:wageRates[r.id],to:v,meta:{empName:r.canonical_name,sameRate:true}})));
+  if(!_simulating){if(typeof renderRegister==='function')renderRegister();if(currentTab==='payroll')renderPayroll();}
+  return true;
+}
+function _rateConflictHtml(){
+  const c=rateConflicts();if(!c.length)return'';
+  return`<div class="rate-panel"><b>⚠ One person, two rates.</b> A person has one hourly rate at every entity. Pick the right one:`+c.map(p=>`<div class="rate-row"><span><b>${escHtml(p.name)}</b> ${escHtml(p.tng)}: ${p.items.map(i=>escHtml(_fmtUsd(i.rate))+' at '+escHtml(i.entityName)).join(', ')}</span>`+
+    [...new Set(p.items.map(i=>i.rate))].map(v=>`<button class="btn btn-small" onclick="setPersonRate('${escJs(p.tng)}',${v})">Use ${escHtml(_fmtUsd(v))}</button>`).join('')+`</div>`).join('')+`</div>`;
+}
 function tngOf(entId,empName){const r=_resolveRecordNoMint(entId,empName);return r&&r.tng?r.tng:'';}
 // Every record of the same person (same TNG ID), across entities.
 function _personRecords(rec){if(!rec||!rec.tng)return rec?[rec]:[];return Object.keys(session.roster.byId).map(k=>session.roster.byId[k]).filter(r=>r&&r.tng===rec.tng);}
@@ -1772,6 +1812,7 @@ function _applyRecordMirror(entId,empName,field,value){
   else if(field==='mgmt'||field==='tng'){if(value===undefined||value===null||value==='')delete rec[field];else rec[field]=String(value);if(field==='tng'&&value)_noteTngSeen(value);} // FC-00078
   else if(field==='nosched'){if(value==='Yes')rec.nosched='Yes';else delete rec.nosched;} // FC-00084
   else if(field==='ns_carry'){if(value&&typeof value==='object')rec.ns_carry=Object.assign({},value);else delete rec.ns_carry;} // FC-00084
+  else if(field==='dep_ent'){if(value===undefined||value===null||value==='')delete rec.dep_ent;else rec.dep_ent=String(value);} // FC-00085
 }
 function getAliases(entId,empName){return rosterAliases[wKey(entId,empName)]||[]}
 // FC-00036: case, periods and repeated spaces never make two people out of one —
@@ -2118,8 +2159,55 @@ function _computePayBreakdownBase(row,entId){
     const deposit=roundDeposit(total);
     return{method,total,deposit,cash:0,final:deposit,roundedFinal:deposit,actualFinal:total,roundingDiff:0};
   }
-  const meta=getSplitMeta(entId,row.schedName||row.name);
-  return _computeBothBreakdown(total,meta);
+  return _bothFor(entId,row.schedName||row.name,total); // FC-00085
+}
+// FC-00085 — short week. A Deposit + Cash person has a set deposit. When the week's pay before
+// bonuses (hours × rate) comes to less than it, the owner chooses for that week: pay the set
+// deposit, or pay the hours. Until he chooses, the row pays by the hours (as before) and is
+// counted as not decided. The choice is kept with the run ('swDep:<recId>|<week>'), never in the
+// register or Tool Settings.
+function _swKey(rec){const w=_runWeekStart();return(w&&rec&&rec.id)?'swDep:'+rec.id+'|'+w:'';}
+function shortWeekInfo(entId,empName,total){
+  if(getPayMethod(entId,empName)!=='both')return null;
+  const meta=getSplitMeta(entId,empName),set=roundDeposit(meta.deposit||0);
+  if(!meta.typed||!(set>0))return null;
+  const hours=roundDeposit(total||0);
+  if(!(hours<set-0.004))return null;
+  const k=_swKey(_resolveRecordNoMint(entId,empName));
+  const v=k?String((session.toolSettings||{})[k]||''):'';
+  return{hoursPay:hours,setDeposit:set,shortBy:roundDeposit(set-hours),choice:(v==='deposit'||v==='hours')?v:''};
+}
+function _bothFor(entId,empName,total){
+  const meta=getSplitMeta(entId,empName),sw=shortWeekInfo(entId,empName,total);
+  const bd=_computeBothBreakdown(sw&&sw.choice==='deposit'?sw.setDeposit:total,meta);
+  if(sw)bd.shortWeek=sw;
+  return bd;
+}
+function setShortWeekChoice(entId,empName,choice){
+  const k=_swKey(_resolveRecordNoMint(entId,empName));if(!k)return false;
+  const v=(choice==='deposit'||choice==='hours')?choice:'';
+  const ok=setToolSetting(k,v,'payroll');
+  if(ok&&!_simulating){if(currentTab==='payroll')renderPayroll();if(typeof renderDownloadsPanel==='function')renderDownloadsPanel();}
+  return ok;
+}
+// Everyone with a short week this run, every entity.
+function shortWeekList(){
+  const prev=_exportScope;_exportScope=null;let data;
+  try{data=_collectExportData();}finally{_exportScope=prev;}
+  const out=[];
+  data.forEach(d=>d.rows.forEach(r=>{const sw=r._breakdown&&r._breakdown.shortWeek;if(sw)out.push({entityId:r._entityId,entityName:r._entityName,name:r._empName,hours:r.isFlat?0:(r.actualHours||0),rate:r.wage||0,sw});}));
+  return out;
+}
+function shortWeekUndecided(){return shortWeekList().filter(x=>!x.sw.choice);}
+function _shortWeekHtml(){
+  const list=shortWeekList();if(!list.length)return'';
+  const open=list.filter(x=>!x.sw.choice).length;
+  return`<div class="sw-panel"><b>⚠ Short week: hours pay is less than the set deposit</b>${open?` · ${open} not yet decided`:' · all decided'}. Choose for this week only.`+
+    list.map(x=>{const s=x.sw,n=escJs(x.name),ch=s.choice;
+      return`<div class="sw-row"><span><b>${escHtml(x.name)}</b> (${escHtml(x.entityName)}): hours pay ${escHtml(_fmtUsd(s.hoursPay))}${x.rate>0?` (${escHtml((Math.round(x.hours*100)/100).toFixed(2))} h × ${escHtml(_fmtUsd(x.rate))})`:''} is ${escHtml(_fmtUsd(s.shortBy))} less than the set deposit of ${escHtml(_fmtUsd(s.setDeposit))}.</span>`+
+        `<button class="btn btn-small${ch==='deposit'?' on':''}" onclick="setShortWeekChoice(${x.entityId},'${n}','deposit')" title="Deposit ${escHtml(_fmtUsd(s.setDeposit))}, cash $0">Pay the deposit (${escHtml(_fmtUsd(s.setDeposit))})</button>`+
+        `<button class="btn btn-small${ch==='hours'?' on':''}" onclick="setShortWeekChoice(${x.entityId},'${n}','hours')" title="Deposit ${escHtml(_fmtUsd(s.hoursPay))}, cash $0">Pay the hours (${escHtml(_fmtUsd(s.hoursPay))})</button>`+
+        (ch?`<span class="sw-done">✓ ${ch==='deposit'?'paying the deposit':'paying the hours'}</span> <a href="#" onclick="setShortWeekChoice(${x.entityId},'${n}','');return false">undo choice</a>`:'<span>not decided: paying the hours for now</span>')+`</div>`;}).join('')+`</div>`;
 }
 
 function _nextLogEntry(change){
@@ -2557,7 +2645,7 @@ function _historyField(e){
   if(e.type==='reviewMerge'||e.type==='reviewSplit')return(e.meta&&e.meta.date)||'';
   if(e.type==='reviewApproveBulk')return((e.meta&&e.meta.count)||0)+' row'+((e.meta&&e.meta.count)===1?'':'s');
   if(e.type==='breakOverride')return DAY_SHORT[t.day]||'';
-  if(e.type==='rosterFieldSet')return({acct_name:'Accountant name',acct_type:'Employment type',acct_section:'Accountant section',acct_note:'Accountant note',tng:'TNG ID (same person)',mgmt:'Management',bonuses:'Bonuses',nosched:'Paid without a schedule',ns_carry:'Last week\'s amount'})[t.field]||t.field||''; // FC-00073, FC-00078, FC-00084
+  if(e.type==='rosterFieldSet')return({acct_name:'Accountant name',acct_type:'Employment type',acct_section:'Accountant section',acct_note:'Accountant note',tng:'TNG ID (same person)',mgmt:'Management',bonuses:'Bonuses',nosched:'Paid without a schedule',ns_carry:'Last week\'s amount',dep_ent:'Deposit Entity'})[t.field]||t.field||''; // FC-00073, FC-00078, FC-00084
   if(e.type==='toolSetting')return _toolSettingLabel(t.field||'');
   if(e.type==='revert'){const o=session.log.find(x=>x.id===e.originalId);return o?('#'+o.seq+' '+_historyKind(o)):'';}
   return'';
@@ -2794,6 +2882,7 @@ async function buildSnapshot(){
 }
 async function saveSnapshot(){
   if(_busyForSnapshot()){showToast('An action is still running (OCR or a re-read). Save the snapshot when it finishes.','err');return null;}
+  assignTngIds(); // FC-00085: the snapshot and the register always carry the same TNG IDs
   const snap=await buildSnapshot();
   const name=(snap.fileStem||'Session')+'_Snapshot.json';
   _downloadText(JSON.stringify(snap),name,'application/json');
@@ -2959,6 +3048,8 @@ function _toolSettingLabel(k){
   if(acn){const r=session.roster&&session.roster.byId&&session.roster.byId[acn[1]];return'Accountant note this week · '+(r?r.canonical_name:acn[1])+' · week of '+_fmtIsoShort(acn[2]);}
   const nsw=/^nsWeek:(.+)\|(\d{4}-\d{2}-\d{2})$/.exec(String(k)); // FC-00084
   if(nsw){const r=session.roster&&session.roster.byId&&session.roster.byId[nsw[1]];return'Paid without a schedule · '+(r?r.canonical_name:nsw[1])+' · week of '+_fmtIsoShort(nsw[2]);}
+  const swk=/^swDep:(.+)\|(\d{4}-\d{2}-\d{2})$/.exec(String(k)); // FC-00085
+  if(swk){const r=session.roster&&session.roster.byId&&session.roster.byId[swk[1]];return'Short-week deposit · '+(r?r.canonical_name:swk[1])+' · week of '+_fmtIsoShort(swk[2]);}
   return k;
 }
 function _toolSettingsRows(){
@@ -3475,12 +3566,13 @@ function _personFields(st,id,includeBreaks){
   const f={rate:S.wageBlank[id]?'(blank)':(typeof S.wageRates[id]==='number'?S.wageRates[id]:null),type:typeof S.flatWages[id]==='number'?((S.semiMonthly||{})[id]?'Semi-monthly':'Flat'):'Hourly',
     flat:typeof S.flatWages[id]==='number'?S.flatWages[id]:null,method:S.payMethod[id]||'deposit',deposit:sp?sp.deposit:null,typedAs:sp?(sp.isWhole?'whole':'decimal'):null,
     active:S.rosterActive[id]!==false,aliases:(S.rosterAliases[id]||[]).join(', '),notes:rec.notes||'',finalPass:rec.final_pass_method||'',
-    acctName:rec.acct_name||'',acctType:rec.acct_type||'',acctSection:rec.acct_section||'',acctNote:rec.acct_note||''}; // FC-00073
+    acctName:rec.acct_name||'',acctType:rec.acct_type||'',acctSection:rec.acct_section||'',acctNote:rec.acct_note||'',depEnt:rec.dep_ent||''}; // FC-00073, FC-00085
   if(includeBreaks)for(let d=0;d<7;d++){const v=S.breakOverrides[id+'|'+d];f['break'+d]=v==null?'Actual':v;}
   return f;
 }
 const _STAGE_FIELD_LABEL={rate:'Rate',type:'Type',flat:'Flat amount',method:'Pay method',deposit:'Deposit amount',typedAs:'Deposit typed as',active:'Active',aliases:'Aliases',notes:'Notes',finalPass:'Final pass method',palette:'Palette',defaultBreak:'Default break (min)',acctName:'Accountant name',acctType:'Employment type',acctSection:'Accountant section',acctNote:'Accountant note'};
 for(let d=0;d<7;d++)_STAGE_FIELD_LABEL['break'+d]=DAY_SHORT[d]+' break';
+_STAGE_FIELD_LABEL.depEnt='Deposit Entity'; // FC-00085
 // Which session log types count as a hand edit of each preview field.
 function _handEditedFields(id){
   const out=new Set();
@@ -3500,6 +3592,7 @@ function _handEditedFields(id){
     else if(t==='rosterFieldSet'&&f==='acct_type')out.add('acctType');
     else if(t==='rosterFieldSet'&&f==='acct_section')out.add('acctSection');
     else if(t==='rosterFieldSet'&&f==='acct_note')out.add('acctNote');
+    else if(t==='rosterFieldSet'&&f==='dep_ent')out.add('depEnt'); // FC-00085
     else if(t==='breakOverride')out.add('break'+e.target.day);
   });
   return out;
@@ -3916,6 +4009,7 @@ async function _buildFilesNow(list,cont){
     const stem=_fileStem(sc&&sc.length?sc:null);
     if(d.key==='snapshot'){
       if(_busyForSnapshot()){showToast('Snapshot skipped: an action is still running','err');continue;}
+      assignTngIds(); // FC-00085
       files.push({name:stem+'_Snapshot.json',data:JSON.stringify(await buildSnapshot()),type:'application/json',snapshot:true});
       continue;
     }
@@ -5506,6 +5600,8 @@ function renderPayrollEntityContent(idx){
   container.innerHTML=`
     ${_dupBannerHtml()}
     ${_nsReminderHtml(true)}
+    ${_shortWeekHtml()}
+    ${_rateConflictHtml()}
     ${_weekFilterBannerHtml(ent,_fc32Calc)}
     <div class="entity-header-strip" style="padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;display:flex;align-items:center;gap:12px;font-size:13px;flex-wrap:wrap">
       <strong style="font-size:15px">${entityName}</strong>
@@ -5721,7 +5817,7 @@ function _reportColsBarHtml(){
   return`<div class="rc-bar" id="reportColsBar"><span class="rc-bar-lbl">Columns</span>${chips}<button class="btn rc-reset" onclick="resetReportColumns()" title="Back to the standard columns and order">Reset</button></div>${note}`;
 }
 function _listWords(a){return a.length<2?(a[0]||''):a.slice(0,-1).join(', ')+' and '+a[a.length-1];}
-function _reportColsNoteText(){const l=reportColumns();return'Columns: '+l.filter(c=>c.on).length+' of '+l.length+', chosen and ordered on the Export preview';}
+function _reportColsNoteText(){const l=reportColumns();return'Columns: '+_reportLayoutKeys(false).keys.length+' of '+l.length+', chosen and ordered on the Export preview';} // FC-00085: counts what the report shows (Deposit Entity only when used)
 let _rcDragKey=null;
 function _rcDragStart(ev,key){_rcDragKey=key;try{ev.dataTransfer.effectAllowed='move';ev.dataTransfer.setData('text/plain',key);}catch(_){}const el=ev.currentTarget||ev.target;if(el&&el.classList)el.classList.add('dragging');}
 function _rcSide(ev){const el=ev.currentTarget;if(!el||!el.getBoundingClientRect)return'before';const r=el.getBoundingClientRect();return ev.clientX<r.left+r.width/2?'before':'after';}
@@ -5981,20 +6077,20 @@ function _allEntityPreviewHtml(){
       const rate=r.isFlat?'flat':(wageBlankFlag?'—':(r.wage>0?_fmtUsd(r.wage):'—'));
       const totalN=r.isFlat?r.flatAmount:(wageBlankFlag?null:(r.wage>0?r.pay:null));
       const method=getPayMethod(ent.id,empName);
-      let dep=0,cash=0,finalPay=0,actualTotal=null,diff=0;
+      let dep=0,cash=0,finalPay=0,actualTotal=null,diff=0,swAdj=0;
       if(totalN!=null){
         const totalRounded=roundDeposit(totalN);
         actualTotal=totalRounded;
         if(method==='cash'){cash=roundCash(totalRounded);finalPay=cash;diff=roundDeposit(cash-totalRounded);}
         else if(method==='deposit'||method==='contract'){dep=roundDeposit(totalRounded);finalPay=dep;diff=0;}
         else{
-          const meta=getSplitMeta(ent.id,empName);
-          const bd=_computeBothBreakdown(totalRounded,meta);
+          const bd=_bothFor(ent.id,empName,totalRounded); // FC-00085: short week
           dep=bd.deposit;cash=bd.cash;finalPay=bd.roundedFinal;diff=bd.roundingDiff;
+          if(bd.actualFinal!==totalRounded){swAdj=roundDeposit(bd.actualFinal-totalRounded);actualTotal=bd.actualFinal;}
         }
       }
       if(hrs!=null)entH+=hrs;
-      if(totalN!=null){entPay+=totalN;entDep+=dep;entCash+=cash;entFinal+=finalPay;}
+      if(totalN!=null){entPay+=totalN+swAdj;entDep+=dep;entCash+=cash;entFinal+=finalPay;}
       const methodLbl=methodLabel(method);
       const rowCls=r.isOrphan?' class="orphan"':'';
       const entityCell=(i===0)?`<td class="entity-col" rowspan="${spanCount}">${escHtml(entityName)}</td>`:'';
@@ -6286,11 +6382,29 @@ function renderPayrollGrid(rows,ent,hasActuals,noSchedule){
     }
     const wkVal=hasActuals?fmtHrsCell(r.actualHours):fmtHrsCell(r.expectedH);
     html+=`<td class="pay-weekly ${wkCls}"><span class="wk-actual">${wkVal}</span>${diffHtml}</td></tr>`;
+    if(hasActuals)html+=_breakRowHtml(r); // FC-00085
   });
   html+='</tbody>';
   table.innerHTML=html;
   document.getElementById('payrollGridHeading').style.display='block';
   document.getElementById('payrollGridWrap').style.display='block';
+}
+
+// FC-00085 — breaks per person. The punched break of a shift is the time clocked out between its
+// first in and last out. A shift with none is flagged, whatever its length. Display only: pay
+// still follows the entity's break setting.
+function punchedBreakMin(day){const a=day&&day.actual;if(!a||!(a.totalMin>0)||!isFinite(a.firstIn)||!isFinite(a.lastOut))return null;return Math.max(0,Math.round((a.lastOut-a.firstIn)*60-a.totalMin));}
+function breakSummary(r){
+  const days=(r.days||[]).map(d=>{const m=punchedBreakMin(d);return m==null?null:{min:m,none:m<1};});
+  const worked=days.filter(Boolean);
+  return{days,total:worked.reduce((s,x)=>s+x.min,0),none:worked.filter(x=>x.none).length,shifts:worked.length};
+}
+function _fmtMinHmm(m){m=Math.max(0,Math.round(m||0));return Math.floor(m/60)+':'+String(m%60).padStart(2,'0');}
+function _breakRowHtml(r){
+  const b=breakSummary(r);if(!b.shifts)return'';
+  let h=`<tr class="brk-row"><td class="brk-lbl" colspan="2">Breaks${b.none?` · <span class="brk-none">${b.none} shift${b.none===1?'':'s'} with no break</span>`:''}</td>`;
+  b.days.forEach(d=>{h+=!d?'<td class="brk-off">—</td>':(d.none?'<td class="brk-cell brk-zero" title="No break punched on this shift">0:00 no break</td>':`<td class="brk-cell">${_fmtMinHmm(d.min)}</td>`);});
+  return h+`<td class="brk-wk" title="Breaks punched this week">${_fmtMinHmm(b.total)}</td></tr>`;
 }
 
 // ---- TIME CARD DATA sub-tab: name, expected break, expected hours, actual break, actual hours, diff, avg in/out, OT ----
@@ -6542,7 +6656,10 @@ function setWage(rowIdx,val){
     dispatch({type:'wageBlank',screen:'payroll',target:{kind:'employee',entity:entities[item.entityIdx].id,id:k,field:'wage'},from:wageRates[k],to:null,meta:{empName:_rowKey(item)}});
   }else{
     const n=parseFloat(raw);
-    dispatch({type:'wage',screen:'payroll',target:{kind:'employee',entity:entities[item.entityIdx].id,id:k,field:'wage'},from:wageRates[k],to:isNaN(n)?0:n,meta:{empName:_rowKey(item)}});
+    const entId=entities[item.entityIdx].id,nm=_rowKey(item);
+    const go=()=>{dispatch({type:'wage',screen:'payroll',target:{kind:'employee',entity:entId,id:k,field:'wage'},from:wageRates[k],to:isNaN(n)?0:n,meta:{empName:nm}});_spreadRate(entId,nm,'payroll');};
+    // FC-00085: one rate per person — their other entities follow, in one Undo.
+    if(_rateSiblings(entId,nm).length)_withCheckpoint('Rate change (every entity)',go);else go();
   }
   renderPayrollEntityContent(item.entityIdx);
   setTimeout(()=>{const inp=document.querySelectorAll('.wage-input');if(inp[rowIdx])inp[rowIdx].focus();},0);
@@ -10650,7 +10767,7 @@ function _collectExportData(){
         const d=roundDeposit(totalRounded);
         breakdown={method,total:totalRounded,deposit:d,cash:0,final:d,roundedFinal:d,actualFinal:totalRounded,roundingDiff:0};
       }else{
-        breakdown=_computeBothBreakdown(totalRounded,getSplitMeta(e.id,empName));
+        breakdown=_bothFor(e.id,empName,totalRounded); // FC-00085: short week
       }
       if(!wageBlankFlag)breakdown=_withBonuses(breakdown,e.id,empName); // FC-00079
       return Object.assign({},r,{_empName:empName,_breakdown:breakdown,_entityId:e.id,_entityName:entName,_totalPay:totalPay,_wageBlank:wageBlankFlag,_finalPay:_isFinalPay(e.id,r),_exec:method==='exec'}); // FC-00072
@@ -10755,7 +10872,8 @@ function _fxPayBlock(r,n,cols,opts){
   const b=B?Object.assign({},b0,{actualFinal:roundDeposit((b0.actualFinal||0)-B)}):b0;
   const ref=(ci)=>_xlCol(ci)+n;
   const T=ref(cols.total);
-  const hourly=!r.isFlat&&r.wage>0&&opts.hoursDrivePay;
+  const swDep=!!(b0.shortWeek&&b0.shortWeek.choice==='deposit'); // FC-00085: the set deposit is paid, not the hours
+  const hourly=!r.isFlat&&r.wage>0&&opts.hoursDrivePay&&!swDep;
   if(hourly){
     out[cols.rate]={v:r.wage,fmt:XL_FMT_MONEY};
     if(cols.ot!=null&&b.method==='deposit'&&opts.otSplit){
@@ -10884,8 +11002,10 @@ const _COMBINED_COL_DEFS={
   avgIn:['Avg In vs Schedule',13,75,false,false,'Average clock-in against the schedule, in minutes (+ = late)'],
   avgOut:['Avg Out vs Schedule',13,75,false,false,'Average clock-out against the schedule, in minutes (+ = stayed late)'],
   acctName:['Accountant Name',20,110,false,false,'The name on the accountant\'s file'],
-  payDate:['Pay Date',16,85,false,false,'The day this person is paid: the deposit date, the cash date, or both']
+  payDate:['Pay Date',16,85,false,false,'The day this person is paid: the deposit date, the cash date, or both'],
+  depEnt:['Deposit Entity',16,95,true,false,'The entity that pays this person\'s deposit, when it is not the one they work at (blank otherwise). Shown only when someone\'s deposit comes from another entity'] // FC-00085
 };
+const _AUTO_REPORT_COLS=['depEnt']; // FC-00085: on unless the owner turned it off; shown only when it has something to say
 // FC-00080: names the columns had before, so an older settings file still reads.
 const _REPORT_COL_OLD_NAMES={'actual total':'total','contract check':'contract','employment type':'acctType'};
 const REPORT_COL_KEYS=Object.keys(_COMBINED_COL_DEFS); // the default order
@@ -10929,7 +11049,7 @@ function _reportColsParse(v){
     const keep=['contract','final','diff','mode','hmm','brk','sched','vsSched','avgIn','avgOut','acctName','payDate'];
     return _reportColsDefaultList().map(c=>{const o=out.find(x=>x.key===c.key);return(o&&keep.includes(c.key))?{key:c.key,on:o.on}:c;});
   }
-  REPORT_COL_KEYS.forEach(k=>{if(!seen.has(k))out.push({key:k,on:false});});
+  REPORT_COL_KEYS.forEach(k=>{if(!seen.has(k))out.push({key:k,on:_AUTO_REPORT_COLS.includes(k)});});
   out.forEach(c=>{if(c.key==='employee')c.on=true;});
   return out;
 }
@@ -10944,7 +11064,8 @@ function reportColumns(){
 // The report's keys in order: ticked only (preview and PDF), or for the Excel the ticked ones plus
 // every column a ticked formula reads, those written hidden.
 function _reportLayoutKeys(forExcel){
-  const list=reportColumns();
+  const anyDep=_anyDepositElsewhere();
+  const list=reportColumns().map(c=>(c.key==='depEnt'&&!anyDep)?{key:c.key,on:false}:c); // FC-00085
   const on=new Set(list.filter(c=>c.on).map(c=>c.key));
   if(!forExcel)return{keys:list.filter(c=>c.on).map(c=>c.key),hidden:[]};
   const need=new Set(on);
@@ -11071,6 +11192,47 @@ function setAcctField(entId,empName,f,val,screen){
 }
 
 // ================================================================
+// FC-00085 — Deposit Entity: the entity whose account pays a person's deposit. Blank (the default)
+// means the entity they work at. Only the deposit moves: cash and contract checks stay with the
+// entity they work at. Kept as the entity's name on the roster record (rec.dep_ent).
+// ================================================================
+function _entityByName(n){const x=String(n==null?'':n).trim().toLowerCase();if(!x)return null;return entities.find(e=>(e.name||'').trim().toLowerCase()===x)||null;}
+// An older file's "Accountant Section" ("ZION VENTURES", "HEFNER"…) read as an entity.
+function _entityFromSection(v){
+  const x=String(v==null?'':v).trim().toLowerCase();if(!x)return null;
+  return _entityByName(x)||entities.find(e=>{const n=(e.name||'').trim().toLowerCase();return n&&(x.startsWith(n+' ')||n.startsWith(x+' '));})
+    ||entities.find(e=>{const n=(e.name||'').trim().toLowerCase().split(/\s+/)[0];return n&&x.split(/\s+/)[0]===n;})||null;
+}
+function getDepositEntityId(entId,empName){const r=_resolveRecordNoMint(entId,empName);if(r&&r.dep_ent){const e=_entityByName(r.dep_ent);if(e)return e.id;}return entId;}
+function getDepositEntityName(entId,empName){const id=getDepositEntityId(entId,empName);const e=entities.find(x=>x.id===id);return e?(e.name||''):'';}
+function depositElsewhere(entId,empName){return getDepositEntityId(entId,empName)!==entId;}
+function setDepositEntity(entId,empName,entName,screen){
+  const rec=_resolveRecordNoMint(entId,empName);if(!rec)return false;
+  const own=((entities.find(e=>e.id===entId)||{}).name||'').trim().toLowerCase();
+  let v=String(entName==null?'':entName).replace(/\s+/g,' ').trim();
+  const e=_entityByName(v);if(e)v=e.name;else v=v.toUpperCase();
+  if(v.toLowerCase()===own)v=''; // the default: the entity they work at
+  if((rec.dep_ent||'')===v)return false;
+  dispatch({type:'rosterFieldSet',screen:screen||'register',target:{kind:'employee',entity:entId,id:rec.id,field:'dep_ent'},from:rec.dep_ent,to:v||undefined,meta:{empName:rec.canonical_name}});
+  if(!_simulating&&screen!=='settings-import'){if(typeof renderRegister==='function')renderRegister();if(currentTab==='payroll')renderPayroll();if(typeof renderDownloadsPanel==='function')renderDownloadsPanel();}
+  return true;
+}
+// Is anyone active paid by deposit from another entity? (The report's Deposit Entity column shows only then.)
+function _anyDepositElsewhere(){return Object.keys((session.roster||{}).byId||{}).some(k=>{const r=session.roster.byId[k];if(!r||!r.dep_ent||rosterActive[k]===false)return false;const e=_entityByName(r.dep_ent);return!!e&&e.id!==r.entity;});}
+// What stops the accountant file from being written (FC-00085): it must be complete.
+function acctBlockers(data){
+  data=data||_acctData();
+  const out=[],p=payDates();
+  if(!p.deposit)out.push('Deposit pay date not set: set it on the Accountant file card');
+  const noType=[],noRate=[];
+  data.forEach(d=>d.rows.forEach(r=>{if(!r._acct.type)noType.push(r._acct.name);if(r._acct.noRate)noRate.push(r._acct.name);}));
+  if(noType.length)out.push('Employment type not set (Employee Register tab): '+noType.join(', '));
+  if(noRate.length)out.push('Rate missing: '+noRate.join(', '));
+  const sw=shortWeekUndecided();
+  if(sw.length)out.push('Short-week deposit not decided (Payroll tab): '+sw.map(x=>x.name).join(', '));
+  return out;
+}
+// ================================================================
 // FC-00081 — the accountant file: deposit people only, in the payroll report's layout
 // ================================================================
 // Our own file for the accountant (it replaces FC-00074's file in their layout and FC-00075's
@@ -11121,7 +11283,10 @@ function _acctLine(r){
 function _acctData(){
   const prev=_exportScope;_exportScope=null;
   let data;try{data=_collectExportData();}finally{_exportScope=prev;}
-  return data.map(d=>Object.assign({},d,{rows:d.rows.filter(r=>(r._acct=_acctLine(r)))})).filter(d=>d.rows.length);
+  // FC-00085: the accountant pays from each Deposit Entity, so the file is grouped by it.
+  const by=new Map();
+  data.forEach(d=>d.rows.forEach(r=>{if(!(r._acct=_acctLine(r)))return;const de=getDepositEntityId(r._entityId,r._empName);if(!by.has(de))by.set(de,[]);by.get(de).push(r);}));
+  return entities.filter(e=>by.has(e.id)).map(e=>({entityName:e.name||('Entity '+(entities.indexOf(e)+1)),entityId:e.id,rows:by.get(e.id)}));
 }
 function _acctPeriodLabel(){const p=_exportPeriodStr();return p?p.replace(/^PERIOD\s+/,''):'';}
 function _acctDatesLine(){const p=payDates();return'Deposit paid '+(p.deposit?_fmtPayDate(p.deposit.iso):'(date not set)');}
@@ -11202,6 +11367,8 @@ function acctFileModel(){
 function _acctTitle(){const p=_acctPeriodLabel();return'ACCOUNTANT PAYROLL'+(p?' — PERIOD '+p:'');}
 // FC-00082: a file that does not check out on its own is never written.
 function _acctCheckOrBail(data){
+  const bl=acctBlockers(data); // FC-00085: a file that is not complete is never written
+  if(bl.length){if(!_dlCapture)alert('The accountant file was not written: it is not complete yet.\n\n'+bl.join('\n'));return false;}
   const c=acctSelfCheck(data);
   if(c.ok)return true;
   if(!_dlCapture)alert('The accountant file was not written: it does not check out on its own.\n\n'+c.problems.slice(0,12).join('\n'));
@@ -11245,6 +11412,8 @@ function _acctStatusReasons(){
   data.forEach(d=>d.rows.forEach(r=>{if(!r._acct.type)noType.push(r._acct.name);if(r._acct.noRate)noRate.push(r._acct.name);}));
   if(noType.length)out.push('Employment type not set (Employee Register tab): '+noType.join(', '));
   if(noRate.length)out.push('Rate missing: '+noRate.join(', '));
+  const swu=shortWeekUndecided(); // FC-00085
+  if(swu.length)out.push('Short-week deposit not decided (Payroll tab): '+swu.map(x=>x.name).join(', '));
   const sc=acctSelfCheck(data);
   if(!sc.ok)out.push('Does not check out on its own: '+sc.problems.slice(0,3).join('; ')+(sc.problems.length>3?' …':''));
   sc.noteWarnings.forEach(w=>out.push(w+': the accountant will see it'));
@@ -11263,6 +11432,7 @@ function _acctCardHtml(){
   if(!p.run)h+='<div class="dl-desc">Pay dates: no schedule dates yet</div>';
   h+='</div>';
   const ties=acctTieOut();
+  if(ties.length){const bl=acctBlockers();if(bl.length)h+=`<div class="dl-warn acct-tie">⚠ Not written until complete: ${escHtml(bl.join('; '))}</div>`;} // FC-00085
   if(ties.length){
     h+='<div class="acct-check">';
     const sc=acctSelfCheck();
@@ -11614,6 +11784,7 @@ function _columnsFor(kind,nameKey,opts){
         put('avgOut',r.isFlat?'':_minDiffText(r.avgOutDiff));
         put('acctName',getAcctField(r._entityId,r._empName,'acct_name'));
         put('payDate',_rowPayDateText(r));
+        put('depEnt',depositElsewhere(r._entityId,r._empName)?getDepositEntityName(r._entityId,r._empName):''); // FC-00085
         return v;
       },
       fx:(r,n)=>{
@@ -11634,7 +11805,7 @@ function _columnsFor(kind,nameKey,opts){
         return out;
       },
       totals,
-      numCols:Object.keys(C).filter(k=>!['entity','employee','method','mode','avgIn','avgOut','acctName','acctType','payDate'].includes(k)).map(k=>C[k]).sort((a,b)=>a-b),
+      numCols:Object.keys(C).filter(k=>!['entity','employee','method','mode','avgIn','avgOut','acctName','acctType','payDate','depEnt'].includes(k)).map(k=>C[k]).sort((a,b)=>a-b),
       sortFn:_reportSortFn,
       split
     };
@@ -12718,7 +12889,7 @@ async function exportPayrollPdf(){return exportCombinedPdf()}
 // FC-00014: 'Palette' is an entity-level setting, not per-employee, but the settings file is
 // per-employee-row — so every row for a given entity carries the same preset name. Appended
 // at the end so it never shifts any existing column index for older readers.
-const PAYROLL_SETTINGS_HEADERS=['Entity','Employee','Wage/hour','Type','Flat Amount','Pay Method','Deposit Amount','Deposit Typed As','Employee ID','Aliases','Active','Final Pass Method','Notes','Palette','Accountant Name','Employment Type','Accountant Section','Accountant Note','TNG ID','Management','Paid Without Schedule','Last Paid','Last Paid Week']; // FC-00073: Accountant…; FC-00078: TNG ID (the person) and Management; FC-00084: paid without a schedule. "Employee ID" is the record's former ID.
+const PAYROLL_SETTINGS_HEADERS=['Entity','Employee','Wage/hour','Type','Flat Amount','Pay Method','Deposit Amount','Deposit Typed As','Employee ID','Aliases','Active','Final Pass Method','Notes','Palette','Accountant Name','Employment Type','Accountant Section','Accountant Note','TNG ID','Management','Paid Without Schedule','Last Paid','Last Paid Week','Deposit Entity']; // FC-00085: Deposit Entity. FC-00073: Accountant…; FC-00078: TNG ID (the person) and Management; FC-00084: paid without a schedule. "Employee ID" is the record's former ID.
 const PAYROLL_SETTINGS_SCHEMA_TAG='SPCalcPayrollSettingsV1';
 // Break-extension headers — appended only when the user opts in to "include breaks".
 // Per-day numeric (minutes) + status ('Override' or 'Actual'); plus an entity-default-break column.
@@ -12781,7 +12952,8 @@ function _gatherPayrollSettingsRows(includeBreaks){
         // FC-00084: what a person paid without a schedule was paid this week (0 when not paid).
         nosched:rec0.nosched==='Yes'?'Yes':'',
         lastPaid:rec0.nosched==='Yes'?((_nsSkipped(rec0)||rosterActive[rec0.id]===false)?0:(isFlat?flatWages[k]:'')):'',
-        lastPaidWeek:rec0.nosched==='Yes'?_runWeekStart():''
+        lastPaidWeek:rec0.nosched==='Yes'?_runWeekStart():'',
+        depEnt:rec0.dep_ent||'' // FC-00085
       };
       if(includeBreaks){
         rec.defaultBreak=ent.breakMinutes||0;
@@ -12842,7 +13014,7 @@ async function exportPayrollSettingsExcel(includeBreaks){
   const hdr=ws.addRow(headers);
   hdr.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};c.alignment={vertical:'middle'};});
   rows.forEach(r=>{
-    const base=[r.entity,r.employee,r.wage,r.type,r.flat,r.method,r.deposit,r.depositTypedAs,r.employeeId,r.aliases,r.active,r.finalPassMethod,r.notes,r.palette,r.acctName,r.acctType,r.acctSection,r.acctNote,r.tng,r.mgmt,r.nosched,r.lastPaid,r.lastPaidWeek];
+    const base=[r.entity,r.employee,r.wage,r.type,r.flat,r.method,r.deposit,r.depositTypedAs,r.employeeId,r.aliases,r.active,r.finalPassMethod,r.notes,r.palette,r.acctName,r.acctType,r.acctSection,r.acctNote,r.tng,r.mgmt,r.nosched,r.lastPaid,r.lastPaidWeek,r.depEnt];
     if(includeBreaks){
       base.push(r.defaultBreak);
       for(let d=0;d<7;d++){
@@ -12897,13 +13069,14 @@ function registerRows(){
       rows.push({id:r.id,tng:r.tng||'',name:r.canonical_name,entityId:ent.id,entity:ent.name||'',code:_entityCodeFor(ent.id),
         type:_normAcctType(r.acct_type||''),note:r.acct_note||'',mgmt:r.mgmt==='Yes',active:rosterActive[k]!==false,
         method:methodLabel(m),pay:flat?(semiMonthly[k]?'Semi-monthly':'Flat'):'Hourly',rate:flat?null:(typeof wageRates[k]==='number'?wageRates[k]:null),
-        flat:flat?flatWages[k]:null,deposit:m==='both'&&sp&&sp.typed?sp.deposit:null,acctName:r.acct_name||'',aliases:(rosterAliases[k]||[]).join(', ')});
+        flat:flat?flatWages[k]:null,deposit:m==='both'&&sp&&sp.typed?sp.deposit:null,acctName:r.acct_name||'',aliases:(rosterAliases[k]||[]).join(', '),
+        depEnt:(r.dep_ent&&depositElsewhere(ent.id,r.canonical_name))?getDepositEntityName(ent.id,r.canonical_name):''}); // FC-00085
     }
   });
   rows.sort((a,b)=>_tngNum(a.tng)-_tngNum(b.tng)||(a.entity<b.entity?-1:a.entity>b.entity?1:0));
   return rows;
 }
-const REGISTER_COLS=[['TNG ID','tng',11],['Name','name',24],['Entity','entity',16],['Former ID','id',15],['Employment Type','type',10],['Management','mgmt',11],['Active','active',8],['Pay Method','method',15],['Pay','pay',12],['Rate','rate',9],['Flat / Salary','flat',12],['Deposit Amount','deposit',12],['Accountant Name','acctName',22],['Aliases','aliases',24],['Note','note',30]];
+const REGISTER_COLS=[['TNG ID','tng',11],['Name','name',24],['Entity','entity',16],['Former ID','id',15],['Employment Type','type',10],['Management','mgmt',11],['Active','active',8],['Pay Method','method',15],['Pay','pay',12],['Rate','rate',9],['Flat / Salary','flat',12],['Deposit Amount','deposit',12],['Deposit Entity','depEnt',16],['Accountant Name','acctName',22],['Aliases','aliases',24],['Note','note',30]];
 function _registerCell(r,k){const v=r[k];if(k==='mgmt'||k==='active')return v?'Yes':'No';if(k==='rate'||k==='flat'||k==='deposit')return v==null?'':v;return v==null?'':v;}
 // FC-00079, FC-00083: every bonus, each with its week (and end week), on the register's Bonuses
 // sheet. A bonus counts only in its own week(s) (FC-00082), so keeping them all is safe.
@@ -13231,12 +13404,13 @@ function renderRegister(){
       <td class="reg-c"><input type="checkbox"${r.mgmt?' checked':''} onchange="setManagement(${r.entityId},'${escJs(r.name)}',this.checked)"></td>
       <td class="reg-c">${r.active?'Yes':'No'}</td><td>${escHtml(r.method)}</td><td>${escHtml(r.pay)}</td>
       <td class="reg-n">${money(r.rate)}</td><td class="reg-n">${money(r.flat)}</td><td class="reg-n">${money(r.deposit)}</td>
+      <td>${(/Deposit/.test(r.method)||r.depEnt)?`<select class="reg-dep" title="The entity that pays this person's deposit (cash stays with the entity they work at)" onchange="setDepositEntity(${r.entityId},'${escJs(r.name)}',this.value,'register')"><option value=""${r.depEnt?'':' selected'}>${escHtml(r.entity)} (works here)</option>${ents.filter(e=>e.id!==r.entityId).map(e=>`<option value="${escHtml(e.name)}"${r.depEnt===e.name?' selected':''}>${escHtml(e.name)}</option>`).join('')}</select>`:'<span class="reg-same">—</span>'}</td>
       <td><input type="text" class="reg-in" value="${escHtml(r.acctName)}" placeholder="${escHtml(r.name)}" title="The name on the accountant file (blank: this name)" onchange="setAcctField(${r.entityId},'${escJs(r.name)}','acct_name',this.value,'register');renderRegister()"></td>
       <td class="reg-note">${first?`<input type="text" class="reg-in" value="${escHtml(r.note)}" title="Prints on the accountant file every week" onchange="setAcctField(${r.entityId},'${escJs(r.name)}','acct_note',this.value,'register');renderRegister()">`:escHtml(r.note)}</td>
       <td>${sib?`<button class="mini-btn" onclick="unlinkPerson('${id}')" title="Give this entity's record its own TNG ID">Unlink</button>`:''}</td></tr>`;
   }).join('');
   const cands=samePersonCandidates();
-  const candHtml=cands.length?`<div class="reg-cands"><b>Same person at two entities?</b> Link only the ones that are one person; each keeps its own pay at each entity.<ul>${cands.map(c=>`<li>${escHtml(c.a.canonical_name)} (${escHtml((entities.find(e=>e.id===c.a.entity)||{}).name||'')}, ${escHtml(c.a.tng||'pending')}) — ${escHtml(c.b.canonical_name)} (${escHtml((entities.find(e=>e.id===c.b.entity)||{}).name||'')}, ${escHtml(c.b.tng||'pending')}) <button class="mini-btn" onclick="linkSamePerson('${escJs(c.a.id)}','${escJs(c.b.id)}')">Link as one person</button></li>`).join('')}</ul></div>`:'';
+  const candHtml=cands.length?`<div class="reg-cands"><b>Same person at two entities?</b> Link only the ones that are one person; each keeps its own pay method at each entity, and the hourly rate is one per person.<ul>${cands.map(c=>`<li>${escHtml(c.a.canonical_name)} (${escHtml((entities.find(e=>e.id===c.a.entity)||{}).name||'')}, ${escHtml(c.a.tng||'pending')}) — ${escHtml(c.b.canonical_name)} (${escHtml((entities.find(e=>e.id===c.b.entity)||{}).name||'')}, ${escHtml(c.b.tng||'pending')}) <button class="mini-btn" onclick="linkSamePerson('${escJs(c.a.id)}','${escJs(c.b.id)}')">Link as one person</button></li>`).join('')}</ul></div>`:'';
   const all=registerRows();
   host.innerHTML=`<div class="reg-bar">
       <input type="search" placeholder="Search name, TNG ID, alias…" value="${escHtml(_regFilter.q)}" oninput="setRegisterFilter('q',this.value)">
@@ -13245,8 +13419,8 @@ function renderRegister(){
       <span class="reg-count">${new Set(all.map(r=>r.tng)).size} people · ${all.length} entity records</span>
       <span class="reg-week reg-week-${registerWeekStatus().state}">${escHtml(_registerWeekLine())}</span>
       <span class="reg-dl"><button class="btn" onclick="exportPayrollSettingsExcel(false)">Excel</button><button class="btn" onclick="exportRegisterPdf()">PDF</button><button class="btn" onclick="exportRegisterCsv()">CSV</button></span>
-    </div>${candHtml}${_nsReminderHtml(false)}
-    <div class="reg-scroll"><table class="reg-table"><thead><tr><th>TNG ID</th><th>Name</th><th>Entity</th><th>Former ID</th><th>Type</th><th>Mgmt</th><th>Active</th><th>Pay Method</th><th>Pay</th><th>Rate</th><th>Flat / Salary</th><th>Deposit Amt</th><th>Accountant Name</th><th>Standing Note</th><th></th></tr></thead><tbody>${body||'<tr><td colspan="15" class="reg-empty">Nobody yet: load the Employee Register (settings file) or a schedule.</td></tr>'}</tbody></table></div>
+    </div>${candHtml}${_rateConflictHtml()}${_nsReminderHtml(false)}
+    <div class="reg-scroll"><table class="reg-table"><thead><tr><th>TNG ID</th><th>Name</th><th>Entity</th><th>Former ID</th><th>Type</th><th>Mgmt</th><th>Active</th><th>Pay Method</th><th>Pay</th><th>Rate</th><th>Flat / Salary</th><th>Deposit Amt</th><th>Deposit Entity</th><th>Accountant Name</th><th>Standing Note</th><th></th></tr></thead><tbody>${body||'<tr><td colspan="16" class="reg-empty">Nobody yet: load the Employee Register (settings file) or a schedule.</td></tr>'}</tbody></table></div>
     ${_noSchedSectionHtml()}
     <div class="reg-codes">Entity codes (fixed once someone is numbered under them): ${ents.map(e=>escHtml(e.name)+' <b>'+escHtml(_entityCodeFor(e.id))+'</b>').join(' · ')||'—'}</div>`;
 }
@@ -13425,6 +13599,9 @@ function _ingestPayrollSettings(rows,colMap,includeBreaks){
     // and the Management tick for this entity.
     if(colMap['tng id']!=null){const t=get(row,'tng id').trim().toUpperCase();if(TNG_ID_RE.test(t)){fileTng.push({rec:importedRecord,tng:t});_noteTngSeen(t);}}
     if(colMap['management']!=null)setManagement(ent.id,empName,/^(y|yes|true|1|x|✓)$/i.test(get(row,'management').trim()),'settings-import');
+    // FC-00085: the Deposit Entity. An older file has none; its Accountant Section stands in for it.
+    if(colMap['deposit entity']!=null)setDepositEntity(ent.id,empName,get(row,'deposit entity').trim(),'settings-import');
+    else if(colMap['accountant section']!=null){const se=_entityFromSection(get(row,'accountant section'));if(se)setDepositEntity(ent.id,empName,se.name,'settings-import');}
     // Palette (FC-00014): one preset name per entity, repeated on every employee row.
     // Valid preset name -> set session.entityPalettes[entId]; missing/invalid/absent column
     // -> leave as-is, so the entity keeps its per-code default (backward compat with files

@@ -37,6 +37,7 @@ function setup() {
   // Capture what the browser would save: each <a download> click.
   const saved = [];
   api.__sandbox.document.createElement = () => { const el = { style: {}, click() { saved.push(el.download); } }; return el; };
+  require('./fc70-helpers').completeAccountant(api); // FC-00085: the accountant file is written only when complete
   return { api, rows, saved };
 }
 
