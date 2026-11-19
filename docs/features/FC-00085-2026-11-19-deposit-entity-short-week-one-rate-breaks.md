@@ -1,6 +1,6 @@
 # FC-00085 — Deposit Entity; short-week deposit check; accountant file blocks when incomplete; one rate per person; breaks per person; TNG IDs on the snapshot
 
-**Date:** 2026-11-19 · **Slice:** L · **Risk:** Medium · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-19 · **Slice:** L · **Risk:** Medium · **Status:** done · **Affected entities:** All
 
 ## What
 
@@ -108,3 +108,32 @@ None.
 - one rate: change at one entity carries to all, one Undo; conflicting file flagged, nothing changed;
 - breaks: per-day minutes, weekly total, flag on a short shift with no break and none on a shift with a punched break;
 - snapshot save issues TNG IDs; register saved after it has the same numbers.
+
+## As built (2026-11-19)
+- **Deposit Entity:**
+  - Kept on the roster record as `dep_ent` (the entity's name; blank = the entity they work at), set with `setDepositEntity(entId, name, entityName, screen)` through History.
+  - Read with `getDepositEntityId`, `getDepositEntityName` and `depositElsewhere`.
+  - **Register tab:** a Deposit Entity dropdown for Deposit and Deposit + Cash people ("<entity> (works here)" or another entity). Others show "—".
+  - **Register file:** a new last column, Deposit Entity. Loading an older file with only an Accountant Section reads it as the Deposit Entity (`_entityFromSection`: "BETA TEST VENTURES" → Beta Test).
+  - **Accountant file:** `_acctData()` groups the rows by Deposit Entity, in entity order. Self-check and tie-out per Deposit Entity.
+  - **Payroll report:** a Deposit Entity column (`depEnt`), on by default but shown only when someone active is paid from another entity (`_anyDepositElsewhere`). The owner can turn it off in the column picker.
+- **Short week:**
+  - `shortWeekInfo(entId, name, total)` flags a Deposit + Cash person with a typed deposit whose pay before bonuses is below it.
+  - `_bothFor(entId, name, total)` is now the one place a Deposit + Cash breakdown is made (export data, the Payroll tab's all-entity table, `_computePayBreakdownBase`). "Pay the deposit" builds the breakdown from the set deposit (cash $0); "Pay the hours" and undecided keep the old math.
+  - The choice is the tool-setting key `swDep:<recId>|<week>` ('deposit' or 'hours'), labelled in History; not written to either file; kept in the snapshot.
+  - The panel `_shortWeekHtml()` is at the top of the Payroll tab, with both buttons and "undo choice".
+  - **Excel:** a row paid at the deposit writes Total as a fixed amount (not hours × rate); Deposit and Cash stay live formulas from Total.
+- **Accountant file blocks:** `acctBlockers()` lists the deposit pay date, missing employment types, missing rates and undecided short weeks. `_acctCheckOrBail` refuses to write the Excel or PDF while any is open; the card shows "Not written until complete".
+- **One rate per person:**
+  - `_rateSiblings` / `_spreadRate`: a rate typed on the Payroll tab is copied to the person's other entity records (same TNG ID, not flat), behind one checkpoint, "Rate change (every entity)".
+  - `rateConflicts()` lists people whose active records have different rates; `_rateConflictHtml()` shows them on the Register and Payroll tabs with a "Use $X" button per rate (`setPersonRate`, one checkpoint).
+  - A loaded file is never changed on its own.
+- **Breaks:** `punchedBreakMin(day)` (time between the first in and the last out not on the clock), `breakSummary(row)` and `_breakRowHtml(row)`: a Breaks line under each person in Weekly Actuals with each day's punched break, "0:00 no break" in red for a shift with none (any length), the person's count of shifts with no break and the week's total. Pay unchanged.
+- **Snapshot:** `saveSnapshot()` and the snapshot in "Download all" call `assignTngIds()` first.
+- **Checked on the real Nov 8–14 week (private, not committed):**
+  - pay unchanged: 27 rows, same total to the cent;
+  - two Deposit + Cash people moved to another Deposit Entity: that entity's accountant total went up by exactly their deposits, the other went down by the same, and the grand total stayed the same; every entity ties and the file checks out;
+  - a short week (deposit raised above the hours pay) is flagged, blocks the accountant file until decided, and "Pay the deposit" pays the deposit with cash $0;
+  - LibreOffice recalculation of the payroll report and the accountant file: 0 mismatches;
+  - every shift's break shows; shifts with no punched break are flagged.
+- **Six real weeks:** pay identical to the base build, snapshot reopen exact, report and accountant formulas 0 bad, tie-out OK.

@@ -698,3 +698,11 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
   - The Register tab edits `acct_name` and `acct_note`.
   - Status reasons now point to the card and to the Register tab.
 
+## Added by FC-00085 (2026-11-19)
+
+- **Deposit Entity:** record field `dep_ent` (entity name; blank = where they work) through `rosterFieldSet`; `setDepositEntity`, `getDepositEntityId`, `getDepositEntityName`, `depositElsewhere`, `_anyDepositElsewhere`, `_entityFromSection` (an older file's Accountant Section). Register file column Deposit Entity (last of `PAYROLL_SETTINGS_HEADERS`). `_acctData()` groups by Deposit Entity. Report column `depEnt` (auto: shown only when used, `_AUTO_REPORT_COLS`).
+- **Short week:** `shortWeekInfo`, `_bothFor` (every Deposit + Cash breakdown goes through it), `setShortWeekChoice`, `shortWeekList`, `shortWeekUndecided`, `_shortWeekHtml`; tool-setting key `swDep:<recId>|<week>` (not in either file). `_fxPayBlock` writes a fixed Total for a row paid at the deposit.
+- **Accountant file:** `acctBlockers()`; `_acctCheckOrBail` refuses an incomplete file; the card lists what is missing.
+- **One rate:** `_rateSiblings`, `_spreadRate` (from `setWage`, one checkpoint), `rateConflicts`, `setPersonRate`, `_rateConflictHtml` (Register and Payroll tabs).
+- **Breaks:** `punchedBreakMin`, `breakSummary`, `_breakRowHtml` (a Breaks line under each person in Weekly Actuals). Display only.
+- **Snapshot:** `saveSnapshot` and Download all call `assignTngIds()` before building it.
