@@ -731,3 +731,7 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
 - **Counts and cards:** `_payrollEmpCount(ent)` in `renderPayrollEntityTabBar` and the entity header; `_nsPayrollCards` / `_nsPayrollChipsHtml` appended to the summary cards.
 - **Reminder:** `_nsPayrollReminderHtml()` on the Payroll tab (count, entities, both places); the Register tab keeps `_nsReminderHtml(false)`.
 - **Setters:** `setNoSchedAmount(id, val, screen)`, `keepNoSched(id, screen)`, `setNoSchedSkip(id, on, screen)` take an optional screen (default register). Pay unchanged.
+
+## Added by FC-00090 (2026-11-23)
+
+- **File names:** `_stemFileName(suffix, ext)`; the register's Excel/PDF/CSV are `<stem>_EmployeeRegister.<ext>` (`_EmployeeRegister_WithBreaks.xlsx`), Tool Settings `<stem>_ToolSettings.xlsx`.
