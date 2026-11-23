@@ -597,6 +597,8 @@ function loadApp(opts) {
       _tngFreshRisk, _tngFreshWarning, _okToIssueTngIds, _registerWeekLine, _noteBrowserTngHigh, _tngBrowserHigh, exportRegisterCsv, exportRegisterPdf,
       // FC-00089
       noSchedOnPayroll, _payrollEmpCount, _nsPayRow, _nsPaysText, _nsPayrollSectionHtml, _nsPayrollCards, _nsPayrollChipsHtml, _nsPayrollReminderHtml, renderPayrollEntityTabBar, switchPayrollEntity,
+      // FC-00090
+      _stemFileName, exportToolSettingsExcel,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078

@@ -141,7 +141,7 @@ test('test_register_csv_pdf_and_tab', () => {
   const doc = api.__sandbox.document, oc = doc.createElement;
   doc.createElement = (t) => { const el = oc(t); if (t === 'a') el.click = () => { if (el.download) written.push(el.download); }; return el; };
   api.exportRegisterCsv();
-  assert.ok(written.some(n => /^Employee_Register_\d{4}-\d{2}-\d{2}\.csv$/.test(n)));
+  assert.ok(written.some(n => /_EmployeeRegister\.csv$/.test(n))); // FC-00090
   api.exportRegisterPdf();
   const t = api.__lastAutoTableCalls.at(-1).options;
   assert.equal(t.head[0][0], 'TNG ID');

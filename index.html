@@ -2846,6 +2846,9 @@ function _fileStem(ids){
   const wk=_weekRangeTag();
   return labels.join('_')+(wk?'_'+wk:'');
 }
+// FC-00090: the register's and tool settings' own buttons name their files like every other export:
+// <entities>_<week>_<Suffix>.<ext>, the same names the Exports cards and Download all give them.
+function _stemFileName(suffix,ext){const s=_fileStem();return (s?s+'_':'TNG_')+suffix+'.'+ext;}
 function _downloadText(text,filename,mime){
   if(_dlCapture){_dlCapture.push({name:filename,data:text,type:mime||'application/json'});return;}
   const blob=new Blob([text],{type:mime||'application/json'});
@@ -13132,7 +13135,7 @@ async function exportPayrollSettingsExcel(includeBreaks){
   _tngWrittenOut=Math.max(_tngWrittenOut,info.high||0);
   _rememberNewestRegister(info);
   _noteBrowserTngHigh(info.high||0);
-  const fname=(includeBreaks?'Employee_Register_with_Breaks_':'Employee_Register_')+new Date().toISOString().slice(0,10)+'.xlsx';
+  const fname=_stemFileName(includeBreaks?'EmployeeRegister_WithBreaks':'EmployeeRegister','xlsx'); // FC-00090
   downloadBlob(await ewb.xlsx.writeBuffer(),fname);
   showToast(`Exported ${fname} — ${rows.length} employee setting${rows.length===1?'':'s'}`+(includeBreaks?' (incl. breaks)':''),'ok');
 }
@@ -13344,7 +13347,7 @@ async function exportToolSettingsExcel(){
   ab.addRow(['TNG Payroll · Tool Settings']).font={bold:true,size:13};
   [['Saved at',new Date().toISOString().slice(0,19).replace('T',' ')],['Load it with the same Load button as the Employee Register. It holds no employees.']].forEach(r=>ab.addRow(r));
   ab.columns.forEach((col,i)=>{col.width=i===0?26:30;});
-  const fname='TNG_ToolSettings_'+new Date().toISOString().slice(0,10)+'.xlsx';
+  const fname=_stemFileName('ToolSettings','xlsx'); // FC-00090
   downloadBlob(await wb.xlsx.writeBuffer(),fname);
   if(!_dlCapture)showToast('Exported '+fname,'ok');
 }
@@ -13738,7 +13741,7 @@ function exportRegisterCsv(){
   const rows=registerRows();
   const q=v=>{const t=String(v==null?'':v);return/[",\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;};
   const csv=[REGISTER_COLS.map(c=>q(c[0])).join(',')].concat(rows.map(r=>REGISTER_COLS.map(c=>q(_registerCell(r,c[1]))).join(','))).join('\r\n');
-  downloadBlob(new TextEncoder().encode('﻿'+csv),'Employee_Register_'+new Date().toISOString().slice(0,10)+'.csv');
+  downloadBlob(new TextEncoder().encode('﻿'+csv),_stemFileName('EmployeeRegister','csv'));
   showToast('Exported the Employee Register as CSV — '+rows.length+' rows','ok');
 }
 function exportRegisterPdf(){
@@ -13751,7 +13754,7 @@ function exportRegisterPdf(){
   const money=v=>v==null||v===''?'':'$'+Number(v).toFixed(2);
   doc.autoTable({startY:66,head:[cols.map(c=>c[0])],body:rows.map(r=>cols.map(c=>['rate','flat','deposit'].includes(c[1])?money(r[c[1]]):String(_registerCell(r,c[1])))),styles:{fontSize:7.5,cellPadding:3},headStyles:{fillColor:[232,232,228],textColor:20},
     didParseCell:d=>{if(d.section==='body'&&rows[d.row.index]&&!rows[d.row.index].active)d.cell.styles.textColor=[150,150,150];},margin:{left:30,right:30}});
-  _savePdf(doc,'Employee_Register_'+new Date().toISOString().slice(0,10)+'.pdf');
+  _savePdf(doc,_stemFileName('EmployeeRegister','pdf'));
   showToast('Exported the Employee Register as PDF','ok');
 }
 
