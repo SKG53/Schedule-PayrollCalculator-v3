@@ -725,3 +725,9 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
 - **TNG IDs on save only:** `registerRows()` does not number; `exportRegisterCsv`/`exportRegisterPdf` call `assignTngIds()` first.
 - **Older file, numbered browser:** `_tngFreshRisk`, `_tngFreshWarning`; `_okToIssueTngIds` asks once per opened file (`session._tngFreshAnswer`, reset by `openSnapshotData` and `applyStagedSettings`).
 - **Register rows:** grouped by `tng || record id`; unnumbered rows show "pending".
+## Added by FC-00089 (2026-11-23)
+
+- **Payroll tab, people paid without a schedule:** `noSchedOnPayroll(ent)` (the entity's FC-00084 records not on this week's schedule or punches), `_nsPayrollSectionHtml(ent)` (the "Paid without a schedule · N" table above the Payroll tab's sub-tabs), `_nsPayRow` / `_nsPaysText` (what the row pays, from `getFlatWageRows` and `computePayBreakdown`).
+- **Counts and cards:** `_payrollEmpCount(ent)` in `renderPayrollEntityTabBar` and the entity header; `_nsPayrollCards` / `_nsPayrollChipsHtml` appended to the summary cards.
+- **Reminder:** `_nsPayrollReminderHtml()` on the Payroll tab (count, entities, both places); the Register tab keeps `_nsReminderHtml(false)`.
+- **Setters:** `setNoSchedAmount(id, val, screen)`, `keepNoSched(id, screen)`, `setNoSchedSkip(id, on, screen)` take an optional screen (default register). Pay unchanged.

@@ -1,6 +1,6 @@
 # FC-00089 — People paid without a schedule on the Payroll tab
 
-**Date:** 2026-11-23 · **Slice:** S/M · **Risk:** Low · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-23 · **Slice:** S/M · **Risk:** Low · **Status:** done · **Affected entities:** All
 
 ## What
 People paid without a schedule (FC-00084: Management, deposit-only people and anyone else paid a weekly amount who is on no schedule) are today edited only on the Employee Register tab. On the Payroll tab they appear only as a read-only line in the export preview. This card puts them on the Payroll tab, per entity, with the same controls as the Register tab.
@@ -63,3 +63,15 @@ None.
 - counts in the pill and header; a summary card each, "Flat · $X" and "Not paid this week";
 - the reminder on the Payroll tab, cleared by Keep and by a changed amount on the Payroll tab;
 - pay, payroll report rows and the accountant file identical whichever tab made the change.
+
+## As built (2026-11-23)
+- **Who is listed:** `noSchedOnPayroll(ent)`: the entity's records with Paid Without Schedule ticked that are not on this week's schedule and have no punches (the same test `getFlatWageRows` uses, so nobody is listed twice). Inactive and not-paid people stay listed.
+- **The table:** `_nsPayrollSectionHtml(ent)`, "Paid without a schedule · N", on each entity's Payroll tab above the Time Card Data / Payroll Calculation tabs. Columns: Name, Employee ID, Active, This week, Pay Method, Deposit part (Deposit + Cash), Mgmt, Pays, Status, then Keep and Not paid this week. Shown only when the entity has someone to list.
+  - **Pays** (`_nsPaysText`) comes from the row `getFlatWageRows` pays this week (`_nsPayRow`) through `computePayBreakdown`, e.g. "$425.00 deposit", "$275 cash", "$400.00 deposit + $240 cash"; "Not paid this week" or "Not paid (inactive)".
+- **One source of truth:** every control calls the FC-00084 setters. `setNoSchedAmount`, `keepNoSched` and `setNoSchedSkip` take an optional screen (default register), so History shows "payroll" for a change made on the Payroll tab. Pay method, deposit part and Active already log as payroll; Mgmt calls `setManagement(…, 'payroll')`. The Register tab's renderers are unchanged.
+- **Counts:** `_payrollEmpCount(ent)` (schedule + listed people) in the entity tab pill (`renderPayrollEntityTabBar`) and the header "N employees in the system". The "No schedule loaded" note still looks at the schedule only.
+- **Cards:** `_nsPayrollCards` / `_nsPayrollChipsHtml`, one card per listed person after the scheduled people's cards: "Flat · $X" with "not checked yet", "kept", "changed this week" or "new this week" under it; "Not paid this week" or "Inactive: not paid", greyed.
+- **Reminder:** `_nsPayrollReminderHtml()` replaces `_nsReminderHtml(true)` on the Payroll tab: the same count, the entities ("(Alpha Test 2, Beta Test 1)") and both places to decide, with a link to the register. Keep, a changed amount or Not paid this week on the Payroll tab clears it, as on the Register tab.
+- **Pay:** unchanged. `getFlatWageRows` still pays them; nothing new is stored.
+- **Checked on the real Nov 8–14 snapshot (private, not committed):** start totals match the week's actual totals; two invented people added (one Deposit with Mgmt at one entity, one Cash at another): the total rose by exactly their two amounts, deposit by the first, cash by the second, the accountant file by the deposit only. Changing the first amount on the Payroll tab and ticking Not paid this week for the second: the report total is the start plus the new amount, cash back to the start, contract checks unchanged; the accountant file rose by exactly the new amount, checks out and ties per entity; History shows both changes as payroll; the Register tab shows the new amount and the tick. Browser pass with the real page: no page errors.
+- **Six real weeks:** pay identical to the base build, snapshot reopen exact, report and accountant formulas 0 bad, tie-out OK.
