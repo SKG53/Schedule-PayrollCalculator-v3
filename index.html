@@ -1326,6 +1326,7 @@ function linkSamePerson(idA,idB){
   if(!a||!b||a===b)return false;
   if(a.entity===b.entity){showToast('Two records at the same entity cannot be one person here — merge the names instead','err');return false;}
   if(!a.tng)assignTngIds([a]);
+  if(!a.tng)return false; // FC-00088: numbering was declined, so nothing is linked
   if(b.tng===a.tng)return false;
   if(b.tng)_noteTngSeen(b.tng);
   dispatch({type:'rosterFieldSet',screen:'register',target:{kind:'employee',entity:b.entity,id:b.id,field:'tng'},from:b.tng,to:a.tng,meta:{empName:b.canonical_name,linkedTo:a.canonical_name}});
@@ -2977,6 +2978,7 @@ function openSnapshotData(snap,label){
   if(_sessionHasData()&&!confirm('Open this snapshot?\n\nIt replaces everything in the tool now. You can go back with "Undo Open snapshot".'))return{ok:false,error:'declined'};
   _withCheckpoint('Open snapshot'+(label?' · '+label:''),()=>{_applySnapshot(snap);_retireExecMethods();},{restoreUi:true});
   {let hi=0;Object.keys(session.roster.byId||{}).forEach(k=>{const r=session.roster.byId[k];if(r&&r.tng)hi=Math.max(hi,_tngNum(r.tng));});hi=Math.max(hi,session._tngHigh||0);_noteBrowserTngHigh(hi);} // FC-00083
+  session._tngFreshAnswer=null; // FC-00088: a newly opened file is asked about again
   _rerenderAll();
   _lastSavedSig=_snapshotSig();
   const missing=missingImages();
@@ -3771,6 +3773,7 @@ function cancelStagedSettings(){
 }
 function applyStagedSettings(){
   const st=_staged;if(!st)return false;
+  session._tngFreshAnswer=null; // FC-00088
   const pv=_computeStagePreview();
   if(pv.unresolved>0){showToast('Resolve the red rows first: skip them, or choose what to do with the unknown entity.','err');st.preview=pv;_renderStageOverlay();return false;}
   const rows=_rowsToApply();
@@ -13282,8 +13285,26 @@ function _checkRegisterWeekNow(){
     :`This Employee Register is from the week of ${d(st.reg)}, after the week you are running (${d(st.run)}).\n\nCheck that the register and the schedules are for the same payroll.`);
   return false;
 }
+// FC-00088: nobody open here has a TNG ID, but this browser has numbered people before. The file is
+// older than the register the owner saved; numbering now would give people a second, different
+// number. Never silent: he is asked once per open file, and Cancel (the safe answer) numbers nobody.
+function _tngFreshRisk(){
+  const hi=_tngBrowserHigh();if(!(hi>0))return null;
+  const recs=Object.keys((session.roster||{}).byId||{}).map(k=>session.roster.byId[k]).filter(r=>r&&r.canonical_name);
+  if(!recs.length||recs.some(r=>r.tng))return null;
+  return{browserHigh:hi,count:recs.length};
+}
+function _tngFreshWarning(){const r=_tngFreshRisk();return r?`⚠ Nobody here has a TNG ID yet, but this browser has numbered people before (up to ${_tngFmt(r.browserHigh)}). Load your latest Employee Register so everyone keeps their own number.`:'';}
 // New TNG IDs from an older register: asked once per register.
 function _okToIssueTngIds(count){
+  const fr=_tngFreshRisk(); // FC-00088
+  if(fr){
+    if(session._tngFreshAnswer!=null)return session._tngFreshAnswer;
+    if(_simulating)return false;
+    const ok=confirm(`Nobody in this file has a TNG ID, but this browser has already numbered people (up to ${_tngFmt(fr.browserHigh)}).\n\nLoad your latest Employee Register first: it gives everyone back their own number.\n\nOK gives ${count} ${count===1?'person a new number':'people new numbers'}, starting at ${_tngFmt(_tngHighWater()+1)}. Use it only if you have no saved Employee Register.\nCancel leaves them without a number.`);
+    session._tngFreshAnswer=ok;
+    return ok;
+  }
   const st=registerWeekStatus();
   if(st.state!=='older')return true;
   if(_regNewIdAnswer&&_regNewIdAnswer.week===st.reg)return _regNewIdAnswer.ok;
@@ -13296,6 +13317,7 @@ const TNG_BROWSER_HIGH_KEY='pv26_tng_high';
 function _tngBrowserHigh(){const v=parseInt(_prefGet(TNG_BROWSER_HIGH_KEY)||'0',10);return v>0?v:0;}
 function _noteBrowserTngHigh(n){n=+n||0;if(n>_tngBrowserHigh())_prefSet(TNG_BROWSER_HIGH_KEY,String(n));}
 function _registerWeekLine(){
+  const fw=_tngFreshWarning();if(fw)return fw; // FC-00088
   const st=registerWeekStatus(),d=_fmtIsoShort,hi=_tngFmt(_tngHighWater());
   if(st.state==='none')return'No Employee Register loaded this session · highest TNG ID known '+hi;
   if(st.state==='unknown')return'Loaded an older settings file (no week on it) · highest TNG ID known '+hi;
@@ -13717,7 +13739,7 @@ function exportRegisterPdf(){
   const rows=registerRows();
   const {jsPDF}=window.jspdf;const doc=new jsPDF({orientation:'landscape',unit:'pt',format:'letter'});
   doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('EMPLOYEE REGISTER',40,40);
-  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('Saved '+new Date().toISOString().slice(0,10)+' · '+new Set(rows.map(r=>r.tng)).size+' people · highest TNG ID issued '+_tngFmt(_tngHighWater()),40,54);
+  doc.setFont('helvetica','normal');doc.setFontSize(9);doc.text('Saved '+new Date().toISOString().slice(0,10)+' · '+new Set(rows.map(r=>r.tng||r.id)).size+' people · highest TNG ID issued '+_tngFmt(_tngHighWater()),40,54);
   const cols=REGISTER_COLS.filter(c=>c[1]!=='aliases');
   const money=v=>v==null||v===''?'':'$'+Number(v).toFixed(2);
   doc.autoTable({startY:66,head:[cols.map(c=>c[0])],body:rows.map(r=>cols.map(c=>['rate','flat','deposit'].includes(c[1])?money(r[c[1]]):String(_registerCell(r,c[1])))),styles:{fontSize:7.5,cellPadding:3},headStyles:{fillColor:[232,232,228],textColor:20},

@@ -593,6 +593,8 @@ function loadApp(opts) {
       registerPeople, _registerVisiblePeople, _setRecordName, setPersonField, getPersonField, setPersonActive, regSetRate, regSetMethod, regSetPay, regSetFlat, regSetDeposit, regSetMgmt, regSetDepEnt, regSetNoSched, regToggleEntity, regAddEmployee, _regAddFromForm, registerFlatRows, REGISTER_COLS, _STAGE_FIELD_LABEL, _historyField,
       // FC-00087
       displayNameOf, displayNameForRecord, _resolveRecordNoMint, _savedNameFor, _makeNameFormatter, _makeSavedNameFormatter, inlineEditableNameHtml, renderPayrollInfoChips, entityStats, renderStatsTable, entityLaborCost, renderLaborCostPanel, weekOverWeek, unpaidReviewRows, _payGateHtml, _weekFilterBannerHtml, renderReviewTableHtml, _columnsFor,
+      // FC-00088
+      _tngFreshRisk, _tngFreshWarning, _okToIssueTngIds, _registerWeekLine, _noteBrowserTngHigh, _tngBrowserHigh, exportRegisterCsv, exportRegisterPdf,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078
