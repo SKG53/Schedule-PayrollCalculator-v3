@@ -715,3 +715,8 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
 - **TNG IDs:** `registerRows()` no longer calls `assignTngIds()`; `exportRegisterCsv` and `exportRegisterPdf` do.
 - **Reused with new options:** `addNoSchedPerson(..., {semi})`, `addNewEmployee(..., {deposit, mgmt})`.
 
+## Added by FC-00087 (2026-11-23)
+
+- **Display Name (display only):** `displayNameForRecord(rec)` (the record's trimmed `display_name`, else one on another record with the same TNG ID, else '') and `displayNameOf(entId, name, fallback)` (resolves with `_resolveRecordNoMint`, never mints; no Display Name gives exactly the name shown before). Never used for matching, keys, `wKey`, aliases or file lookups.
+- **Exports:** `_makeNameFormatter` prints a person's Display Name as typed and otherwise defers to `_makeSavedNameFormatter` (the FC-00045 formatter, unchanged). The accountant file keeps `acct_name` / `_savedNameFor`; the reviewed-timecards file keeps the matching name.
+- **Screens:** `inlineEditableNameHtml` shows it (except on the schedule screen; `data-name` keeps the matching name for renaming), the payroll summary cards, Stats (`entityStats` `display`), Labor Cost (screen and sheet), short-week, one-rate and bonus panels, the out-of-week notice, the export approval check, Actuals Intake person tabs and heading, week over week.

@@ -1,6 +1,6 @@
 # FC-00087 — Display Name everywhere
 
-**Date:** 2026-11-23 · **Slice:** M · **Risk:** Low · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-23 · **Slice:** M · **Risk:** Low · **Status:** done · **Affected entities:** All
 
 ## What
 Each person gets one **Display Name** (set on the Employee Register by FC-00086, one per person, the same at every entity). The tool shows it wherever a person's name is shown. Matching does not change.
@@ -11,7 +11,7 @@ Each person gets one **Display Name** (set on the Employee Register by FC-00086,
    - Actuals Intake: each person's tab, the person's heading and the approve buttons; the "not approved" check before an export.
    - Week over week.
 3. **Printed on files:**
-   - The payroll report (preview, Excel and PDF), every per-entity report, the Hours, Stats and Labor Cost sheets and the manager report. The "Names on exports" setting still applies: FIRST LAST prints the Display Name in capitals, FIRST prints its first word, As saved prints it as typed.
+   - The payroll report (preview, Excel and PDF), every per-entity report, the Hours, Stats and Labor Cost sheets and the manager report. A Display Name prints exactly as typed, whatever the "Names on exports" setting; people without one print as the setting says, as today.
 4. **Not changed:**
    - The accountant file: Accountant Name, else the saved name, as today.
    - The Employee Register tab and the register file (FC-00086).
@@ -48,7 +48,7 @@ One revert commit. The Display Name stays on the records (FC-00086) and simply s
 - Matching timecards or schedules by the Display Name.
 
 ## Assumptions
-- The "Names on exports" setting applies to the Display Name as it does to the saved name.
+- A Display Name is printed as typed on every export, not upper-cased or shortened by the "Names on exports" setting (FIRST LAST would turn "Cora C" back into "CORA C").
 - A record of the person without its own copy of the Display Name uses the one on another record with the same TNG ID.
 - The click-to-rename name cell shows the Display Name; its tooltip names the matching name, and renaming changes the matching name.
 
@@ -61,8 +61,21 @@ None.
 `tests/fc00087_display_name_everywhere.test.js`:
 - the helper (set, blank, unknown, another case, another record of the same person);
 - no Display Names: payroll report Excel and PDF identical;
-- with one: report Excel shows it, every other cell the same, pay and keys unchanged; FIRST LAST and FIRST formats; PDF;
+- with one: report Excel shows it, every other cell the same, pay and keys unchanged; printed as typed under every name setting; PDF;
 - accountant file unchanged;
 - screens: name cells keep the matching name for renaming, summary cards, grid and tables, Stats, short week, rate and bonus panels, the out-of-week notice;
 - Actuals Intake tabs show it and keep the key; the reviewed-timecards Excel keeps the matching name and re-imports to the same person;
 - snapshot keeps it.
+
+## As built (2026-11-23)
+- **Helpers:** `displayNameForRecord(rec)` and `displayNameOf(entId, name, fallback)` next to `_savedNameFor`. A blank or spaces-only value counts as not set.
+- **Exports:** `_makeNameFormatter(key, namesByEnt)` returns the Display Name as typed when set, else what `_makeSavedNameFormatter` (the FC-00045 formatter, body unchanged) prints. This covers the payroll report screen preview, Excel and PDF, every per-entity report, the manager report and the Hours and Stats sheets. The Labor Cost sheet's Outside / Flat / Semi-monthly lines use `displayNameOf`.
+- **Screens:**
+  - `inlineEditableNameHtml` shows it on the Payroll tab (Weekly Actuals, Time Card Data, Payroll Calculation) and Actuals Intake; the schedule screen keeps its text. `data-name` keeps the matching name, so renaming and every click action use it; the tooltip adds "matches timecards as <name>" when the two differ.
+  - Payroll summary cards (`renderPayrollInfoChips` now takes the entity id; looks the person up by the schedule name when there is one), Stats table, Labor Cost lines, short-week panel, one-rate panel, bonus panel, the out-of-week notice, the "not approved" check before an export, Actuals Intake person tabs, heading and approve buttons, week over week.
+- **Left as they are:** the accountant file; the Register tab and register file; the schedule tab; the reviewed-timecards Excel and its PDF record (both carry the matching name the tool reads back); warnings that ask for a fix ("Rate missing", "Active unchecked with hours", semi-monthly notes).
+- **Checked on the real data (private, not committed):**
+  - six real weeks: pay identical to the base build, snapshot reopen exact, report and accountant formulas 0 bad, tie-out OK;
+  - the Nov 8–14 snapshot with no Display Names: the payroll report Excel is cell-for-cell the base build's (4 sheets), the PDF and the preview identical, pay identical;
+  - with two Display Names set: only those people's name cells changed in the report (Excel, PDF, preview), pay unchanged, the accountant file identical, the snapshot reopens with them, and the reviewed-timecards file re-imports all its rows to the same people with the same pay;
+  - in the browser: the Payroll tab and the report preview show them, no page errors.
