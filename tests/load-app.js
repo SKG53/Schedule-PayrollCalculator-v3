@@ -595,6 +595,8 @@ function loadApp(opts) {
       displayNameOf, displayNameForRecord, _resolveRecordNoMint, _savedNameFor, _makeNameFormatter, _makeSavedNameFormatter, inlineEditableNameHtml, renderPayrollInfoChips, entityStats, renderStatsTable, entityLaborCost, renderLaborCostPanel, weekOverWeek, unpaidReviewRows, _payGateHtml, _weekFilterBannerHtml, renderReviewTableHtml, _columnsFor,
       // FC-00088
       _tngFreshRisk, _tngFreshWarning, _okToIssueTngIds, _registerWeekLine, _noteBrowserTngHigh, _tngBrowserHigh, exportRegisterCsv, exportRegisterPdf,
+      // FC-00089
+      noSchedOnPayroll, _payrollEmpCount, _nsPayRow, _nsPaysText, _nsPayrollSectionHtml, _nsPayrollCards, _nsPayrollChipsHtml, _nsPayrollReminderHtml, renderPayrollEntityTabBar, switchPayrollEntity,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078

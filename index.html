@@ -339,6 +339,11 @@ img.tc-thumb.tc-thumb-small{cursor:default;outline:1px dashed #F59E0B}
 .bonus-person{padding:6px 0;border-top:1px solid #FDE68A}
 .bonus-who{font-weight:600;margin-bottom:4px}.bonus-ent{font-weight:400;color:var(--text3)}
 .bonus-table td,.bonus-table th{padding:3px 6px;text-align:left}
+/* FC-00089: people paid without a schedule on the Payroll tab */
+.ns-pay{margin:0 0 12px}.ns-pay .reg-table td{vertical-align:middle}
+.ns-pay .mini-btn{padding:3px 8px;font-size:11px;border-radius:4px;border:1px solid var(--border);background:var(--surface);cursor:pointer;font-family:'Outfit',sans-serif}
+.ns-pay .ns-pays{font-family:'IBM Plex Mono',monospace;font-size:11px}
+.info-chip.ns-chip .hrs{font-size:15px;white-space:nowrap}
 .reg-in{width:100%;min-width:110px;font-size:12px}
 /* FC-00086: the Employee Register tab, in the Payroll tab's look */
 .reg-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px}
@@ -5611,7 +5616,7 @@ function renderPayrollEntityTabBar(){
   entities.forEach((e,realIdx)=>{
     const isActive=realIdx===activePayrollEntityIdx;
     const label=e.name||'Entity '+(realIdx+1);
-    const n=e.employees.length;
+    const n=_payrollEmpCount(e); // FC-00089: with the people paid without a schedule
     html+=`<button class="entity-tab${isActive?' active':''}" onclick="switchPayrollEntity(${realIdx})">${escHtml(label)}<span class="entity-emp-count" style="margin-left:8px"><span class="n">${n}</span> employee${n===1?'':'s'}</span></button>`;
   });
   bar.innerHTML=html;
@@ -5661,21 +5666,21 @@ function renderPayrollEntityContent(idx){
   _flatRows=allRows.map(r=>({entityIdx:idx,entityName:ent.name,row:r}));
 
   const entityName=escHtml(ent.name||'Entity '+(idx+1));
-  const empCount=ent.employees.length;
+  const empCount=_payrollEmpCount(ent); // FC-00089: with the people paid without a schedule
 
   const activeSub=activePayrollSubTab[idx]||'timecard';
 
   const _fc32Calc=computePayrollForEntity(idx);
   container.innerHTML=`
     ${_dupBannerHtml()}
-    ${_nsReminderHtml(true)}
+    ${_nsPayrollReminderHtml()}
     ${_shortWeekHtml()}
     ${_rateConflictHtml()}
     ${_weekFilterBannerHtml(ent,_fc32Calc)}
     <div class="entity-header-strip" style="padding:10px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;display:flex;align-items:center;gap:12px;font-size:13px;flex-wrap:wrap">
       <strong style="font-size:15px">${entityName}</strong>
       <span class="entity-emp-count"><span class="n">${empCount}</span> employee${empCount===1?'':'s'} in the system</span>
-      ${empCount===0?'<span style="color:var(--amber);font-size:12px">No schedule loaded — employees below come from Actuals Intake</span>':''}
+      ${ent.employees.length===0?'<span style="color:var(--amber);font-size:12px">No schedule loaded — employees below come from Actuals Intake</span>':''}
       <span style="display:inline-flex;align-items:center;gap:6px;font-size:12px"><span style="color:var(--text3);text-transform:uppercase;letter-spacing:0.4px;font-weight:600">Color palette:</span>
         ${_fc19PalettePickerHtml(ent,idx)}
       </span>
@@ -5695,6 +5700,7 @@ function renderPayrollEntityContent(idx){
     <h2 id="payrollGridHeading" style="display:none;font-size:18px;font-weight:600;margin-bottom:10px">Weekly Actuals <span class="grid-view-toggle" style="margin-left:12px;font-size:12px;font-weight:400;vertical-align:middle"><button class="btn btn-small${payrollGridView()==='hours'?' btn-primary':''}" onclick="setPayrollGridView('hours')" title="Hours worked per day">Hours</button> <button class="btn btn-small${payrollGridView()==='cost'?' btn-primary':''}" onclick="setPayrollGridView('cost')" title="Wage cost per day: hours × rate, scheduled vs actual (FC-00058)">Cost</button></span></h2>
     <div class="sched-table-wrap" id="payrollGridWrap" style="display:none;margin-bottom:20px"><table class="sched" id="payrollGrid"></table></div>
 
+    ${_nsPayrollSectionHtml(ent)}
     <div class="payroll-subtab-bar" role="tablist">
       <button class="payroll-subtab${activeSub==='timecard'?' active':''}" onclick="setPayrollSubTab(${idx},'timecard')">Time Card Data</button>
       <button class="payroll-subtab${activeSub==='payroll'?' active':''}" onclick="setPayrollSubTab(${idx},'payroll')">Payroll Calculation</button>
@@ -5710,6 +5716,7 @@ function renderPayrollEntityContent(idx){
 
   const noSchedule=ent.employees.length===0; // FC-00017: signal for "no schedule loaded for this entity"
   renderPayrollInfoChips(allRows,hasActuals,noSchedule,ent.id);
+  {const _b=document.getElementById('payrollInfoBar');if(_b)_b.innerHTML+=_nsPayrollChipsHtml(ent,allRows.length);} // FC-00089
   renderPayrollGrid(allRows,ent,hasActuals,noSchedule);
   renderTimeCardData(allRows,hasActuals,ent,noSchedule);
   renderPayrollCalc(allRows,hasActuals,ent,noSchedule);
@@ -13395,14 +13402,14 @@ function _nsReminderText(){const n=noSchedUnchecked().length;return n?n+' '+(n==
 function _nsReminderHtml(link){const t=_nsReminderText();return t?`<div class="ns-remind">⚠ ${escHtml(t)}: keep or change each amount under "Paid without a schedule" on the Employee Register tab.${link?' <a href="#" onclick="setTab(\'register\');return false">Open it</a>':''}</div>`:'';}
 function _nsAfter(){if(_simulating)return;if(currentTab==='register')renderRegister();else if(currentTab==='payroll')renderPayroll();}
 function _nsRec(id){const r=session.roster.byId[id];return r&&r.nosched==='Yes'?r:null;}
-function keepNoSched(id){const rec=_nsRec(id),k=_nsWeekKey(rec);if(!k)return false;const ok=setToolSetting(k,'keep','register');_nsAfter();return ok;}
-function setNoSchedSkip(id,on){const rec=_nsRec(id),k=_nsWeekKey(rec);if(!k)return false;const ok=setToolSetting(k,on?'skip':'','register');_nsAfter();return ok;}
+function keepNoSched(id,screen){const rec=_nsRec(id),k=_nsWeekKey(rec);if(!k)return false;const ok=setToolSetting(k,'keep',screen||'register');_nsAfter();return ok;}
+function setNoSchedSkip(id,on,screen){const rec=_nsRec(id),k=_nsWeekKey(rec);if(!k)return false;const ok=setToolSetting(k,on?'skip':'',screen||'register');_nsAfter();return ok;}
 function _nsMoney(v){const n=parseFloat(String(v==null?'':v).replace(/[$,\s]/g,''));return isNaN(n)||n<0?null:Math.round(n*100)/100;}
-function setNoSchedAmount(id,val){
+function setNoSchedAmount(id,val,screen){
   const rec=_nsRec(id);if(!rec)return false;
   const amt=_nsMoney(val);if(amt==null){showToast('The amount must be a number of 0 or more','err');return false;}
   if(flatWages[id]===amt)return false;
-  dispatch({type:'flatWage',screen:'register',target:{kind:'employee',entity:rec.entity,id,field:'flatWage'},from:flatWages[id],to:amt,meta:{empName:rec.canonical_name,displayName:rec.canonical_name}});
+  dispatch({type:'flatWage',screen:screen||'register',target:{kind:'employee',entity:rec.entity,id,field:'flatWage'},from:flatWages[id],to:amt,meta:{empName:rec.canonical_name,displayName:rec.canonical_name}});
   _nsAfter();return true;
 }
 function setNoSchedMethod(id,m){const rec=_nsRec(id);if(!rec||!NS_METHODS.includes(m))return false;setPayMethod(rec.entity,rec.canonical_name,m);_nsAfter();return true;}
@@ -14062,6 +14069,84 @@ function _ingestPayrollSettings(rows,colMap,includeBreaks){
   return{updated,skipped,mergedCount,unmatchedEntities:[...unmatchedEntities],aliasRejectRows,conflicts:report.conflicts,archivedWorked:report.archivedWorked};
 }
 
+
+// ================================================================
+// FC-00089 — people paid without a schedule on the Payroll tab
+// ================================================================
+// Each entity's Payroll tab lists its people paid without a schedule (FC-00084) who are not on
+// this week's schedule or punches (those are paid from the schedule, in the normal rows, as
+// getFlatWageRows decides), with the same controls as the Register tab. Every control calls the
+// FC-00084 setters, so both tabs change the same record through History; pay is still made by
+// getFlatWageRows, so the reports do not change.
+function noSchedOnPayroll(ent){
+  if(!ent)return[];
+  const sched=new Set((ent.employees||[]).map(e=>_aliasNorm(e.name)));
+  const punched=new Set((ent.actualDays||[]).map(d=>_aliasNorm(d.empName)));
+  return noSchedRecords().filter(r=>{
+    if(r.entity!==ent.id)return false;
+    const n=_aliasNorm(r.canonical_name);
+    return!sched.has(n)&&!punched.has(n);
+  });
+}
+function _payrollEmpCount(ent){return ent?(ent.employees||[]).length+noSchedOnPayroll(ent).length:0;}
+// The row getFlatWageRows pays for this person this week (null when not paid this week).
+function _nsPayRow(ent,rec){
+  const nm=_aliasNorm(rec.canonical_name),shown=_aliasNorm(flatWagesDisplayNames[nm]||rec.canonical_name);
+  return getFlatWageRows(ent.name||('Entity '+(entities.indexOf(ent)+1))).find(r=>{const x=_aliasNorm(r.schedName||r.name);return x===nm||x===shown;})||null;
+}
+function _nsPaysText(ent,rec){
+  if(rosterActive[rec.id]===false)return'Not paid (inactive)';
+  const row=_nsPayRow(ent,rec);if(!row)return _nsSkipped(rec)?'Not paid this week':'—';
+  const bd=computePayBreakdown(row,ent.id),m=bd.method;
+  if(m==='cash')return'$'+bd.cash+' cash';
+  if(m==='both')return _fmtUsd(bd.deposit)+' deposit + $'+bd.cash+' cash';
+  if(m==='contract')return _fmtUsd(bd.deposit)+' contract check';
+  return _fmtUsd(bd.deposit)+' deposit';
+}
+function _nsPayrollSectionHtml(ent){
+  const list=noSchedOnPayroll(ent);if(!list.length)return'';
+  const wk=_runWeekStart();
+  let h=`<div class="ns-panel ns-pay" id="nsPayPanel"><h4>Paid without a schedule · ${list.length}</h4><div class="dl-desc">Paid every week with no schedule. Each week starts at last week's amount: keep it, change it, or tick "Not paid this week". The same people and amounts as on the Employee Register tab.${wk?'':' Load this week\'s schedules first: the week decides what is kept.'}</div>`;
+  h+='<table class="reg-table ns-table"><thead><tr><th>Name</th><th>Employee ID</th><th>Active</th><th>This week</th><th>Pay Method</th><th>Deposit part</th><th>Mgmt</th><th>Pays</th><th>Status</th><th></th></tr></thead><tbody>';
+  list.forEach(r=>{
+    const s=noSchedStatus(r),id=escJs(r.id),nm=escJs(r.canonical_name);
+    const m=payMethod[r.id]||'deposit',sp=splitAmounts[r.id],off=rosterActive[r.id]===false;
+    h+=`<tr data-ns="${escHtml(r.id)}"${off?' class="reg-inactive"':''}><td class="reg-name">${escHtml(r.canonical_name)}</td>`+
+      `<td class="reg-former">${escHtml(_empIdText(ent.id,r.canonical_name))}</td>`+
+      `<td class="reg-c"><input type="checkbox"${off?'':' checked'} onchange="setNoSchedActive('${id}',this.checked)"></td>`+
+      `<td><input type="number" min="0" step="0.01" value="${s.amount==null?'':s.amount}" onchange="setNoSchedAmount('${id}',this.value,'payroll')"></td>`+
+      `<td><select onchange="setNoSchedMethod('${id}',this.value)">${NS_METHODS.map(v=>`<option value="${v}"${m===v?' selected':''}>${escHtml(_WOW_METHOD[v])}</option>`).join('')}</select></td>`+
+      `<td>${m==='both'?`<input type="number" min="0" step="0.01" value="${sp&&sp.typed?sp.deposit:''}" placeholder="auto" onchange="setNoSchedDeposit('${id}',this.value)">`:''}</td>`+
+      `<td class="reg-c"><input type="checkbox"${r.mgmt==='Yes'?' checked':''} onchange="setManagement(${ent.id},'${nm}',this.checked,'payroll')"></td>`+
+      `<td class="ns-pays">${escHtml(_nsPaysText(ent,r))}</td>`+
+      `<td class="ns-st ns-st-${s.state}">${escHtml(noSchedStatusText(r))}</td>`+
+      `<td>${wk&&s.state==='unchecked'?`<button class="mini-btn" onclick="keepNoSched('${id}','payroll')">Keep</button> `:''}${wk&&s.state!=='inactive'?`<label class="dl-fmt"><input type="checkbox"${s.state==='skip'?' checked':''} onchange="setNoSchedSkip('${id}',this.checked,'payroll')"> Not paid this week</label>`:''}</td></tr>`;
+  });
+  return h+'</tbody></table></div>';
+}
+// One summary card per person, next to the scheduled people's cards: the amount instead of hours.
+function _nsPayrollCards(ent){
+  return noSchedOnPayroll(ent).map(r=>{
+    const s=noSchedStatus(r);
+    const text=s.state==='skip'?'Not paid this week':s.state==='inactive'?'Inactive: not paid':(s.amount==null?'Flat · no amount':'Flat · '+_fmtUsd(s.amount));
+    const sub=({unchecked:'not checked yet',kept:'kept',changed:'changed this week',new:'new this week'})[s.state]||'';
+    return{id:r.id,name:r.canonical_name,text,sub,state:s.state};
+  });
+}
+function _nsPayrollChipsHtml(ent,startIdx){
+  return _nsPayrollCards(ent).map((c,j)=>{
+    const col=COLORS[((startIdx||0)+j)%COLORS.length],off=c.state==='skip'||c.state==='inactive';
+    return`<div class="info-chip ns-chip" data-ns="${escHtml(c.id)}" style="min-width:110px${off?';opacity:0.65':''}"><div class="top-row"><span class="dot" style="background:${col.hex}"></span><span class="name" style="color:${col.hex}">${escHtml(c.name)}</span></div><div class="hrs" style="color:${off?'var(--text3)':col.hex}">${escHtml(c.text)}</div>${c.sub?`<div class="days">${escHtml(c.sub)}</div>`:''}</div>`;
+  }).join('');
+}
+// The FC-00084 reminder on the Payroll tab: the same count, the entities, and both places to decide.
+function _nsPayrollReminderHtml(){
+  const list=noSchedUnchecked();if(!list.length)return'';
+  const by=new Map();
+  list.forEach(r=>{const e=entities.find(x=>x.id===r.entity);const n=(e&&e.name)||'';by.set(n,(by.get(n)||0)+1);});
+  const where=[...by].map(([n,c])=>n+' '+c).join(', ');
+  return`<div class="ns-remind">⚠ ${escHtml(_nsReminderText())} (${escHtml(where)}): keep or change each amount under "Paid without a schedule" on that entity's Payroll tab, or on the Employee Register tab. <a href="#" onclick="setTab('register');return false">Open the register</a></div>`;
+}
 
 // Flat-wage extras: employees with a flat amount set in the session's stable employee-id
 // keyed flatWages store.
