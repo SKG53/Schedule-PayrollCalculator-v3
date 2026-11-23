@@ -1,6 +1,6 @@
 # FC-00088 — TNG IDs are never handed out by looking, and never silently a second time
 
-**Date:** 2026-11-23 · **Slice:** S · **Risk:** Low · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-23 · **Slice:** S · **Risk:** Low · **Status:** done · **Affected entities:** All
 
 ## What
 1. **Looking hands out nothing.** Opening or redrawing the Employee Register tab no longer gives anyone a TNG ID. A person without one shows "pending". Numbers are handed out only when a file is written: the Employee Register, the Snapshot, or the register's PDF or CSV.
@@ -45,3 +45,11 @@ None.
 
 ## Tests
 `tests/fc00088_tng_ids_never_silent.test.js`.
+
+## As built (2026-11-23)
+- `registerRows()` no longer calls `assignTngIds()`. `exportRegisterCsv` and `exportRegisterPdf` call it first; the register Excel, the Snapshot and Download all already did.
+- `_tngFreshRisk()`: this browser's remembered highest number is above 0 and no record open has a TNG ID. `_tngFreshWarning()` is the Register tab line (amber, class `reg-week-older`), shown in place of the register-week line.
+- `_okToIssueTngIds` asks first in that case: OK numbers from `_tngHighWater()+1`; Cancel numbers nobody. The answer is kept in `session._tngFreshAnswer`, cleared by `openSnapshotData` and `applyStagedSettings`, so each newly opened file is asked once. A simulation never numbers.
+- `renderRegister` groups rows by `tng || record id`, so unnumbered people are separate rows showing "pending"; Unlink only for a shared number. People count uses the same key.
+- **Checked in the browser on the real Nov 8–14 snapshot (private):** first save in a fresh browser numbered 39 people TNG00001–TNG00039 with no question; viewing the Register tab before that numbered nobody. Reopening the same old snapshot in that browser showed the warning, viewing numbered nobody, saving asked once and Cancel left all 39 unnumbered. No page errors.
+- `linkSamePerson` links nothing when numbering is declined.
