@@ -1303,7 +1303,7 @@ function setPersonRate(tng,rate){
 }
 function _rateConflictHtml(){
   const c=rateConflicts();if(!c.length)return'';
-  return`<div class="rate-panel"><b>⚠ One person, two rates.</b> A person has one hourly rate at every entity. Pick the right one:`+c.map(p=>`<div class="rate-row"><span><b>${escHtml(p.name)}</b> ${escHtml(p.tng)}: ${p.items.map(i=>escHtml(_fmtUsd(i.rate))+' at '+escHtml(i.entityName)).join(', ')}</span>`+
+  return`<div class="rate-panel"><b>⚠ One person, two rates.</b> A person has one hourly rate at every entity. Pick the right one:`+c.map(p=>`<div class="rate-row"><span><b>${escHtml(displayNameForRecord(Object.values(session.roster.byId).find(r=>r&&r.tng===p.tng))||p.name)}</b> ${escHtml(p.tng)}: ${p.items.map(i=>escHtml(_fmtUsd(i.rate))+' at '+escHtml(i.entityName)).join(', ')}</span>`+
     [...new Set(p.items.map(i=>i.rate))].map(v=>`<button class="btn btn-small" onclick="setPersonRate('${escJs(p.tng)}',${v})">Use ${escHtml(_fmtUsd(v))}</button>`).join('')+`</div>`).join('')+`</div>`;
 }
 function tngOf(entId,empName){const r=_resolveRecordNoMint(entId,empName);return r&&r.tng?r.tng:'';}
@@ -1788,7 +1788,8 @@ function inlineEditableNameHtml(entId,empName,screen,rerenderFn){
   const uid='nmedit_'+Math.random().toString(36).slice(2,9);
   window._fc7Rerender=window._fc7Rerender||{};
   window._fc7Rerender[uid]=rerenderFn;
-  return `<span class="editable-name" id="${uid}" data-ent="${entId}" data-name="${escHtml(empName)}" data-screen="${screen}" onclick="_fc7StartNameEdit('${uid}')" title="Click to rename" style="cursor:pointer;border-bottom:1px dashed var(--text3)">${escHtml(empName||'(unnamed)')}</span>`;
+  const _shown=screen==='schedule'?(empName||'(unnamed)'):displayNameOf(entId,empName,empName||'(unnamed)'); // FC-00087
+  return `<span class="editable-name" id="${uid}" data-ent="${entId}" data-name="${escHtml(empName)}" data-screen="${screen}" onclick="_fc7StartNameEdit('${uid}')" title="${escHtml(_shown!==(empName||'(unnamed)')?'Click to rename · matches timecards as '+(empName||''):'Click to rename')}" style="cursor:pointer;border-bottom:1px dashed var(--text3)">${escHtml(_shown)}</span>`;
 }
 // DoD #5: dedicated "Rename Employee" action (Roster panel = payrollCalc table in this app).
 // The codebase has no generic modal component, so this reuses the existing prompt()/confirm()
@@ -2171,7 +2172,7 @@ function renderBonusPanel(){
   host.innerHTML=`<div class="bonus-panel"><div class="bonus-head"><b>Bonuses this run</b>${week?` · week of ${escHtml(_isoDayLabel(week))}`:''} <span class="bonus-hint">Each bonus belongs to a week. Only a Weekly bonus with Recurring ticked carries to later weeks, until it is stopped; Monthly and Specialty bonuses are for their week only.</span>${_bonusEdit?'<button class="mini-btn" onclick="closeBonusEditor()">Close</button>':''}</div>`+
     people.map(p=>{
       const n=escJs(p.name),list=getBonuses(p.entId,p.name).filter(b=>_bonusCounts(b,week)||(b.type==='weekly'&&b.recurring&&b.endWeek&&b.endWeek===prevWeek));
-      return`<div class="bonus-person"><div class="bonus-who">${escHtml(p.name)} <span class="bonus-ent">${escHtml(p.ent)}</span> <button class="mini-btn" onclick="addBonus(${p.entId},'${n}',{type:'specialty',amount:0});renderBonusPanel()">Add bonus</button></div>`+
+      return`<div class="bonus-person"><div class="bonus-who">${escHtml(displayNameOf(p.entId,p.name))} <span class="bonus-ent">${escHtml(p.ent)}</span> <button class="mini-btn" onclick="addBonus(${p.entId},'${n}',{type:'specialty',amount:0});renderBonusPanel()">Add bonus</button></div>`+
         (list.length?`<table class="bonus-table"><tr><th>Type</th><th>Amount</th><th>Paid by</th><th>Recurring</th><th>Week</th><th>Note</th><th></th></tr>`+list.map(b=>{const id=escJs(b.id);
           const rec=b.type==='weekly'&&b.recurring,startedEarlier=rec&&b.week&&week&&b.week<week,stopped=rec&&b.endWeek&&b.endWeek<week;
           const endSel=rec?sel([['','Keeps going'],['after','Last paid this week'],['before','Stopped from this week']],b.endWeek===week?'after':(b.endWeek===prevWeek?'before':''),`stopBonus(${p.entId},'${n}','${id}',this.value);renderBonusPanel()`):'';
@@ -2245,7 +2246,7 @@ function _shortWeekHtml(){
   const open=list.filter(x=>!x.sw.choice).length;
   return`<div class="sw-panel"><b>⚠ Short week: hours pay is less than the set deposit</b>${open?` · ${open} not yet decided`:' · all decided'}. Choose for this week only.`+
     list.map(x=>{const s=x.sw,n=escJs(x.name),ch=s.choice;
-      return`<div class="sw-row"><span><b>${escHtml(x.name)}</b> (${escHtml(x.entityName)}): hours pay ${escHtml(_fmtUsd(s.hoursPay))}${x.rate>0?` (${escHtml((Math.round(x.hours*100)/100).toFixed(2))} h × ${escHtml(_fmtUsd(x.rate))})`:''} is ${escHtml(_fmtUsd(s.shortBy))} less than the set deposit of ${escHtml(_fmtUsd(s.setDeposit))}.</span>`+
+      return`<div class="sw-row"><span><b>${escHtml(displayNameOf(x.entityId,x.name))}</b> (${escHtml(x.entityName)}): hours pay ${escHtml(_fmtUsd(s.hoursPay))}${x.rate>0?` (${escHtml((Math.round(x.hours*100)/100).toFixed(2))} h × ${escHtml(_fmtUsd(x.rate))})`:''} is ${escHtml(_fmtUsd(s.shortBy))} less than the set deposit of ${escHtml(_fmtUsd(s.setDeposit))}.</span>`+
         `<button class="btn btn-small${ch==='deposit'?' on':''}" onclick="setShortWeekChoice(${x.entityId},'${n}','deposit')" title="Deposit ${escHtml(_fmtUsd(s.setDeposit))}, cash $0">Pay the deposit (${escHtml(_fmtUsd(s.setDeposit))})</button>`+
         `<button class="btn btn-small${ch==='hours'?' on':''}" onclick="setShortWeekChoice(${x.entityId},'${n}','hours')" title="Deposit ${escHtml(_fmtUsd(s.hoursPay))}, cash $0">Pay the hours (${escHtml(_fmtUsd(s.hoursPay))})</button>`+
         (ch?`<span class="sw-done">✓ ${ch==='deposit'?'paying the deposit':'paying the hours'}</span> <a href="#" onclick="setShortWeekChoice(${x.entityId},'${n}','');return false">undo choice</a>`:'<span>not decided: paying the hours for now</span>')+`</div>`;}).join('')+`</div>`;
@@ -3314,7 +3315,7 @@ function _wowPanelHtml(){
   const sec=(title,list,cols,row)=>{
     if(!list.length)return'';
     return`<h4>${escHtml(title)} <span class="wow-n">${list.length}</span></h4><table class="wow-table"><thead><tr><th>Entity</th><th>Employee</th>${cols.map(c=>'<th>'+c+'</th>').join('')}</tr></thead><tbody>`+
-      list.map(x=>`<tr><td>${escHtml(x.entity)}</td><td>${escHtml(x.name)}</td>${row(x).map(c=>'<td>'+c+'</td>').join('')}</tr>`).join('')+'</tbody></table>';
+      list.map(x=>`<tr><td>${escHtml(x.entity)}</td><td>${escHtml(displayNameForRecord(session.roster.byId[x.id])||x.name)}</td>${row(x).map(c=>'<td>'+c+'</td>').join('')}</tr>`).join('')+'</tbody></table>';
   };
   let body='';
   body+=sec('New this week',w.newPeople,['Hours','Pay'],x=>[x.hours.toFixed(2),_wowMoney(x.pay)]);
@@ -4183,6 +4184,22 @@ function _savedNameFor(entId,empName){
   const rec=_resolveRecordNoMint(entId,empName); // same person pay uses (review fix)
   return(rec&&rec.canonical_name)||(empName||'');
 }
+// FC-00087: the person's Display Name (set on the Register; one per person, stored on every one
+// of their records). Display only: matching, keys, IDs, aliases and file lookups never use it.
+function displayNameForRecord(rec){
+  if(!rec)return'';
+  const own=typeof rec.display_name==='string'?rec.display_name.trim():'';
+  if(own)return own;
+  if(!rec.tng)return'';
+  const sib=_personRecords(rec).find(o=>o&&typeof o.display_name==='string'&&o.display_name.trim());
+  return sib?sib.display_name.trim():'';
+}
+// FC-00087: what a screen shows for this name — the Display Name when set, else exactly what it
+// showed before (the name as given, or the fallback passed in).
+function displayNameOf(entId,empName,fallback){
+  const d=displayNameForRecord(_resolveRecordNoMint(entId,empName));
+  return d||(fallback!=null?fallback:(empName||''));
+}
 function _firstWord(n){return String(n||'').trim().split(/\s+/)[0]||''}
 function _lastInitial(n){const w=String(n||'').trim().split(/\s+/);return w.length>1?w[w.length-1].replace(/[^A-Za-z0-9]/g,'').charAt(0):''}
 function _exportNamesByEntity(){
@@ -4193,6 +4210,11 @@ function _exportNamesByEntity(){
 // Returns fmt(entId, empName) for one export. namesByEnt (Map entId -> names) is who prints in
 // that export; FIRST uses it to tell two people with the same first name apart.
 function _makeNameFormatter(key,namesByEnt){
+  const fmt=_makeSavedNameFormatter(key,namesByEnt);
+  // FC-00087: a Display Name prints exactly as typed, whatever the export's name setting.
+  return(entId,name)=>displayNameForRecord(_resolveRecordNoMint(entId,name))||fmt(entId,name);
+}
+function _makeSavedNameFormatter(key,namesByEnt){
   const mode=exportNameMode(key);
   if(mode==='saved')return(entId,name)=>_savedNameFor(entId,name);
   if(mode==='firstLast')return(entId,name)=>_savedNameFor(entId,name).toUpperCase();
@@ -5513,7 +5535,7 @@ function _weekFilterBannerHtml(ent,calc){
   if(ex.length){
     const hrs=Math.round(ex.reduce((a,x)=>a+x.hours,0)*100)/100;
     const list=ex.slice().sort((a,b)=>(a.date+a.empName).localeCompare(b.date+b.empName))
-      .map(x=>`<li>${escHtml(x.empName)} — ${_fmtIsoShort(x.date)} (${escHtml(fmtHrsLong(x.hours))} worked)</li>`).join('');
+      .map(x=>`<li>${escHtml(displayNameOf(ent.id,x.empName))} — ${_fmtIsoShort(x.date)} (${escHtml(fmtHrsLong(x.hours))} worked)</li>`).join('');
     html+=`<div class="week-filter-banner" style="background:#FFF7ED;color:#9A3412;border:1px solid #FB923C;border-radius:6px;padding:8px 12px;margin-bottom:10px;font-size:13px">`+
       `<strong>⚠ ${ex.length} approved punch day${ex.length===1?' is':'s are'} outside this schedule's week (${_fmtIsoShort(wi.start)} – ${_fmtIsoShort(wi.end)}) and NOT counted</strong> — ${hrs.toFixed(2)} h total. `+
       `Only the loaded schedule's week is paid. If a date below is wrong, fix it in Actuals Intake (rows flagged "Outside week").`+
@@ -5684,7 +5706,7 @@ function renderPayrollEntityContent(idx){
     </div>`;
 
   const noSchedule=ent.employees.length===0; // FC-00017: signal for "no schedule loaded for this entity"
-  renderPayrollInfoChips(allRows,hasActuals,noSchedule);
+  renderPayrollInfoChips(allRows,hasActuals,noSchedule,ent.id);
   renderPayrollGrid(allRows,ent,hasActuals,noSchedule);
   renderTimeCardData(allRows,hasActuals,ent,noSchedule);
   renderPayrollCalc(allRows,hasActuals,ent,noSchedule);
@@ -6232,7 +6254,7 @@ function resolveBreakChange(idx,newBreak,action){
   showToast(action==='overwrite'?`Default set to ${newBreak}m; overrides cleared`:`Default set to ${newBreak}m; overrides preserved`,'ok');
 }
 
-function renderPayrollInfoChips(rows,hasActuals,noSchedule){
+function renderPayrollInfoChips(rows,hasActuals,noSchedule,entId){
   const bar=document.getElementById('payrollInfoBar');if(!bar)return;
   bar.innerHTML='';bar.style.display='flex';
   rows.forEach((r,ei)=>{
@@ -6250,7 +6272,7 @@ function renderPayrollInfoChips(rows,hasActuals,noSchedule){
     chip.className='info-chip'+(r.isOrphan&&!orphanIsNoise?' overtime':'');
     chip.style.minWidth='110px';
     const namePrefix=(r.isOrphan&&!orphanIsNoise)?'⚠ ':'';
-    let inner=`<div class="top-row"><span class="dot" style="background:${col.hex}"></span><span class="name" style="color:${col.hex}">${namePrefix}${escHtml(r.name||'(unnamed)')}</span></div>`;
+    let inner=`<div class="top-row"><span class="dot" style="background:${col.hex}"></span><span class="name" style="color:${col.hex}">${namePrefix}${escHtml(entId!=null?displayNameOf(entId,r.schedName||r.name,r.name||'(unnamed)'):(r.name||'(unnamed)'))}</span></div>`; // FC-00087
     if(hasActuals){
       // Color the big hours display too: orphan=red, meaningful diff → diff color, else employee color
       let hrsColor=col.hex;
@@ -8710,7 +8732,7 @@ function renderReviewTableHtml(ent,idx){
     const b=buckets.get(n)||[];
     const needs=_dotN(n,b);
     const active=n===activeKey?' active':'';
-    html+=`<button class="emp-subtab${active}" onclick="setEmpSubtab(${idx},'${escJs(n)}')" title="${escHtml(n)} — ${b.length} row${b.length===1?'':'s'}">${escHtml(n)}<span class="cnt">${b.length}</span>${_dot(needs)}${_dupFlagHtml(ent.id,n)}</button>`;
+    html+=`<button class="emp-subtab${active}" onclick="setEmpSubtab(${idx},'${escJs(n)}')" title="${escHtml(n)} — ${b.length} row${b.length===1?'':'s'}">${escHtml(displayNameOf(ent.id,n))}<span class="cnt">${b.length}</span>${_dot(needs)}${_dupFlagHtml(ent.id,n)}</button>`;
   });
   // FC-00048: confirmed people who are not on the schedule (added this week, or in the settings
   // file) get their own tab after the scheduled ones.
@@ -8718,7 +8740,7 @@ function renderReviewTableHtml(ent,idx){
     const b=buckets.get(n)||[];
     const needs=_dotN(n,b);
     const active=n===activeKey?' active':'';
-    html+=`<button class="emp-subtab off-sched${active}" onclick="setEmpSubtab(${idx},'${escHtml(escJs(n))}')" title="${escHtml(n)} — not on this week's schedule · ${b.length} row${b.length===1?'':'s'}">${escHtml(n)} <span style="font-size:10px;color:var(--text3)">(not on schedule)</span><span class="cnt">${b.length}</span>${_dot(needs)}</button>`;
+    html+=`<button class="emp-subtab off-sched${active}" onclick="setEmpSubtab(${idx},'${escHtml(escJs(n))}')" title="${escHtml(n)} — not on this week's schedule · ${b.length} row${b.length===1?'':'s'}">${escHtml(displayNameOf(ent.id,n))} <span style="font-size:10px;color:var(--text3)">(not on schedule)</span><span class="cnt">${b.length}</span>${_dot(needs)}</button>`;
   });
   const unrec=buckets.get('__unrecognized__')||[];
   const unrecActive=activeKey==='__unrecognized__'?' active':'';
@@ -8737,7 +8759,7 @@ function renderReviewTableHtml(ent,idx){
   // Per-employee approve/unapprove action bar
   const empApproved=activeRows.filter(r=>r.approved).length;
   const empTotal=activeRows.length;
-  const empLabel=activeKey==='__unrecognized__'?'Unrecognized':escHtml(activeKey);
+  const empLabel=activeKey==='__unrecognized__'?'Unrecognized':escHtml(displayNameOf(ent.id,activeKey)); // FC-00087
   const isIgnored=ent.intake.ignoredEmployees&&ent.intake.ignoredEmployees[activeKey];
   html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding:6px 8px;background:'+(isIgnored?'#FFF7ED':'var(--surface2,#f5f4f0)')+';border-radius:6px;font-size:12px">';
   // FC-00007 rename entry point for Actuals Intake: the employee's name here is click-to-edit
@@ -9814,7 +9836,7 @@ function _payGateHtml(){
     const id=escHtml(escJs(r.id));
     const act=why?`<span style="color:var(--amber);font-size:11px">${escHtml(why)}</span> <button class="mini-btn" onclick="payGateGoToRow(${x.entIdx},'${id}')">Go to row</button>`
       :`<button class="mini-btn approve" onclick="payGateApprove('${id}')">✓ Approve</button>`;
-    h+=`<tr data-row-id="${escHtml(r.id)}"><td>${escHtml(x.entity)}</td><td><b>${escHtml(x.name)}</b></td><td>${escHtml(_isoDayLabel(r.date))}</td><td class="mono">${escHtml(pairs)}</td><td class="mono">${fmtHmm(x.minutes/60)} won't be paid</td><td style="white-space:nowrap">${act} <button class="mini-btn" onclick="payGateLeaveOut('${id}')">Leave out</button></td></tr>`;
+    h+=`<tr data-row-id="${escHtml(r.id)}"><td>${escHtml(x.entity)}</td><td><b>${escHtml(x.unrec?x.name:displayNameOf(entities[x.entIdx]&&entities[x.entIdx].id,x.name))}</b></td><td>${escHtml(_isoDayLabel(r.date))}</td><td class="mono">${escHtml(pairs)}</td><td class="mono">${fmtHmm(x.minutes/60)} won't be paid</td><td style="white-space:nowrap">${act} <button class="mini-btn" onclick="payGateLeaveOut('${id}')">Leave out</button></td></tr>`;
   });
   h+='</tbody></table>';
   h+='<div class="actions"><button class="btn" onclick="payGateCancel()">Cancel</button><button class="btn btn-primary" onclick="payGateApproveAll()">✓ Approve all</button></div>';
@@ -10022,7 +10044,7 @@ function entityStats(idx){
     if(!_paysThisRun(ent.id,r))return;
     const hourly=!r.isFlat&&r.wage>0;
     const _outH=(r.outsideDays||[]).reduce((a,o)=>a+(o.billableH||0),0); // FC-00066: Stats compare with the schedule; outside days are not in it
-    const s={name:key,display:r.name,orphan:!!r.isOrphan,isFlat:!!r.isFlat,rate:hourly?r.wage:null,
+    const s={name:key,display:displayNameOf(ent.id,key,r.name),orphan:!!r.isOrphan,isFlat:!!r.isFlat,rate:hourly?r.wage:null,
       expected:r.expectedH||0,worked:Math.round(((r.actualHours||0)-_outH)*100)/100,schedDays:r.scheduledDays||0,workedSchedDays:0,missedDays:0,otherDays:0,
       lateDays:0,late5Days:0,lateMin:0,earlyDays:0,earlyMin:0,earlyMax:0,stayDays:0,stayMin:0,
       expBreak:r.expectedBreakH||0,actBreak:r.actualBreakH||0,otH:r.otH||0};
@@ -10255,9 +10277,9 @@ function renderLaborCostPanel(idx){
   line('Actual (hourly)',d=>d.hourlyCost?_money(d.hourlyCost):'—',_money(lc.week.hourlyCost));
   line('Variance',d=>(d.variance>0?'+':'')+_money(d.variance),(lc.week.variance>0?'+':'')+_money(lc.week.variance));
   h+='</tbody></table></div>';
-  if(lc.outside.length)h+='<div class="labor-outside" style="font-size:12px;margin:6px 0">'+lc.outside.map(x=>`Outside pay week, paid this run: <b>${escHtml(x.name)}</b> ${escHtml(_isoDayLabel(x.iso))} · ${escHtml(fmtHrs(x.hours))} · ${_money(x.cost)}`).join('<br>')+'</div>'; // FC-00066
-  if(lc.fixed.length)h+='<div class="labor-fixed" style="font-size:12px;margin:6px 0">'+lc.fixed.map(x=>`Flat, no hours this week: <b>${escHtml(x.name)}</b> ${_money(x.amount)}`).join('<br>')+'</div>';
-  if(lc.semis.length)h+='<div class="labor-semi" style="font-size:12px;margin:6px 0">'+lc.semis.map(x=>`Semi-monthly: <b>${escHtml(x.name)}</b> ${_money(x.amount)} per half-month → cost ${_money(x.weekly)} / week · ${_money(x.daily)} / day (paid this run: ${_money(x.pay)})`).join('<br>')+'</div>';
+  if(lc.outside.length)h+='<div class="labor-outside" style="font-size:12px;margin:6px 0">'+lc.outside.map(x=>`Outside pay week, paid this run: <b>${escHtml(displayNameOf(lc.entityId,x.name))}</b> ${escHtml(_isoDayLabel(x.iso))} · ${escHtml(fmtHrs(x.hours))} · ${_money(x.cost)}`).join('<br>')+'</div>'; // FC-00066
+  if(lc.fixed.length)h+='<div class="labor-fixed" style="font-size:12px;margin:6px 0">'+lc.fixed.map(x=>`Flat, no hours this week: <b>${escHtml(displayNameOf(lc.entityId,x.name))}</b> ${_money(x.amount)}`).join('<br>')+'</div>';
+  if(lc.semis.length)h+='<div class="labor-semi" style="font-size:12px;margin:6px 0">'+lc.semis.map(x=>`Semi-monthly: <b>${escHtml(displayNameOf(lc.entityId,x.name))}</b> ${_money(x.amount)} per half-month → cost ${_money(x.weekly)} / week · ${_money(x.daily)} / day (paid this run: ${_money(x.pay)})`).join('<br>')+'</div>';
   h+=`<div class="labor-total" style="font-size:13px;margin:8px 0;font-weight:600">Hourly and flat: ${_money(lc.week.cost+lc.fixedSum+lc.outsideSum)} (= payroll Actual ${_money(lc.payrollActual)}${lc.semis.length?' without semi-monthly pay':''})${lc.semis.length?` · Semi-monthly cost: ${_money(lc.semiWeekly)}`:''} · Labor cost this week: ${_money(lc.total)}</div>`;
   const cols=hdr.slice();if(lc.hasNextSun)cols.push('Sun (next week)');
   h+='<h4 style="margin:12px 0 4px">Cost by hour of day</h4><div class="sched-table-wrap" style="display:block"><table class="sched labor-hour-grid"><thead><tr><th></th>'+cols.map(x=>`<th>${escHtml(x)}</th>`).join('')+'</tr></thead><tbody>';
@@ -10311,9 +10333,9 @@ function _writeLaborCostSheet(ewb,data){
     const vr=put('var','Variance (actual − scheduled)',()=>null,lc.week.variance,'money',null);
     for(let i=0;i<=LC_DAYS;i++){const C=_xlCol(i+1),c=vr.getCell(i+2);const v=i<LC_DAYS?lc.days[i].variance:lc.week.variance;c.value={formula:C+rowsAt.act+'-'+C+rowsAt.sched,result:v};c.numFmt=XL_FMT_MONEY_SIGNED;}
     const extraRows=[];
-    lc.outside.forEach(x=>{const r=ws.addRow(['Outside pay week, paid this run: '+x.name+' · '+_isoDayLabel(x.iso)+' · '+fmtHrs(x.hours)]);money(r,LC_DAYS+2,x.cost);extraRows.push(r.number);}); // FC-00066
-    lc.fixed.forEach(x=>{const r=ws.addRow(['Flat, no hours: '+x.name]);money(r,LC_DAYS+2,x.amount);extraRows.push(r.number);});
-    lc.semis.forEach(x=>{const r=ws.addRow(['Semi-monthly: '+x.name+' (per half-month '+_money(x.amount)+'; per day '+_money(x.daily)+'; paid this run '+_money(x.pay)+')']);money(r,LC_DAYS+2,x.weekly);extraRows.push(r.number);});
+    lc.outside.forEach(x=>{const r=ws.addRow(['Outside pay week, paid this run: '+displayNameOf(lc.entityId,x.name)+' · '+_isoDayLabel(x.iso)+' · '+fmtHrs(x.hours)]);money(r,LC_DAYS+2,x.cost);extraRows.push(r.number);}); // FC-00066
+    lc.fixed.forEach(x=>{const r=ws.addRow(['Flat, no hours: '+displayNameOf(lc.entityId,x.name)]);money(r,LC_DAYS+2,x.amount);extraRows.push(r.number);});
+    lc.semis.forEach(x=>{const r=ws.addRow(['Semi-monthly: '+displayNameOf(lc.entityId,x.name)+' (per half-month '+_money(x.amount)+'; per day '+_money(x.daily)+'; paid this run '+_money(x.pay)+')']);money(r,LC_DAYS+2,x.weekly);extraRows.push(r.number);});
     const tr=ws.addRow(['Labor cost this week']);
     {const c=tr.getCell(LC_DAYS+2);c.value={formula:[W+rowsAt.cost].concat(extraRows.map(n=>W+n)).join('+'),result:lc.total};c.numFmt=XL_FMT_MONEY;}
     tr.eachCell(c=>{c.font={name:'Arial',bold:true,size:10};});

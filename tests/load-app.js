@@ -591,6 +591,8 @@ function loadApp(opts) {
       shortWeekInfo, _bothFor, setShortWeekChoice, shortWeekList, shortWeekUndecided, _shortWeekHtml, _swKey, acctBlockers, _acctCheckOrBail, getDepositEntityId, getDepositEntityName, depositElsewhere, setDepositEntity, _entityFromSection, _anyDepositElsewhere, rateConflicts, setPersonRate, _rateConflictHtml, _spreadRate, _rateSiblings, punchedBreakMin, breakSummary, _breakRowHtml, setWage,
       // FC-00086
       registerPeople, _registerVisiblePeople, _setRecordName, setPersonField, getPersonField, setPersonActive, regSetRate, regSetMethod, regSetPay, regSetFlat, regSetDeposit, regSetMgmt, regSetDepEnt, regSetNoSched, regToggleEntity, regAddEmployee, _regAddFromForm, registerFlatRows, REGISTER_COLS, _STAGE_FIELD_LABEL, _historyField,
+      // FC-00087
+      displayNameOf, displayNameForRecord, _resolveRecordNoMint, _savedNameFor, _makeNameFormatter, _makeSavedNameFormatter, inlineEditableNameHtml, renderPayrollInfoChips, entityStats, renderStatsTable, entityLaborCost, renderLaborCostPanel, weekOverWeek, unpaidReviewRows, _payGateHtml, _weekFilterBannerHtml, renderReviewTableHtml, _columnsFor,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078
