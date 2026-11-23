@@ -1,0 +1,65 @@
+# FC-00089 — People paid without a schedule on the Payroll tab
+
+**Date:** 2026-11-23 · **Slice:** S/M · **Risk:** Low · **Status:** approved · **Affected entities:** All
+
+## What
+People paid without a schedule (FC-00084: Management, deposit-only people and anyone else paid a weekly amount who is on no schedule) are today edited only on the Employee Register tab. On the Payroll tab they appear only as a read-only line in the export preview. This card puts them on the Payroll tab, per entity, with the same controls as the Register tab.
+
+1. **A "Paid without a schedule" table on each entity's Payroll tab**, above the Time Card Data / Payroll Calculation tabs, one row per person of that entity, with the same controls as on the Register tab:
+   - **This week** — the amount (number box), starting at last week's amount;
+   - **Keep** (same as last week), shown while the amount is not yet checked;
+   - **Not paid this week**;
+   - **Pay Method** dropdown (Deposit, Cash, Deposit + Cash, Contract Check), and the **Deposit part** box for Deposit + Cash;
+   - **Mgmt** and **Active** ticks;
+   - the **Status** ("Same as last week ($X): keep or change", "Kept", "Changed from $X", "Not paid this week", "New this week", "Inactive: not paid") and what the row **pays** (deposit and cash).
+   - Example: Avery Atest at Alpha Test, Deposit, last week $500: the row shows $500 in the box, "Keep", and "Pays $500.00 deposit".
+2. **Counted with the entity's people.** The employee count on the entity's Payroll tab pill and in the header ("N employees in the system") includes them.
+3. **A summary card each** at the top of the entity, next to the scheduled people's cards, showing "Flat · $X" instead of hours, or "Not paid this week" / "Inactive: not paid".
+4. **The reminder** ("N people paid without a schedule not yet checked this week") on the Payroll tab now says the amounts can be kept or changed on the Payroll tab or on the Employee Register tab, and names the entities. Keeping or changing on the Payroll tab clears it exactly as on the Register tab.
+5. **Every change goes through History and Undo**, labelled as made on the Payroll tab. The Register tab shows the same state, because both tabs use the same functions and the same record.
+6. **Pay, the payroll report and the accountant file are unchanged** for the same choices: the Payroll tab only adds a second place to make them.
+
+## Why
+The owner, 2026-11-23: "The management people and the deposit people - shouldn't they also show up on the Payroll tab to be edited, values set, etc.? Not just on the employee register?"
+
+## Where in UI
+- Payroll tab, each entity: the entity tab pill count, the header count, the summary cards, the reminder, and the new "Paid without a schedule" table.
+
+## Touches
+Payroll tab rendering (`renderPayrollEntityTabBar`, `renderPayrollEntityContent`); the FC-00084 setters take an optional screen for History. Nothing in pay, exports, the register file or the snapshot.
+
+## Risk
+Low. Display and a second place to call the existing FC-00084 setters. Guards: pay identical on the six real weeks and the Nov 8–14 snapshot; the same change made on either tab gives the same record, the same pay and the same History entry type.
+
+## Reversibility
+One revert commit. Nothing new is stored.
+
+## Definition of Done
+1. Each entity's Payroll tab lists that entity's people paid without a schedule (and only those not on this week's schedule or actuals), with the controls above.
+2. Changing the amount, Keep, Not paid this week, Pay Method, Deposit part, Mgmt or Active on the Payroll tab changes the same record as the Register tab, through History, one Undo each.
+3. The entity pill and the header count include them; each has a summary card showing "Flat · $X" or "Not paid this week".
+4. The reminder shows on the Payroll tab, names the entities, and clears when each is kept or changed there.
+5. Pay, the payroll report and the accountant file are identical to making the same choices on the Register tab.
+
+## Out of scope
+- Adding a person paid without a schedule from the Payroll tab (stays on the Register tab, where FC-00086 rebuilds it).
+- Display names (FC-00087): names show as they do today.
+- Moving them into the Payroll Calculation table itself.
+
+## Assumptions
+- A person paid without a schedule who is on this week's schedule or has punches is paid from the schedule and stays in the normal rows, as today; they are not listed twice.
+- Inactive people are listed and counted, as scheduled people are counted whether active or not.
+- The Payroll tab table has no "+ Add person" form; adding stays on the Register tab.
+
+## Open questions
+None.
+
+**Approved:** the owner, 2026-11-23: "Yes build everythign as fast as possible".
+
+## Tests
+`tests/fc00089_noschedule_on_payroll_tab.test.js`:
+- the table lists only the entity's people not on the schedule, with every control;
+- each control changes the same record as the Register tab, through History, screen payroll, one Undo;
+- counts in the pill and header; a summary card each, "Flat · $X" and "Not paid this week";
+- the reminder on the Payroll tab, cleared by Keep and by a changed amount on the Payroll tab;
+- pay, payroll report rows and the accountant file identical whichever tab made the change.
