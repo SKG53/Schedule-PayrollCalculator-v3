@@ -589,6 +589,8 @@ function loadApp(opts) {
       _downloadsHtml, noSchedRecords, isNoSched, noSchedStatus, noSchedStatusText, noSchedUnchecked, _nsReminderText, _nsReminderHtml, keepNoSched, setNoSchedSkip, setNoSchedAmount, setNoSchedMethod, setNoSchedDeposit, setNoSchedActive, addNoSchedPerson, _noSchedSectionHtml, _nsSkipped, _nsWeekKey, getFlatWageRows,
       // FC-00085
       shortWeekInfo, _bothFor, setShortWeekChoice, shortWeekList, shortWeekUndecided, _shortWeekHtml, _swKey, acctBlockers, _acctCheckOrBail, getDepositEntityId, getDepositEntityName, depositElsewhere, setDepositEntity, _entityFromSection, _anyDepositElsewhere, rateConflicts, setPersonRate, _rateConflictHtml, _spreadRate, _rateSiblings, punchedBreakMin, breakSummary, _breakRowHtml, setWage,
+      // FC-00086
+      registerPeople, _registerVisiblePeople, _setRecordName, setPersonField, getPersonField, setPersonActive, regSetRate, regSetMethod, regSetPay, regSetFlat, regSetDeposit, regSetMgmt, regSetDepEnt, regSetNoSched, regToggleEntity, regAddEmployee, _regAddFromForm, registerFlatRows, REGISTER_COLS, _STAGE_FIELD_LABEL, _historyField,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078

@@ -339,31 +339,71 @@ img.tc-thumb.tc-thumb-small{cursor:default;outline:1px dashed #F59E0B}
 .bonus-person{padding:6px 0;border-top:1px solid #FDE68A}
 .bonus-who{font-weight:600;margin-bottom:4px}.bonus-ent{font-weight:400;color:var(--text3)}
 .bonus-table td,.bonus-table th{padding:3px 6px;text-align:left}
-.reg-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:8px 0}
-.reg-bar input[type=search]{min-width:240px;padding:5px 8px}
-.reg-count{font-size:12px;color:var(--text3)}
-.reg-dl{margin-left:auto;display:flex;gap:6px}
-.reg-scroll{overflow:auto;max-height:70vh;border:1px solid var(--border);border-radius:6px}
-.reg-table{border-collapse:collapse;width:100%;font-size:12px}
-.reg-table th{position:sticky;top:0;background:#F1F0EB;text-align:left;padding:6px 8px;border-bottom:1px solid var(--border);white-space:nowrap}
-.reg-table td{padding:5px 8px;border-bottom:1px solid #EEE;white-space:nowrap}
-.reg-table tr.reg-first td{border-top:1px solid #DDD}
-.reg-table tr.reg-inactive td{color:#9A9A9A}
-.reg-tng{font-family:'IBM Plex Mono',monospace;font-weight:600}
-.reg-former,.reg-code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)}
-.reg-name{font-weight:600}.reg-same{font-weight:400;color:var(--text3);font-style:italic}
-.reg-n{text-align:right}.reg-c{text-align:center}.reg-note{max-width:260px;overflow:hidden;text-overflow:ellipsis}
-.reg-cands{background:#FFFBEB;border:1px solid #FCD34D;border-radius:6px;padding:8px 12px;margin:8px 0;font-size:12px}
-.reg-cands ul{margin:4px 0 0 18px}.reg-cands li{margin:3px 0}
-.reg-codes{font-size:12px;color:var(--text3);margin-top:8px}
-.ns-panel{margin-top:14px;border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface)}
-.ns-panel h4{margin:0 0 4px;font-size:14px}
-.ns-table input[type=number]{width:92px}
-.ns-st-unchecked{color:#B45309;font-weight:600}.ns-st-changed{color:#1D4ED8;font-weight:600}.ns-st-skip,.ns-st-inactive{color:var(--text3)}.ns-st-kept,.ns-st-new{color:#15803D}
-.ns-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:8px;font-size:12px}
-.ns-add input{width:120px}
-.ns-remind{background:#FFFBEB;border:1px solid #FCD34D;border-radius:6px;padding:6px 10px;margin:6px 0;font-size:12px;color:#92400E}
 .reg-in{width:100%;min-width:110px;font-size:12px}
+/* FC-00086: the Employee Register tab, in the Payroll tab's look */
+.reg-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;margin-bottom:14px}
+.reg-card-head{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin-bottom:8px}
+.reg-card-head h3{font-size:16px;font-weight:700;margin:0}
+.reg-card-head h4{font-size:15px;font-weight:700;margin:0}
+.reg-bar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin:4px 0 10px}
+.reg-count{font-size:12px;color:var(--text2);font-weight:500}
+.reg-week{font-size:12px;color:var(--text2);padding:2px 10px;border-radius:999px;background:#F1F0EB}
+.reg-week-older,.reg-week-unknown{color:#92400E;background:#FEF3C7;border:1px solid #FCD34D;font-weight:600}
+.reg-dl{margin-left:auto;display:flex;gap:6px}
+.reg-dl .btn{min-width:72px}
+#registerHost .btn-small{padding:4px 10px;font-size:12px;border-radius:6px}
+#registerHost .reg-sel,#registerHost .reg-txt,#registerHost .reg-num{border:1px solid var(--border);border-radius:8px;background:var(--bg);padding:6px 10px;font-family:'Outfit',sans-serif;font-size:13px;color:var(--text);outline:none}
+#registerHost .reg-sel{cursor:pointer;padding-right:6px}
+#registerHost .reg-num{width:96px;font-family:'IBM Plex Mono',monospace;text-align:right}
+#registerHost .reg-txt{min-width:120px}
+#registerHost .reg-search{min-width:260px}
+#registerHost .reg-note-in{min-width:180px}
+#registerHost .reg-sel:focus,#registerHost .reg-txt:focus,#registerHost .reg-num:focus{border-color:var(--blue);box-shadow:0 0 0 2px rgba(37,99,235,0.15);background:var(--surface)}
+.reg-scroll{overflow:auto;max-height:70vh;border:1px solid var(--border);border-radius:8px}
+.reg-table{border-collapse:collapse;width:100%;font-size:13px;background:var(--surface)}
+.reg-table th{position:sticky;top:0;z-index:2;background:#E8E8E4;font-weight:600;font-size:14px;color:var(--text);text-align:left;padding:8px 10px;border-bottom:1px solid var(--border);white-space:nowrap}
+.reg-table td{padding:6px 10px;border-bottom:1px solid var(--grid-line);white-space:nowrap;vertical-align:middle}
+.reg-table tbody tr:hover td{background:#F7F6F1}
+.reg-table tr.reg-person td{border-top:2px solid var(--border)}
+.reg-table tr.reg-sub td{background:#FAFAF7;padding:3px 10px;border-bottom:1px dashed var(--grid-line)}
+.reg-table tr.reg-inactive td,.reg-table tr.reg-inactive .reg-subent{color:var(--text3)}
+.reg-table tr.reg-inactive input,.reg-table tr.reg-inactive select{opacity:0.6}
+.reg-subline{display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding-left:8px;border-left:3px solid #E8E8E4}
+.reg-subent{font-weight:600;min-width:150px}
+.reg-f{display:inline-flex;align-items:center;gap:6px}
+.reg-fl{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:0.3px}
+#registerHost .reg-subline .reg-sel,#registerHost .reg-subline .reg-num{padding:3px 8px;font-size:12px}
+#registerHost .reg-subline .reg-sel{max-width:170px}
+#registerHost .reg-person .reg-txt{width:160px;min-width:0}
+#registerHost .reg-person .reg-note-in{width:200px}
+.reg-chk{display:inline-flex;align-items:center;gap:4px;font-size:12px;cursor:pointer}
+.reg-chk input{margin:0}
+.reg-pill{display:inline-block;padding:1px 8px;margin:1px 3px 1px 0;border-radius:999px;background:#E8E8E4;color:var(--text);font-size:11px;font-weight:500;white-space:nowrap}
+.reg-pill-ns{background:#DBEAFE;color:#1E3A8A}
+.reg-pill-off{background:#F3F4F6;color:var(--text3)}
+.reg-muted{color:var(--text3);font-size:12px}
+.reg-tng{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:12px}
+.reg-former,.reg-code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)}
+.reg-name{font-weight:600}
+.reg-c{text-align:center}
+.reg-ents{position:relative}
+.reg-ents summary{cursor:pointer;list-style:none;padding:4px 8px;border:1px solid var(--border);border-radius:8px;background:var(--bg);display:inline-flex;align-items:center;gap:2px;flex-wrap:wrap;max-width:210px}
+.reg-ents summary::-webkit-details-marker{display:none}
+.reg-ents summary::after{content:"▾";color:var(--text3);margin-left:4px;font-size:11px}
+.reg-ents[open] summary{border-color:var(--blue)}
+.reg-ents-list{position:absolute;right:0;z-index:5;margin-top:4px;background:var(--surface);border:1px solid var(--border);border-radius:8px;box-shadow:0 4px 14px rgba(0,0,0,0.10);padding:8px 10px;min-width:200px}
+.reg-ents-list label{display:flex;align-items:center;gap:6px;padding:3px 0;font-size:13px;cursor:pointer}
+.reg-cands{background:#FFFBEB;border:1px solid #FCD34D;border-left:4px solid var(--amber);border-radius:8px;padding:10px 14px;margin:0 0 10px;font-size:13px}
+.reg-cands ul{margin:6px 0 0;padding:0;list-style:none}.reg-cands li{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:4px 0}
+.reg-add{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:12px;padding:10px 12px;border:1px dashed var(--border);border-radius:8px;background:var(--bg);font-size:13px}
+.reg-add .reg-txt{width:130px}
+#registerHost .reg-add .reg-num{width:140px}
+#registerHost .reg-txt::placeholder,#registerHost .reg-num::placeholder{color:#B8B5AA}
+.reg-saved{font-size:12px;color:var(--text2)}
+.reg-codes{font-size:12px;color:var(--text3);margin-top:10px}
+.ns-panel .dl-desc{margin-bottom:8px}
+.ns-st-unchecked{color:#B45309;font-weight:600}.ns-st-changed{color:#1D4ED8;font-weight:600}.ns-st-skip,.ns-st-inactive{color:var(--text3)}.ns-st-kept,.ns-st-new{color:#15803D}
+.ns-remind{background:#FFFBEB;border:1px solid #FCD34D;border-radius:6px;padding:6px 10px;margin:6px 0;font-size:12px;color:#92400E}
 .acct-card-dates label{display:block;margin:3px 0;font-size:12px}
 .acct-card-notes{margin-top:6px;font-size:12px}.acct-card-notes summary{cursor:pointer}
 .acct-card-notes input{width:100%;min-width:160px}
@@ -975,7 +1015,7 @@ table.review tr.new-since-upload td{background:rgba(250,204,21,0.08)}
 
   <!-- ===== EMPLOYEE REGISTER TAB (FC-00078) ===== -->
   <div id="registerTab" style="display:none">
-    <div class="instructions"><strong>Employee Register.</strong> Everyone the tool knows, one row per person and entity. The TNG ID is the person across the whole group and never changes; Former ID is their record at that entity. Load it each week as the settings file; download it as Excel (the file you load next week), PDF or CSV.</div>
+    <div class="instructions"><strong>Employee Register.</strong> Everyone the tool knows: one row per person, with a line under it for each entity they work at. The TNG ID is the person across the whole group and never changes; Former ID is their record at that entity. Everything except the TNG ID and Former ID can be changed here; every change is in History and can be undone. Load it each week as the settings file; download it as Excel (the file you load next week), PDF or CSV.</div>
     <div id="registerHost"></div>
   </div>
 
@@ -1813,6 +1853,7 @@ function _applyRecordMirror(entId,empName,field,value){
   else if(field==='nosched'){if(value==='Yes')rec.nosched='Yes';else delete rec.nosched;} // FC-00084
   else if(field==='ns_carry'){if(value&&typeof value==='object')rec.ns_carry=Object.assign({},value);else delete rec.ns_carry;} // FC-00084
   else if(field==='dep_ent'){if(value===undefined||value===null||value==='')delete rec.dep_ent;else rec.dep_ent=String(value);} // FC-00085
+  else if(field==='full_name'||field==='display_name'){if(value===undefined||value===null)delete rec[field];else rec[field]=String(value);} // FC-00086
 }
 function getAliases(entId,empName){return rosterAliases[wKey(entId,empName)]||[]}
 // FC-00036: case, periods and repeated spaces never make two people out of one —
@@ -2645,7 +2686,7 @@ function _historyField(e){
   if(e.type==='reviewMerge'||e.type==='reviewSplit')return(e.meta&&e.meta.date)||'';
   if(e.type==='reviewApproveBulk')return((e.meta&&e.meta.count)||0)+' row'+((e.meta&&e.meta.count)===1?'':'s');
   if(e.type==='breakOverride')return DAY_SHORT[t.day]||'';
-  if(e.type==='rosterFieldSet')return({acct_name:'Accountant name',acct_type:'Employment type',acct_section:'Accountant section',acct_note:'Accountant note',tng:'TNG ID (same person)',mgmt:'Management',bonuses:'Bonuses',nosched:'Paid without a schedule',ns_carry:'Last week\'s amount',dep_ent:'Deposit Entity'})[t.field]||t.field||''; // FC-00073, FC-00078, FC-00084
+  if(e.type==='rosterFieldSet')return({acct_name:'Accountant name',acct_type:'Employment type',acct_section:'Accountant section',acct_note:'Accountant note',tng:'TNG ID (same person)',mgmt:'Management',bonuses:'Bonuses',nosched:'Paid without a schedule',ns_carry:'Last week\'s amount',dep_ent:'Deposit Entity',full_name:'Full Name',display_name:'Display Name'})[t.field]||t.field||''; // FC-00073, FC-00078, FC-00084
   if(e.type==='toolSetting')return _toolSettingLabel(t.field||'');
   if(e.type==='revert'){const o=session.log.find(x=>x.id===e.originalId);return o?('#'+o.seq+' '+_historyKind(o)):'';}
   return'';
@@ -3566,13 +3607,14 @@ function _personFields(st,id,includeBreaks){
   const f={rate:S.wageBlank[id]?'(blank)':(typeof S.wageRates[id]==='number'?S.wageRates[id]:null),type:typeof S.flatWages[id]==='number'?((S.semiMonthly||{})[id]?'Semi-monthly':'Flat'):'Hourly',
     flat:typeof S.flatWages[id]==='number'?S.flatWages[id]:null,method:S.payMethod[id]||'deposit',deposit:sp?sp.deposit:null,typedAs:sp?(sp.isWhole?'whole':'decimal'):null,
     active:S.rosterActive[id]!==false,aliases:(S.rosterAliases[id]||[]).join(', '),notes:rec.notes||'',finalPass:rec.final_pass_method||'',
-    acctName:rec.acct_name||'',acctType:rec.acct_type||'',acctSection:rec.acct_section||'',acctNote:rec.acct_note||'',depEnt:rec.dep_ent||''}; // FC-00073, FC-00085
+    acctName:rec.acct_name||'',acctType:rec.acct_type||'',acctSection:rec.acct_section||'',acctNote:rec.acct_note||'',depEnt:rec.dep_ent||'',fullName:rec.full_name||'',displayName:rec.display_name||''}; // FC-00073, FC-00085, FC-00086
   if(includeBreaks)for(let d=0;d<7;d++){const v=S.breakOverrides[id+'|'+d];f['break'+d]=v==null?'Actual':v;}
   return f;
 }
 const _STAGE_FIELD_LABEL={rate:'Rate',type:'Type',flat:'Flat amount',method:'Pay method',deposit:'Deposit amount',typedAs:'Deposit typed as',active:'Active',aliases:'Aliases',notes:'Notes',finalPass:'Final pass method',palette:'Palette',defaultBreak:'Default break (min)',acctName:'Accountant name',acctType:'Employment type',acctSection:'Accountant section',acctNote:'Accountant note'};
 for(let d=0;d<7;d++)_STAGE_FIELD_LABEL['break'+d]=DAY_SHORT[d]+' break';
 _STAGE_FIELD_LABEL.depEnt='Deposit Entity'; // FC-00085
+_STAGE_FIELD_LABEL.fullName='Full Name';_STAGE_FIELD_LABEL.displayName='Display Name'; // FC-00086
 // Which session log types count as a hand edit of each preview field.
 function _handEditedFields(id){
   const out=new Set();
@@ -3593,6 +3635,8 @@ function _handEditedFields(id){
     else if(t==='rosterFieldSet'&&f==='acct_section')out.add('acctSection');
     else if(t==='rosterFieldSet'&&f==='acct_note')out.add('acctNote');
     else if(t==='rosterFieldSet'&&f==='dep_ent')out.add('depEnt'); // FC-00085
+    else if(t==='rosterFieldSet'&&f==='full_name')out.add('fullName'); // FC-00086
+    else if(t==='rosterFieldSet'&&f==='display_name')out.add('displayName');
     else if(t==='breakOverride')out.add('break'+e.target.day);
   });
   return out;
@@ -8518,6 +8562,9 @@ function addNewEmployee(entIdx,name,fromSpelling,extra){
     if(extra.method)dispatch({type:'payMethod',screen:'intake',target:{kind:'employee',entity:ent.id,id:k,field:'payMethod'},from:payMethod[k]||'deposit',to:extra.method,meta:{empName:rec.canonical_name}});
     // FC-00072: an Executive PR person is a fixed weekly amount (Flat), so they show on Payroll with no punches.
     if(extra.method==='exec'&&flatWages[k]==null)dispatch({type:'flatWage',screen:'intake',target:{kind:'employee',entity:ent.id,id:k,field:'flatWage'},from:null,to:+(extra.flat||0),meta:{empName:rec.canonical_name,displayName:rec.canonical_name}});
+    // FC-00086: the register's Add employee also sets the deposit part and the Management tick.
+    if(extra.method==='both'&&extra.deposit!=null&&extra.deposit!=='')setSplitDeposit(ent.id,rec.canonical_name,+extra.deposit,{typed:true,isWhole:Math.abs(Math.round(+extra.deposit)-(+extra.deposit))<1e-9});
+    if(extra.mgmt&&rec.mgmt!=='Yes')dispatch({type:'rosterFieldSet',screen:'register',target:{kind:'employee',entity:ent.id,id:rec.id,field:'mgmt'},from:rec.mgmt,to:'Yes',meta:{empName:rec.canonical_name}});
     ent.intake.activeEmpTab=rec.canonical_name;
   });
   if(currentTab==='intake'){refreshReviewTable(entIdx);}
@@ -12889,7 +12936,7 @@ async function exportPayrollPdf(){return exportCombinedPdf()}
 // FC-00014: 'Palette' is an entity-level setting, not per-employee, but the settings file is
 // per-employee-row — so every row for a given entity carries the same preset name. Appended
 // at the end so it never shifts any existing column index for older readers.
-const PAYROLL_SETTINGS_HEADERS=['Entity','Employee','Wage/hour','Type','Flat Amount','Pay Method','Deposit Amount','Deposit Typed As','Employee ID','Aliases','Active','Final Pass Method','Notes','Palette','Accountant Name','Employment Type','Accountant Section','Accountant Note','TNG ID','Management','Paid Without Schedule','Last Paid','Last Paid Week','Deposit Entity']; // FC-00085: Deposit Entity. FC-00073: Accountant…; FC-00078: TNG ID (the person) and Management; FC-00084: paid without a schedule. "Employee ID" is the record's former ID.
+const PAYROLL_SETTINGS_HEADERS=['Entity','Employee','Wage/hour','Type','Flat Amount','Pay Method','Deposit Amount','Deposit Typed As','Employee ID','Aliases','Active','Final Pass Method','Notes','Palette','Accountant Name','Employment Type','Accountant Section','Accountant Note','TNG ID','Management','Paid Without Schedule','Last Paid','Last Paid Week','Deposit Entity','Full Name','Display Name']; // FC-00086: Full Name, Display Name. FC-00085: Deposit Entity. FC-00073: Accountant…; FC-00078: TNG ID (the person) and Management; FC-00084: paid without a schedule. "Employee ID" is the record's former ID.
 const PAYROLL_SETTINGS_SCHEMA_TAG='SPCalcPayrollSettingsV1';
 // Break-extension headers — appended only when the user opts in to "include breaks".
 // Per-day numeric (minutes) + status ('Override' or 'Actual'); plus an entity-default-break column.
@@ -12953,7 +13000,8 @@ function _gatherPayrollSettingsRows(includeBreaks){
         nosched:rec0.nosched==='Yes'?'Yes':'',
         lastPaid:rec0.nosched==='Yes'?((_nsSkipped(rec0)||rosterActive[rec0.id]===false)?0:(isFlat?flatWages[k]:'')):'',
         lastPaidWeek:rec0.nosched==='Yes'?_runWeekStart():'',
-        depEnt:rec0.dep_ent||'' // FC-00085
+        depEnt:rec0.dep_ent||'', // FC-00085
+        fullName:rec0.full_name||'',displayName:rec0.display_name||'' // FC-00086
       };
       if(includeBreaks){
         rec.defaultBreak=ent.breakMinutes||0;
@@ -13014,7 +13062,7 @@ async function exportPayrollSettingsExcel(includeBreaks){
   const hdr=ws.addRow(headers);
   hdr.eachCell(c=>{c.font={bold:true,size:10};c.fill={type:'pattern',pattern:'solid',fgColor:{argb:'FFE8E8E4'}};c.alignment={vertical:'middle'};});
   rows.forEach(r=>{
-    const base=[r.entity,r.employee,r.wage,r.type,r.flat,r.method,r.deposit,r.depositTypedAs,r.employeeId,r.aliases,r.active,r.finalPassMethod,r.notes,r.palette,r.acctName,r.acctType,r.acctSection,r.acctNote,r.tng,r.mgmt,r.nosched,r.lastPaid,r.lastPaidWeek,r.depEnt];
+    const base=[r.entity,r.employee,r.wage,r.type,r.flat,r.method,r.deposit,r.depositTypedAs,r.employeeId,r.aliases,r.active,r.finalPassMethod,r.notes,r.palette,r.acctName,r.acctType,r.acctSection,r.acctNote,r.tng,r.mgmt,r.nosched,r.lastPaid,r.lastPaidWeek,r.depEnt,r.fullName,r.displayName];
     if(includeBreaks){
       base.push(r.defaultBreak);
       for(let d=0;d<7;d++){
@@ -13059,8 +13107,8 @@ async function exportPayrollSettingsExcel(includeBreaks){
 // ---- FC-00078: the Employee Register (view, People sheet, PDF, CSV, stamp) ----
 // One row per person and entity: the person's TNG ID, name, employment type and note, and that
 // entity's pay. Inactive people are listed too; nobody is ever deleted.
+// FC-00086: showing the register never hands out TNG IDs (saving does): no assignTngIds() here.
 function registerRows(){
-  assignTngIds();
   const rows=[];
   _registerRecords().forEach(r=>{
     {
@@ -13070,13 +13118,14 @@ function registerRows(){
         type:_normAcctType(r.acct_type||''),note:r.acct_note||'',mgmt:r.mgmt==='Yes',active:rosterActive[k]!==false,
         method:methodLabel(m),pay:flat?(semiMonthly[k]?'Semi-monthly':'Flat'):'Hourly',rate:flat?null:(typeof wageRates[k]==='number'?wageRates[k]:null),
         flat:flat?flatWages[k]:null,deposit:m==='both'&&sp&&sp.typed?sp.deposit:null,acctName:r.acct_name||'',aliases:(rosterAliases[k]||[]).join(', '),
-        depEnt:(r.dep_ent&&depositElsewhere(ent.id,r.canonical_name))?getDepositEntityName(ent.id,r.canonical_name):''}); // FC-00085
+        depEnt:(r.dep_ent&&depositElsewhere(ent.id,r.canonical_name))?getDepositEntityName(ent.id,r.canonical_name):'', // FC-00085
+        fullName:r.full_name||'',displayName:r.display_name||'',nosched:r.nosched==='Yes'}); // FC-00086
     }
   });
   rows.sort((a,b)=>_tngNum(a.tng)-_tngNum(b.tng)||(a.entity<b.entity?-1:a.entity>b.entity?1:0));
   return rows;
 }
-const REGISTER_COLS=[['TNG ID','tng',11],['Name','name',24],['Entity','entity',16],['Former ID','id',15],['Employment Type','type',10],['Management','mgmt',11],['Active','active',8],['Pay Method','method',15],['Pay','pay',12],['Rate','rate',9],['Flat / Salary','flat',12],['Deposit Amount','deposit',12],['Deposit Entity','depEnt',16],['Accountant Name','acctName',22],['Aliases','aliases',24],['Note','note',30]];
+const REGISTER_COLS=[['TNG ID','tng',11],['Name','name',24],['Entity','entity',16],['Former ID','id',15],['Employment Type','type',10],['Management','mgmt',11],['Active','active',8],['Pay Method','method',15],['Pay','pay',12],['Rate','rate',9],['Flat / Salary','flat',12],['Deposit Amount','deposit',12],['Deposit Entity','depEnt',16],['Full Name','fullName',24],['Display Name','displayName',20],['Accountant Name','acctName',22],['Aliases','aliases',24],['Note','note',30]];
 function _registerCell(r,k){const v=r[k];if(k==='mgmt'||k==='active')return v?'Yes':'No';if(k==='rate'||k==='flat'||k==='deposit')return v==null?'':v;return v==null?'':v;}
 // FC-00079, FC-00083: every bonus, each with its week (and end week), on the register's Bonuses
 // sheet. A bonus counts only in its own week(s) (FC-00082), so keeping them all is safe.
@@ -13259,10 +13308,6 @@ function _importToolSettingsWb(wb,sheetName,fileName){
 // The Employee Register tab.
 let _regFilter={q:'',entity:'',status:'active'};
 function setRegisterFilter(k,v){_regFilter[k]=v;renderRegister();}
-function _registerVisible(){
-  const q=_aliasNorm(_regFilter.q||'');
-  return registerRows().filter(r=>(!_regFilter.entity||String(r.entityId)===String(_regFilter.entity))&&(_regFilter.status==='all'||(_regFilter.status==='active'?r.active:!r.active))&&(!q||_aliasNorm(r.name+' '+r.tng+' '+r.id+' '+r.aliases+' '+r.acctName).indexOf(q)>=0));
-}
 // ================================================================
 // FC-00084 — people paid without a schedule
 // ================================================================
@@ -13346,7 +13391,8 @@ function addNoSchedPerson(entIdx,first,last,opts){
     const k=rec.id,name=rec.canonical_name;
     if(rec.nosched!=='Yes')dispatch({type:'rosterFieldSet',screen:'register',target:{kind:'employee',entity:ent.id,id:k,field:'nosched'},from:rec.nosched,to:'Yes',meta:{empName:name}});
     dispatch({type:'flatWage',screen:'register',target:{kind:'employee',entity:ent.id,id:k,field:'flatWage'},from:flatWages[k],to:amt,meta:{empName:name,displayName:name}});
-    if(semiMonthly[k])dispatch({type:'semiMonthlySet',screen:'register',target:{kind:'employee',entity:ent.id,id:k,field:'semiMonthly'},from:true,to:null,meta:{empName:name}});
+    // FC-00086: Semi-monthly when the register's Add employee asks for it (the amount is per half-month).
+    if(!!semiMonthly[k]!==!!opts.semi)dispatch({type:'semiMonthlySet',screen:'register',target:{kind:'employee',entity:ent.id,id:k,field:'semiMonthly'},from:!!semiMonthly[k]||null,to:opts.semi?true:null,meta:{empName:name}});
     if((payMethod[k]||'deposit')!==method)setPayMethod(ent.id,name,method);
     const dep=method==='both'?_nsMoney(opts.deposit):null;
     if(dep!=null)setSplitDeposit(ent.id,name,dep,{typed:true,isWhole:Math.abs(Math.round(dep)-dep)<1e-9});
@@ -13356,75 +13402,288 @@ function addNoSchedPerson(entIdx,first,last,opts){
   _nsAfter();
   return rec;
 }
-function _nsAddFromForm(){
-  const v=id=>{const el=document.getElementById(id);return el?(el.type==='checkbox'?el.checked:el.value):'';};
-  const rec=addNoSchedPerson(parseInt(v('nsEnt'),10),v('nsFirst'),v('nsLast'),{amount:v('nsAmt'),method:v('nsMethod'),deposit:v('nsDep'),mgmt:v('nsMgmt')});
-  if(rec)showToast('Added '+rec.canonical_name+': paid without a schedule','ok');
+// ================================================================
+// FC-00086 — the Employee Register tab: one row per person (one TNG ID), a sub-row per entity record.
+// Every field edits through the same History setters as the Payroll tab; TNG ID and Former ID are
+// read-only. Drawing the register never hands out TNG IDs (saving does).
+// ================================================================
+const REG_METHODS=['cash','deposit','both','contract'];
+const REG_PAY=[['hourly','Hourly'],['flat','Flat'],['semi','Semi-monthly']];
+// Person fields: one value per person, kept on every entity record of the person.
+const PERSON_FIELDS=['full_name','display_name','acct_name','acct_type','acct_note'];
+const _PERSON_FIELD_LABEL={full_name:'Full Name',display_name:'Display Name',acct_name:'Accountant Name',acct_type:'Employment type',acct_note:'Standing note'};
+function _regRec(id){return(session.roster.byId||{})[id]||null;}
+function _regEntName(id){return(entities.find(e=>e.id===id)||{}).name||'';}
+// The register as people: records grouped by TNG ID; a record with no TNG ID is its own person.
+function registerPeople(){
+  const rows=registerRows(),by=new Map(),out=[];
+  rows.forEach(r=>{const key=r.tng||('rec:'+r.id);let p=by.get(key);if(!p){p={key,tng:r.tng,recs:[]};by.set(key,p);out.push(p);}p.recs.push(r);});
+  const order=new Map(entities.map((e,i)=>[e.id,i]));
+  out.forEach(p=>{
+    p.recs.sort((a,b)=>(order.get(a.entityId)||0)-(order.get(b.entityId)||0)||String(a.id).localeCompare(String(b.id)));
+    const lead=p.recs.find(r=>r.active)||p.recs[0];
+    const pick=k=>{const x=p.recs.find(r=>r[k]);return x?x[k]:'';};
+    Object.assign(p,{id:lead.id,name:lead.name,fullName:pick('fullName'),displayName:pick('displayName'),acctName:pick('acctName'),type:pick('type'),note:pick('note')});
+    p.active=p.recs.some(r=>r.active);
+    p.showAcct=p.recs.some(r=>/Deposit/.test(r.method));
+    const hourly=p.recs.filter(r=>r.pay==='Hourly'),rated=hourly.find(r=>r.rate!=null);
+    p.hourly=hourly.length>0;p.rate=rated?rated.rate:null;
+    p.entityIds=p.recs.filter(r=>r.active).map(r=>r.entityId);
+  });
+  out.sort((a,b)=>(a.tng?0:1)-(b.tng?0:1)||_tngNum(a.tng)-_tngNum(b.tng)||(order.get(a.recs[0].entityId)||0)-(order.get(b.recs[0].entityId)||0)||String(a.id).localeCompare(String(b.id)));
+  return out;
+}
+function _registerVisiblePeople(){
+  const q=_aliasNorm(_regFilter.q||'');
+  return registerPeople().filter(p=>(!_regFilter.entity||p.recs.some(r=>String(r.entityId)===String(_regFilter.entity)))&&
+    (_regFilter.status==='all'||(_regFilter.status==='active'?p.active:!p.active))&&
+    (!q||_aliasNorm(p.recs.map(r=>[r.name,r.tng,r.id,r.aliases,r.acctName,r.fullName,r.displayName].join(' ')).join(' ')).indexOf(q)>=0));
+}
+function _registerVisible(){return _registerVisiblePeople().flatMap(p=>p.recs);}
+// Full Name and Display Name on one record (the register file sets them record by record).
+function _setRecordName(rec,f,val,screen){
+  if(!rec||!rec.id||(f!=='full_name'&&f!=='display_name'))return false;
+  const v=String(val==null?'':val).replace(/\s+/g,' ').trim();
+  const from=rec[f];
+  if(String(from==null?'':from)===v)return false;
+  dispatch({type:'rosterFieldSet',screen:screen||'register',target:{kind:'employee',entity:rec.entity,id:rec.id,field:f},from,to:v,meta:{empName:rec.canonical_name}});
+  return true;
+}
+// A person field, written to every entity record of the person in one Undo step.
+function setPersonField(id,f,val){
+  const rec=_regRec(id);if(!rec||!PERSON_FIELDS.includes(f))return false;
+  let v=String(val==null?'':val).replace(/\s+/g,' ').trim();
+  if(f==='acct_type')v=_normAcctType(v);
+  const todo=_personRecords(rec).filter(r=>String(r[f]==null?'':r[f])!==v);
+  if(!todo.length){_nsAfter();return false;}
+  _withCheckpoint(_PERSON_FIELD_LABEL[f]+' · '+rec.canonical_name,()=>todo.forEach(r=>dispatch({type:'rosterFieldSet',screen:'register',target:{kind:'employee',entity:r.entity,id:r.id,field:f},from:r[f],to:v,meta:{empName:r.canonical_name}})));
+  _nsAfter();
+  return true;
+}
+function getPersonField(id,f){const rec=_regRec(id);if(!rec)return'';const x=_personRecords(rec).find(r=>r[f]);return x?String(x[f]):'';}
+// Active (main row): Yes = active at every entity record of the person; No = inactive at all.
+function setPersonActive(id,on){
+  const rec=_regRec(id);if(!rec)return false;
+  const todo=_personRecords(rec).filter(r=>(rosterActive[r.id]!==false)!==!!on);
+  if(!todo.length){_nsAfter();return false;}
+  _withCheckpoint((on?'Active':'Inactive')+' · '+rec.canonical_name,()=>todo.forEach(r=>setRosterActive(r.entity,r.canonical_name,!!on)));
+  _nsAfter();
+  return true;
+}
+// The hourly rate: one per person (FC-00085), on every hourly record, one Undo step.
+function regSetRate(id,val){
+  const rec=_regRec(id);if(!rec)return false;
+  const v=parseFloat(String(val==null?'':val).replace(/[$,\s]/g,''));
+  if(!(v>0)){showToast('The rate must be a number above 0','err');_nsAfter();return false;}
+  const todo=_personRecords(rec).filter(r=>flatWages[r.id]==null&&wageRates[r.id]!==v);
+  if(!todo.length){_nsAfter();return false;}
+  _withCheckpoint('Rate for one person · '+rec.canonical_name,()=>todo.forEach(r=>dispatch({type:'wage',screen:'register',target:{kind:'employee',entity:r.entity,id:r.id,field:'wage'},from:wageRates[r.id],to:v,meta:{empName:r.canonical_name,sameRate:true}})));
+  _nsAfter();
+  return true;
+}
+// Sub-row (one entity record) setters.
+function regSetMethod(id,m){const rec=_regRec(id);if(!rec||!REG_METHODS.includes(m))return false;if((payMethod[id]||'deposit')===m)return false;setPayMethod(rec.entity,rec.canonical_name,m);_nsAfter();return true;}
+function _personRate(rec){const x=_personRecords(rec).find(r=>flatWages[r.id]==null&&typeof wageRates[r.id]==='number');return x?wageRates[x.id]:null;}
+function regSetPay(id,type){
+  const rec=_regRec(id);if(!rec||!REG_PAY.some(p=>p[0]===type))return false;
+  const k=rec.id,nm=rec.canonical_name,isFlat=flatWages[k]!=null,wantFlat=type!=='hourly',wantSemi=type==='semi';
+  if(isFlat===wantFlat&&!!semiMonthly[k]===wantSemi)return false;
+  _withCheckpoint('Pay · '+nm,()=>{
+    if(!!semiMonthly[k]!==wantSemi)dispatch({type:'semiMonthlySet',screen:'register',target:{kind:'employee',entity:rec.entity,id:k,field:'semiMonthly'},from:!!semiMonthly[k]||null,to:wantSemi||null,meta:{empName:nm}});
+    if(wantFlat&&!isFlat)dispatch({type:'flatWage',screen:'register',target:{kind:'employee',entity:rec.entity,id:k,field:'flatWage'},from:null,to:0,meta:{empName:nm,displayName:nm}});
+    if(!wantFlat&&isFlat){
+      dispatch({type:'flatWage',screen:'register',target:{kind:'employee',entity:rec.entity,id:k,field:'flatWage'},from:flatWages[k],to:null,meta:{empName:nm}});
+      const rate=_personRate(rec); // back to hourly: the person's one rate
+      if(rate!=null&&wageRates[k]!==rate)dispatch({type:'wage',screen:'register',target:{kind:'employee',entity:rec.entity,id:k,field:'wage'},from:wageRates[k],to:rate,meta:{empName:nm,sameRate:true}});
+    }
+  });
+  _nsAfter();
+  return true;
+}
+function regSetFlat(id,val){
+  const rec=_regRec(id);if(!rec||flatWages[id]==null)return false;
+  const amt=_nsMoney(val);if(amt==null){showToast('The amount must be a number of 0 or more','err');_nsAfter();return false;}
+  if(flatWages[id]===amt)return false;
+  dispatch({type:'flatWage',screen:'register',target:{kind:'employee',entity:rec.entity,id,field:'flatWage'},from:flatWages[id],to:amt,meta:{empName:rec.canonical_name,displayName:rec.canonical_name}});
+  _nsAfter();return true;
+}
+function regSetDeposit(id,val){
+  const rec=_regRec(id);if(!rec)return false;
+  const raw=String(val==null?'':val).trim(),d=_nsMoney(raw);
+  if(raw===''){clearSplitDeposit(rec.entity,rec.canonical_name);_nsAfter();return true;}
+  if(d==null){showToast('The deposit must be a number of 0 or more','err');_nsAfter();return false;}
+  setSplitDeposit(rec.entity,rec.canonical_name,d,{typed:true,isWhole:!/\./.test(raw)||Math.abs(Math.round(d)-d)<1e-9});
+  _nsAfter();return true;
+}
+function regSetMgmt(id,on){const rec=_regRec(id);if(!rec)return false;const ok=setManagement(rec.entity,rec.canonical_name,!!on,'register');_nsAfter();return ok;}
+function regSetDepEnt(id,v){const rec=_regRec(id);if(!rec)return false;const ok=setDepositEntity(rec.entity,rec.canonical_name,v,'register');_nsAfter();return ok;}
+function regSetNoSched(id,on){
+  const rec=_regRec(id);if(!rec)return false;
+  const to=on?'Yes':'';if((rec.nosched||'')===to)return false;
+  dispatch({type:'rosterFieldSet',screen:'register',target:{kind:'employee',entity:rec.entity,id,field:'nosched'},from:rec.nosched,to,meta:{empName:rec.canonical_name}});
+  _nsAfter();return true;
+}
+// Entity multi-select. Ticking adds the person at that entity (a new record under the same TNG ID,
+// with the person's rate, names, employment type, note and accountant name), or makes an inactive
+// record there active again. Unticking asks first, then makes that record inactive (kept, never
+// deleted). The last active entity cannot be unticked.
+function regToggleEntity(id,entId,on){
+  const rec=_regRec(id);if(!rec)return false;
+  const ent=entities.find(e=>e.id===entId);if(!ent||!ent.name)return false;
+  const recs=_personRecords(rec),here=recs.find(r=>r.entity===entId);
+  if(!on){
+    if(!here||rosterActive[here.id]===false){_nsAfter();return false;}
+    if(!recs.some(r=>r!==here&&rosterActive[r.id]!==false)){alert(here.canonical_name+' works only at '+ent.name+'. To stop paying them, set Active to No instead.');_nsAfter();return false;}
+    if(!confirm('Make '+here.canonical_name+' inactive at '+ent.name+'?\n\nTheir history there is kept. Tick '+ent.name+' again to bring them back.')){_nsAfter();return false;}
+    setRosterActive(entId,here.canonical_name,false);
+    _nsAfter();return true;
+  }
+  if(here){if(rosterActive[here.id]===false)setRosterActive(entId,here.canonical_name,true);_nsAfter();return true;}
+  const nm=rec.canonical_name;
+  const arch=_archivedMatch(entId,nm);
+  if(arch){alert(arch.canonical_name+' is archived at '+ent.name+'. Use Reactivate to bring them back.');_nsAfter();return false;}
+  let made=null;
+  _withCheckpoint('Add '+nm+' at '+ent.name,()=>{
+    let other=_resolveRecordNoMint(entId,nm);
+    if(!other){
+      const code=_entityCodeFor(entId);const hw=_idHighWater()[code]||0;session._empIdSeq=session._empIdSeq||{};if(!(session._empIdSeq[code]>=hw))session._empIdSeq[code]=hw;
+      other=ensureRosterRecord(entId,nm);
+      other.addedNew=true;
+    }
+    if(!other||!other.id)return;
+    linkSamePerson(rec.id,other.id);
+    const src=_regRec(rec.id);
+    ['full_name','display_name','acct_name','acct_type','acct_note'].forEach(f=>{if(src[f]&&String(other[f]==null?'':other[f])!==String(src[f]))dispatch({type:'rosterFieldSet',screen:'register',target:{kind:'employee',entity:entId,id:other.id,field:f},from:other[f],to:src[f],meta:{empName:other.canonical_name}});});
+    const rate=_personRate(src);
+    if(rate!=null&&flatWages[other.id]==null&&wageRates[other.id]!==rate)dispatch({type:'wage',screen:'register',target:{kind:'employee',entity:entId,id:other.id,field:'wage'},from:wageRates[other.id],to:rate,meta:{empName:other.canonical_name,sameRate:true}});
+    if(rosterActive[other.id]===false)setRosterActive(entId,other.canonical_name,true);
+    made=other;
+  });
+  _nsAfter();
+  return made;
+}
+// Add employee: entity, first and last name, pay method, pay, rate or amount, Management.
+// Hourly people are added as a new employee is (addNewEmployee); Flat and Semi-monthly people are
+// paid without a schedule (addNoSchedPerson, FC-00084).
+function regAddEmployee(entIdx,first,last,opts){
+  opts=opts||{};
+  const ent=entities[entIdx];if(!ent||!ent.name){showToast('Pick an entity','err');return null;}
+  const method=REG_METHODS.includes(opts.method)?opts.method:'deposit';
+  const pay=REG_PAY.some(p=>p[0]===opts.pay)?opts.pay:'hourly';
+  if(pay!=='hourly')return addNoSchedPerson(entIdx,first,last,{amount:opts.amount,method,deposit:opts.deposit,mgmt:!!opts.mgmt,semi:pay==='semi'});
+  const nm=newEmployeeFullName(entIdx,first,last);if(!nm){showToast('Type a first name','err');return null;}
+  if(_resolveRecordNoMint(ent.id,nm)){alert(nm+' is already in the register at '+ent.name+'.');return null;}
+  const rawRate=String(opts.amount==null?'':opts.amount).trim(),rate=_nsMoney(rawRate);
+  if(rawRate!==''&&!(rate>0)){showToast('The rate must be a number above 0','err');return null;}
+  const dep=method==='both'?_nsMoney(opts.deposit):null;
+  const rec=addNewEmployee(entIdx,nm,null,{rate:rate>0?rate:null,method:method==='deposit'?'':method,deposit:dep,mgmt:!!opts.mgmt});
+  _nsAfter();
   return rec;
 }
+function _regAddFromForm(){
+  const v=id=>{const el=document.getElementById(id);return el?(el.type==='checkbox'?el.checked:el.value):'';};
+  const rec=regAddEmployee(parseInt(v('regAddEnt'),10),v('regAddFirst'),v('regAddLast'),{method:v('regAddMethod'),pay:v('regAddPay'),amount:v('regAddAmt'),deposit:v('regAddDep'),mgmt:v('regAddMgmt')});
+  if(rec)showToast('Added '+rec.canonical_name+' to the register','ok');
+  return rec;
+}
+// The register's "Paid without a schedule" view: the register filtered to people paid a Flat or
+// Semi-monthly amount, with this week's FC-00084 controls for those ticked "No schedule".
+function registerFlatRows(){
+  const vis=new Set(_registerVisible().map(r=>r.id));
+  return registerRows().filter(r=>r.pay!=='Hourly'&&vis.has(r.id));
+}
 function _noSchedSectionHtml(){
-  const list=noSchedRecords(),wk=_runWeekStart();
-  const ents=entities.map((e,i)=>({e,i})).filter(x=>x.e.name);
-  let h=`<div class="ns-panel" id="nsPanel"><h4>Paid without a schedule</h4><div class="dl-desc">People paid every week who are on no schedule (Management, for example). Each week starts at last week's amount: keep it, change it, or tick "Not paid this week". Saved in the Employee Register.${wk?'':' Load this week\'s schedules first: the week decides what is kept.'}</div>`;
+  const list=registerFlatRows(),wk=_runWeekStart();
+  const money=v=>v==null?'':v;
+  let h=`<div class="reg-card ns-panel" id="nsPanel"><div class="reg-card-head"><h4>Paid without a schedule</h4><span class="reg-pill">${list.length} ${list.length===1?'person':'people'}</span></div><div class="dl-desc">Everyone in the register paid a Flat or Semi-monthly amount. Tick <b>No schedule</b> for people paid every week who are on no schedule (Management, for example): each week starts at last week's amount, and you keep it, change it, or tick "Not paid this week". Add someone new with <b>Add employee</b> above (Pay: Flat or Semi-monthly).${wk?'':' Load this week\'s schedules first: the week decides what is kept.'}</div>`;
   if(list.length){
-    h+='<table class="reg-table ns-table"><thead><tr><th>TNG ID</th><th>Name</th><th>Entity</th><th>Pay Method</th><th>Mgmt</th><th>Active</th><th>This week</th><th>Deposit part</th><th>Status</th><th></th></tr></thead><tbody>';
+    h+='<div class="reg-scroll reg-scroll-ns"><table class="reg-table ns-table"><thead><tr><th>TNG ID</th><th>Name</th><th>Entity</th><th>Pay</th><th>Pay Method</th><th>Amount</th><th>Deposit part</th><th>No schedule</th><th>Status</th><th></th></tr></thead><tbody>';
     list.forEach(r=>{
-      const s=noSchedStatus(r),id=escJs(r.id),ent=entities.find(e=>e.id===r.entity)||{};
-      const m=payMethod[r.id]||'deposit',sp=splitAmounts[r.id];
-      h+=`<tr data-ns="${escHtml(r.id)}"><td class="reg-tng">${escHtml(r.tng||'pending')}</td><td class="reg-name">${escHtml(r.canonical_name)}</td><td>${escHtml(ent.name||'')}</td>`+
-        `<td><select onchange="setNoSchedMethod('${id}',this.value)">${NS_METHODS.map(v=>`<option value="${v}"${m===v?' selected':''}>${escHtml(_WOW_METHOD[v])}</option>`).join('')}</select></td>`+
-        `<td class="reg-c"><input type="checkbox"${r.mgmt==='Yes'?' checked':''} onchange="setManagement(${ent.id},'${escJs(r.canonical_name)}',this.checked)"></td>`+
-        `<td class="reg-c"><input type="checkbox"${rosterActive[r.id]===false?'':' checked'} onchange="setNoSchedActive('${id}',this.checked)"></td>`+
-        `<td><input type="number" min="0" step="0.01" value="${s.amount==null?'':s.amount}" onchange="setNoSchedAmount('${id}',this.value)"></td>`+
-        `<td>${m==='both'?`<input type="number" min="0" step="0.01" value="${sp&&sp.typed?sp.deposit:''}" onchange="setNoSchedDeposit('${id}',this.value)">`:''}</td>`+
-        `<td class="ns-st ns-st-${s.state}">${escHtml(noSchedStatusText(r))}</td>`+
-        `<td>${wk&&s.state==='unchecked'?`<button class="mini-btn" onclick="keepNoSched('${id}')">Keep</button> `:''}${wk&&s.state!=='inactive'?`<label class="dl-fmt"><input type="checkbox"${s.state==='skip'?' checked':''} onchange="setNoSchedSkip('${id}',this.checked)"> Not paid this week</label>`:''}</td></tr>`;
+      const rec=_regRec(r.id)||{},ns=rec.nosched==='Yes',id=escJs(r.id),m=payMethod[r.id]||'deposit',sp=splitAmounts[r.id];
+      const s=ns?noSchedStatus(rec):null;
+      h+=`<tr data-ns="${escHtml(r.id)}" class="${r.active?'':'reg-inactive'}"><td class="reg-tng">${escHtml(r.tng||'pending')}</td><td class="reg-name">${escHtml(r.displayName||r.name)}</td><td>${escHtml(r.entity)}</td><td><span class="reg-pill">${escHtml(r.pay)}</span></td>`+
+        `<td><select class="reg-sel" onchange="${ns?'setNoSchedMethod':'regSetMethod'}('${id}',this.value)">${REG_METHODS.map(v=>`<option value="${v}"${m===v?' selected':''}>${escHtml(_WOW_METHOD[v])}</option>`).join('')}</select></td>`+
+        `<td><input type="number" class="reg-num" min="0" step="0.01" value="${money(r.flat)}" onchange="${ns?'setNoSchedAmount':'regSetFlat'}('${id}',this.value)"></td>`+
+        `<td>${m==='both'?`<input type="number" class="reg-num" min="0" step="0.01" value="${sp&&sp.typed?sp.deposit:''}" onchange="${ns?'setNoSchedDeposit':'regSetDeposit'}('${id}',this.value)">`:''}</td>`+
+        `<td class="reg-c"><input type="checkbox"${ns?' checked':''} title="Paid every week, on no schedule" onchange="regSetNoSched('${id}',this.checked)"></td>`+
+        `<td class="ns-st ${s?'ns-st-'+s.state:''}">${s?escHtml(noSchedStatusText(rec)):'<span class="reg-muted" title="Tick No schedule to check this amount every week">—</span>'}</td>`+
+        `<td>${s&&wk&&s.state==='unchecked'?`<button class="btn btn-small" onclick="keepNoSched('${id}')">Keep</button> `:''}${s&&wk&&s.state!=='inactive'?`<label class="dl-fmt"><input type="checkbox"${s.state==='skip'?' checked':''} onchange="setNoSchedSkip('${id}',this.checked)"> Not paid this week</label>`:''}</td></tr>`;
     });
-    h+='</tbody></table>';
-  }
-  h+=`<div class="ns-add"><b>+ Add person</b> <select id="nsEnt">${ents.map(x=>`<option value="${x.i}">${escHtml(x.e.name)}</option>`).join('')}</select> <input id="nsFirst" placeholder="First name"> <input id="nsLast" placeholder="Last name"> <input id="nsAmt" type="number" min="0" step="0.01" placeholder="Weekly amount"> <select id="nsMethod">${NS_METHODS.map(v=>`<option value="${v}">${escHtml(_WOW_METHOD[v])}</option>`).join('')}</select> <input id="nsDep" type="number" min="0" step="0.01" placeholder="Deposit part (D + C)"> <label><input type="checkbox" id="nsMgmt"> Management</label> <button class="btn" onclick="_nsAddFromForm()">Add</button></div>`;
+    h+='</tbody></table></div>';
+  }else h+='<div class="reg-empty">Nobody in this view is paid a Flat or Semi-monthly amount.</div>';
   h+='</div>';
   return h;
 }
+function _regAddHtml(){
+  const ents=entities.map((e,i)=>({e,i})).filter(x=>x.e.name);
+  return`<div class="reg-add"><b>+ Add employee</b> <select class="reg-sel" id="regAddEnt">${ents.map(x=>`<option value="${x.i}">${escHtml(x.e.name)}</option>`).join('')}</select> <input class="reg-txt" id="regAddFirst" placeholder="First name"> <input class="reg-txt" id="regAddLast" placeholder="Last name"> <select class="reg-sel" id="regAddMethod">${REG_METHODS.map(v=>`<option value="${v}"${v==='deposit'?' selected':''}>${escHtml(_WOW_METHOD[v])}</option>`).join('')}</select> <select class="reg-sel" id="regAddPay">${REG_PAY.map(([v,l])=>`<option value="${v}">${l}</option>`).join('')}</select> <input class="reg-num" id="regAddAmt" type="number" min="0" step="0.01" placeholder="Rate / amount"> <input class="reg-num" id="regAddDep" type="number" min="0" step="0.01" placeholder="Deposit part" title="Deposit part, for Deposit + Cash"> <label class="reg-chk"><input type="checkbox" id="regAddMgmt"> Mgmt</label> <button class="btn btn-primary btn-small" onclick="_regAddFromForm()">Add</button></div>`;
+}
+function _regEntityPicker(p,ents){
+  const on=new Set(p.entityIds),id=escJs(p.id);
+  const names=ents.filter(e=>on.has(e.id)).map(e=>e.name);
+  return`<details class="reg-ents"><summary title="Entities this person works at">${names.length?names.map(n=>`<span class="reg-pill">${escHtml(n)}</span>`).join(''):'<span class="reg-muted">none active</span>'}</summary><div class="reg-ents-list">${ents.map(e=>`<label><input type="checkbox"${on.has(e.id)?' checked':''} onchange="regToggleEntity('${id}',${e.id},this.checked)"> ${escHtml(e.name)}</label>`).join('')}</div></details>`;
+}
+function _regSubRowHtml(r,ents,linked,mainName){
+  const id=escJs(r.id),flat=r.pay!=='Hourly',m=payMethod[r.id]||'deposit',payKey=r.pay==='Hourly'?'hourly':r.pay==='Flat'?'flat':'semi';
+  const f=(label,html)=>`<span class="reg-f"><span class="reg-fl">${label}</span>${html}</span>`;
+  const depEntSel=`<select class="reg-sel reg-dep" title="The entity that pays this person's deposit (cash stays with the entity they work at)" onchange="regSetDepEnt('${id}',this.value)"><option value=""${r.depEnt?'':' selected'}>${escHtml(r.entity)} (works here)</option>${ents.filter(e=>e.id!==r.entityId).map(e=>`<option value="${escHtml(e.name)}"${r.depEnt===e.name?' selected':''}>${escHtml(e.name)}</option>`).join('')}</select>`;
+  return`<tr class="reg-sub${r.active?'':' reg-inactive'}" data-rec="${escHtml(r.id)}"><td></td><td colspan="8"><div class="reg-subline">`+
+    `<span class="reg-subent">${escHtml(r.entity)} <span class="reg-code">${escHtml(r.code)}</span></span>`+
+    (_aliasNorm(r.name)!==_aliasNorm(mainName||r.name)?f('Saved name',`<span class="reg-saved" title="The name on schedules and timecards at this entity">${escHtml(r.name)}</span>`):'')+
+    f('Former ID',`<span class="reg-former">${escHtml(r.id)}</span>`)+
+    f('Pay Method',`<select class="reg-sel" onchange="regSetMethod('${id}',this.value)">${REG_METHODS.map(v=>`<option value="${v}"${m===v?' selected':''}>${escHtml(_WOW_METHOD[v])}</option>`).join('')}</select>`)+
+    f('Pay',`<select class="reg-sel" onchange="regSetPay('${id}',this.value)">${REG_PAY.map(([v,l])=>`<option value="${v}"${payKey===v?' selected':''}>${l}</option>`).join('')}</select>`)+
+    (flat?f(r.pay==='Semi-monthly'?'Per half-month':'Weekly amount',`<input type="number" class="reg-num" min="0" step="0.01" value="${r.flat==null?'':r.flat}" onchange="regSetFlat('${id}',this.value)">`):'')+
+    (m==='both'?f('Deposit Amount',`<input type="number" class="reg-num" min="0" step="0.01" value="${r.deposit==null?'':r.deposit}" placeholder="—" onchange="regSetDeposit('${id}',this.value)">`):'')+
+    ((m==='deposit'||m==='both'||r.depEnt)?f('Deposit Entity',depEntSel):'')+
+    `<label class="reg-chk"><input type="checkbox"${r.mgmt?' checked':''} onchange="regSetMgmt('${id}',this.checked)"> Mgmt</label>`+
+    (r.nosched?'<span class="reg-pill reg-pill-ns" title="Paid every week, on no schedule">No schedule</span>':'')+
+    (r.active?'':'<span class="reg-pill reg-pill-off">Inactive here</span>')+
+    (linked?`<button class="btn btn-small reg-unlink" onclick="unlinkPerson('${id}')" title="Give this entity's record its own TNG ID">Unlink</button>`:'')+
+    `</div></td></tr>`;
+}
 function renderRegister(){
   const host=document.getElementById('registerHost');if(!host)return;
-  if(currentTab!=='register')return; // FC-00078: drawn (and IDs numbered) only when the tab is open
-  const rows=_registerVisible();
+  if(currentTab!=='register')return; // FC-00078: drawn only when the tab is open
+  const people=_registerVisiblePeople();
   const ents=entities.filter(e=>e.name);
-  const money=v=>v==null||v===''?'':'$'+Number(v).toFixed(2);
-  let lastTng='';
-  const body=rows.map(r=>{
-    const first=r.tng!==lastTng;lastTng=r.tng;
-    const sib=registerRows().filter(x=>x.tng===r.tng).length>1;
-    const id=escJs(r.id);
-    return`<tr class="${r.active?'':'reg-inactive'}${first?' reg-first':''}">
-      <td class="reg-tng">${first?escHtml(r.tng||'pending'):''}</td><td class="reg-name">${first?escHtml(r.name):'<span class="reg-same">same person</span>'}</td>
-      <td>${escHtml(r.entity)} <span class="reg-code">${escHtml(r.code)}</span></td><td class="reg-former">${escHtml(r.id)}</td>
-      <td>${first?`<select onchange="setAcctField(${r.entityId},'${escJs(r.name)}','acct_type',this.value,'register');renderRegister()"><option value=""${r.type?'':' selected'}>—</option><option${r.type==='W2'?' selected':''}>W2</option><option${r.type==='1099'?' selected':''}>1099</option></select>`:escHtml(r.type)}</td>
-      <td class="reg-c"><input type="checkbox"${r.mgmt?' checked':''} onchange="setManagement(${r.entityId},'${escJs(r.name)}',this.checked)"></td>
-      <td class="reg-c">${r.active?'Yes':'No'}</td><td>${escHtml(r.method)}</td><td>${escHtml(r.pay)}</td>
-      <td class="reg-n">${money(r.rate)}</td><td class="reg-n">${money(r.flat)}</td><td class="reg-n">${money(r.deposit)}</td>
-      <td>${(/Deposit/.test(r.method)||r.depEnt)?`<select class="reg-dep" title="The entity that pays this person's deposit (cash stays with the entity they work at)" onchange="setDepositEntity(${r.entityId},'${escJs(r.name)}',this.value,'register')"><option value=""${r.depEnt?'':' selected'}>${escHtml(r.entity)} (works here)</option>${ents.filter(e=>e.id!==r.entityId).map(e=>`<option value="${escHtml(e.name)}"${r.depEnt===e.name?' selected':''}>${escHtml(e.name)}</option>`).join('')}</select>`:'<span class="reg-same">—</span>'}</td>
-      <td><input type="text" class="reg-in" value="${escHtml(r.acctName)}" placeholder="${escHtml(r.name)}" title="The name on the accountant file (blank: this name)" onchange="setAcctField(${r.entityId},'${escJs(r.name)}','acct_name',this.value,'register');renderRegister()"></td>
-      <td class="reg-note">${first?`<input type="text" class="reg-in" value="${escHtml(r.note)}" title="Prints on the accountant file every week" onchange="setAcctField(${r.entityId},'${escJs(r.name)}','acct_note',this.value,'register');renderRegister()">`:escHtml(r.note)}</td>
-      <td>${sib?`<button class="mini-btn" onclick="unlinkPerson('${id}')" title="Give this entity's record its own TNG ID">Unlink</button>`:''}</td></tr>`;
+  const body=people.map(p=>{
+    const id=escJs(p.id),ph=escHtml(p.name);
+    const main=`<tr class="reg-person${p.active?'':' reg-inactive'}" data-person="${escHtml(p.key)}">
+      <td class="reg-tng">${escHtml(p.tng||'pending')}</td>
+      <td><input type="text" class="reg-txt reg-name-in" value="${escHtml(p.fullName)}" placeholder="${ph}" title="Full Name (blank: ${ph})" onchange="setPersonField('${id}','full_name',this.value)"></td>
+      <td><input type="text" class="reg-txt" value="${escHtml(p.displayName)}" placeholder="${ph}" title="Display Name: the name shown for this person (blank: ${ph})" onchange="setPersonField('${id}','display_name',this.value)"></td>
+      <td>${p.showAcct?`<input type="text" class="reg-txt" value="${escHtml(p.acctName)}" placeholder="${ph}" title="The name on the accountant file (blank: ${ph})" onchange="setPersonField('${id}','acct_name',this.value)">`:'<span class="reg-muted" title="Only for Deposit or Deposit + Cash">—</span>'}</td>
+      <td><select class="reg-sel" onchange="setPersonField('${id}','acct_type',this.value)"><option value=""${p.type?'':' selected'}>—</option><option${p.type==='W2'?' selected':''}>W2</option><option${p.type==='1099'?' selected':''}>1099</option></select></td>
+      <td>${p.hourly?`<input type="number" class="reg-num" min="0" step="0.01" value="${p.rate==null?'':p.rate}" placeholder="rate" title="One hourly rate for this person at every entity" onchange="regSetRate('${id}',this.value)">`:'<span class="reg-muted" title="Paid a flat amount">—</span>'}</td>
+      <td><select class="reg-sel" onchange="setPersonActive('${id}',this.value==='yes')"><option value="yes"${p.active?' selected':''}>Yes</option><option value="no"${p.active?'':' selected'}>No</option></select></td>
+      <td><input type="text" class="reg-txt reg-note-in" value="${escHtml(p.note)}" title="Standing note: prints on the accountant file every week" onchange="setPersonField('${id}','acct_note',this.value)"></td>
+      <td>${_regEntityPicker(p,ents)}</td></tr>`;
+    return main+p.recs.map(r=>_regSubRowHtml(r,ents,p.recs.length>1&&!!p.tng,p.name)).join('');
   }).join('');
   const cands=samePersonCandidates();
-  const candHtml=cands.length?`<div class="reg-cands"><b>Same person at two entities?</b> Link only the ones that are one person; each keeps its own pay method at each entity, and the hourly rate is one per person.<ul>${cands.map(c=>`<li>${escHtml(c.a.canonical_name)} (${escHtml((entities.find(e=>e.id===c.a.entity)||{}).name||'')}, ${escHtml(c.a.tng||'pending')}) — ${escHtml(c.b.canonical_name)} (${escHtml((entities.find(e=>e.id===c.b.entity)||{}).name||'')}, ${escHtml(c.b.tng||'pending')}) <button class="mini-btn" onclick="linkSamePerson('${escJs(c.a.id)}','${escJs(c.b.id)}')">Link as one person</button></li>`).join('')}</ul></div>`:'';
+  const entOf=r=>escHtml(_regEntName(r.entity));
+  const candHtml=cands.length?`<div class="reg-cands"><b>Same person at two entities?</b> Link only the ones that are one person; each keeps its own pay method at each entity, and the hourly rate is one per person.<ul>${cands.map(c=>`<li><span>${escHtml(c.a.canonical_name)} <span class="reg-muted">${entOf(c.a)} · ${escHtml(c.a.tng||'pending')}</span> and ${escHtml(c.b.canonical_name)} <span class="reg-muted">${entOf(c.b)} · ${escHtml(c.b.tng||'pending')}</span></span> <button class="btn btn-small" onclick="linkSamePerson('${escJs(c.a.id)}','${escJs(c.b.id)}')">Link as one person</button></li>`).join('')}</ul></div>`:'';
   const all=registerRows();
-  host.innerHTML=`<div class="reg-bar">
-      <input type="search" placeholder="Search name, TNG ID, alias…" value="${escHtml(_regFilter.q)}" oninput="setRegisterFilter('q',this.value)">
-      <select onchange="setRegisterFilter('entity',this.value)"><option value="">All entities</option>${ents.map(e=>`<option value="${e.id}"${String(_regFilter.entity)===String(e.id)?' selected':''}>${escHtml(e.name)}</option>`).join('')}</select>
-      <select onchange="setRegisterFilter('status',this.value)">${[['active','Active'],['inactive','Inactive'],['all','Active and inactive']].map(([v,l])=>`<option value="${v}"${_regFilter.status===v?' selected':''}>${l}</option>`).join('')}</select>
-      <span class="reg-count">${new Set(all.map(r=>r.tng)).size} people · ${all.length} entity records</span>
-      <span class="reg-week reg-week-${registerWeekStatus().state}">${escHtml(_registerWeekLine())}</span>
-      <span class="reg-dl"><button class="btn" onclick="exportPayrollSettingsExcel(false)">Excel</button><button class="btn" onclick="exportRegisterPdf()">PDF</button><button class="btn" onclick="exportRegisterCsv()">CSV</button></span>
+  const nPeople=new Set(all.map(r=>r.tng||r.id)).size;
+  host.innerHTML=`<div class="reg-card">
+    <div class="reg-card-head"><h3>Employee Register</h3><span class="reg-count">${nPeople} people · ${all.length} entity records</span>
+      <span class="reg-week reg-week-${(typeof _tngFreshRisk==='function'&&_tngFreshRisk())?'older':registerWeekStatus().state}">${escHtml(_registerWeekLine())}</span>
+      <span class="reg-dl"><button class="btn btn-green" onclick="exportPayrollSettingsExcel(false)">Excel</button><button class="btn" onclick="exportRegisterPdf()">PDF</button><button class="btn" onclick="exportRegisterCsv()">CSV</button></span></div>
+    <div class="reg-bar">
+      <input type="search" class="reg-txt reg-search" placeholder="Search name, TNG ID, alias…" value="${escHtml(_regFilter.q)}" oninput="setRegisterFilter('q',this.value)">
+      <select class="reg-sel" onchange="setRegisterFilter('entity',this.value)"><option value="">All entities</option>${ents.map(e=>`<option value="${e.id}"${String(_regFilter.entity)===String(e.id)?' selected':''}>${escHtml(e.name)}</option>`).join('')}</select>
+      <select class="reg-sel" onchange="setRegisterFilter('status',this.value)">${[['active','Active'],['inactive','Inactive'],['all','Active and inactive']].map(([v,l])=>`<option value="${v}"${_regFilter.status===v?' selected':''}>${l}</option>`).join('')}</select>
+      <span class="reg-muted">${people.length} shown</span>
     </div>${candHtml}${_rateConflictHtml()}${_nsReminderHtml(false)}
-    <div class="reg-scroll"><table class="reg-table"><thead><tr><th>TNG ID</th><th>Name</th><th>Entity</th><th>Former ID</th><th>Type</th><th>Mgmt</th><th>Active</th><th>Pay Method</th><th>Pay</th><th>Rate</th><th>Flat / Salary</th><th>Deposit Amt</th><th>Deposit Entity</th><th>Accountant Name</th><th>Standing Note</th><th></th></tr></thead><tbody>${body||'<tr><td colspan="16" class="reg-empty">Nobody yet: load the Employee Register (settings file) or a schedule.</td></tr>'}</tbody></table></div>
-    ${_noSchedSectionHtml()}
-    <div class="reg-codes">Entity codes (fixed once someone is numbered under them): ${ents.map(e=>escHtml(e.name)+' <b>'+escHtml(_entityCodeFor(e.id))+'</b>').join(' · ')||'—'}</div>`;
+    <div class="reg-scroll"><table class="reg-table"><thead><tr><th>TNG ID</th><th>Full Name</th><th>Display Name</th><th>Accountant Name</th><th>Type</th><th>Rate</th><th>Active</th><th>Standing Note</th><th>Entity</th></tr></thead><tbody>${body||'<tr><td colspan="9" class="reg-empty">Nobody yet: load the Employee Register (settings file) or a schedule.</td></tr>'}</tbody></table></div>
+    ${_regAddHtml()}
+    <div class="reg-codes">Entity codes (fixed once someone is numbered under them): ${ents.map(e=>escHtml(e.name)+' <b>'+escHtml(_entityCodeFor(e.id))+'</b>').join(' · ')||'—'}</div>
+  </div>
+  ${_noSchedSectionHtml()}`;
 }
 function exportRegisterCsv(){
+  assignTngIds(); // FC-00086: as before (registerRows no longer numbers anyone)
   const rows=registerRows();
   const q=v=>{const t=String(v==null?'':v);return/[",\n]/.test(t)?'"'+t.replace(/"/g,'""')+'"':t;};
   const csv=[REGISTER_COLS.map(c=>q(c[0])).join(',')].concat(rows.map(r=>REGISTER_COLS.map(c=>q(_registerCell(r,c[1]))).join(','))).join('\r\n');
@@ -13432,6 +13691,7 @@ function exportRegisterCsv(){
   showToast('Exported the Employee Register as CSV — '+rows.length+' rows','ok');
 }
 function exportRegisterPdf(){
+  assignTngIds(); // FC-00086: as before (registerRows no longer numbers anyone)
   const rows=registerRows();
   const {jsPDF}=window.jspdf;const doc=new jsPDF({orientation:'landscape',unit:'pt',format:'letter'});
   doc.setFont('helvetica','bold');doc.setFontSize(14);doc.text('EMPLOYEE REGISTER',40,40);
@@ -13602,6 +13862,8 @@ function _ingestPayrollSettings(rows,colMap,includeBreaks){
     // FC-00085: the Deposit Entity. An older file has none; its Accountant Section stands in for it.
     if(colMap['deposit entity']!=null)setDepositEntity(ent.id,empName,get(row,'deposit entity').trim(),'settings-import');
     else if(colMap['accountant section']!=null){const se=_entityFromSection(get(row,'accountant section'));if(se)setDepositEntity(ent.id,empName,se.name,'settings-import');}
+    // FC-00086: the person's Full Name and Display Name, as the file has them on this record.
+    [['full name','full_name'],['display name','display_name']].forEach(([col,f])=>{if(colMap[col]!=null)_setRecordName(importedRecord,f,get(row,col),'settings-import');});
     // Palette (FC-00014): one preset name per entity, repeated on every employee row.
     // Valid preset name -> set session.entityPalettes[entId]; missing/invalid/absent column
     // -> leave as-is, so the entity keeps its per-code default (backward compat with files

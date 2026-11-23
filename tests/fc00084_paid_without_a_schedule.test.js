@@ -158,8 +158,8 @@ test('test_register_tab_section_and_accountant_columns', () => {
   assert.match(html, /class="ns-remind"/);
   assert.match(html, /Same as last week \(\$500\.00\): keep or change/);
   assert.match(html, /<th>Standing Note<\/th>/);
-  assert.match(html, /'acct_name',this\.value,'register'/, 'accountant name edited on the register');
-  assert.match(html, /'acct_note',this\.value,'register'/, 'standing note edited on the register');
+  assert.match(html, /setPersonField\('[^']+','acct_name',this\.value\)/, 'accountant name edited on the register (FC-00086: per person)');
+  assert.match(html, /setPersonField\('[^']+','acct_note',this\.value\)/, 'standing note edited on the register (FC-00086: per person)');
   api.setAcctField(0, 'Avery Atest', 'acct_name', 'A. ATEST', 'register');
   assert.equal(api.getAcctField(0, 'Avery Atest', 'acct_name'), 'A. ATEST');
   assert.match(api._nsReminderHtml(true), /Open it/, 'the Payroll tab links to the register');
