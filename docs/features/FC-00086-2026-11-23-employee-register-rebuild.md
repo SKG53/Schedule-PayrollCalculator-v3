@@ -1,6 +1,6 @@
 # FC-00086 — Employee Register rebuild: one row per person, everything editable, Full Name and Display Name, entities as a multi-select, Add employee, themed look
 
-**Date:** 2026-11-23 · **Slice:** L · **Risk:** Medium · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-23 · **Slice:** L · **Risk:** Medium · **Status:** done · **Affected entities:** All
 
 ## What
 
@@ -10,7 +10,7 @@
 3. The "Same person at two entities?" box and its Link buttons use the same theme.
 
 ### Part 2: One row per person
-4. **One main row per person** (one TNG ID). A record with no TNG ID yet is its own row and shows "—" in the TNG ID column. Showing the register never hands out TNG IDs; saving does, as today.
+4. **One main row per person** (one TNG ID). A record with no TNG ID yet is its own row and shows "pending" in the TNG ID column. Showing the register never hands out TNG IDs; saving does, as today.
 5. **Main row:** TNG ID (read-only), Full Name, Display Name, Accountant Name, Type (W2 / 1099), Rate, Active (Yes / No), Standing Note, Entity.
    - **Accountant Name** shows only when one of the person's records pays Deposit or Deposit + Cash. It is used only on the accountant file.
    - **Rate** is one per person, as FC-00085: changing it changes every entity, one Undo.
@@ -72,7 +72,7 @@ Medium. The register tab is rewritten, but it reuses the existing setters for ev
 One revert commit. An older version ignores the two new columns.
 
 ## Definition of Done
-1. One main row per TNG ID, one sub-row per entity record; a record without a TNG ID is its own row with "—".
+1. One main row per TNG ID, one sub-row per entity record; a record without a TNG ID is its own row with "pending".
 2. Every listed field edits through History with one Undo; TNG ID and Former ID cannot be edited.
 3. Ticking an entity adds a linked record with the person's rate; unticking asks, then makes that record inactive; the last active entity cannot be unticked.
 4. Full Name and Display Name are kept on every record of the person and round-trip through the register file.
@@ -100,9 +100,20 @@ None.
 
 ## Tests
 `tests/fc00086_register_rebuild.test.js`:
-- one row per person with sub-rows; a record without a TNG ID on its own with "—"; showing the register gives out no IDs;
+- one row per person with sub-rows; a record without a TNG ID on its own with "pending"; showing the register gives out no IDs;
 - each field edits through History and Undo;
 - entity tick adds a linked record with the rate; untick asks, makes inactive; last entity refused;
 - Full Name and Display Name on every record, History labels, register file round trip, preview labels;
 - Add employee;
 - the Paid-without-a-schedule view lists Flat and Semi-monthly people with the weekly controls.
+
+## As built (2026-11-23)
+- **Rows:** `registerPeople()` groups `registerRows()` by TNG ID (`r.tng || 'rec:' + id`, so unnumbered records never collapse into one person). `registerRows()` no longer calls `assignTngIds()`; the CSV and PDF exports call it themselves, as before. A person with no TNG ID shows "pending".
+- **Main row:** Full Name, Display Name, Accountant Name (only when a record pays Deposit or Deposit + Cash), Type, Rate (`regSetRate`: every hourly record, one Undo), Active (`setPersonActive`: every record), Standing Note, Entity (a `<details>` multi-select). Person fields go through `setPersonField(id, field, value)` (`full_name`, `display_name`, `acct_name`, `acct_type`, `acct_note`), written to every record of the person in one Undo step. A blank name shows the saved name as its placeholder.
+- **Entity lines:** entity and code, the saved name when it differs from the main row's, Former ID, Pay Method (`regSetMethod`), Pay (`regSetPay`: back to Hourly takes the person's rate), weekly or half-month amount (`regSetFlat`), Deposit Amount (`regSetDeposit`), Deposit Entity (`regSetDepEnt`), Mgmt (`regSetMgmt`), pills for "No schedule" and "Inactive here", and Unlink when the person has more than one record.
+- **Entity multi-select:** `regToggleEntity(id, entityId, on)`. Ticking reuses an existing record at that entity (reactivated, or linked with `linkSamePerson` if it has the same name), or makes a new one (next ID at that entity, `addedNew`) and links it; names, employment type, note, accountant name and the rate are copied; one Undo. Unticking asks ("Make <name> inactive at <entity>?") and makes that record inactive; the last active entity is refused with an alert.
+- **Names:** record fields `full_name`, `display_name` through `rosterFieldSet` (History "Full Name", "Display Name"); `_setRecordName` sets one record (the register file). Register file columns Full Name and Display Name after Deposit Entity; the load preview lists them; People sheet, PDF and CSV carry them.
+- **Add employee:** `regAddEmployee(entIdx, first, last, {method, pay, amount, deposit, mgmt})`. Hourly goes through `addNewEmployee` (now also takes `deposit` and `mgmt`); Flat and Semi-monthly through `addNoSchedPerson` (now also takes `semi`).
+- **Paid without a schedule:** `registerFlatRows()`: the visible register's Flat and Semi-monthly records. A "No schedule" tick (`regSetNoSched`) puts an existing person on the FC-00084 weekly check (keep, change, Not paid this week); people not ticked show their amount and method only.
+- **Look:** `.reg-card` sections, `#E8E8E4` headers, row hover, styled inputs and dropdowns (`.reg-sel`, `.reg-txt`, `.reg-num`), pills, Excel green like the export cards, the same-person box with an amber edge and `btn` buttons. The week line is amber when the register may be older (`_tngFreshRisk()` when present).
+- **Real data:** pay identical on all 6 real weeks (0 diffs, snapshot reopen exact); formulas and accountant tie-out clean; the register file from the Nov 8–14 snapshot round-trips with 0 differing rows and the same pay; opening the Register tab hands out no TNG IDs.

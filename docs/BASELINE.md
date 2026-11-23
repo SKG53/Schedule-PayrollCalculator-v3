@@ -706,3 +706,12 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
 - **One rate:** `_rateSiblings`, `_spreadRate` (from `setWage`, one checkpoint), `rateConflicts`, `setPersonRate`, `_rateConflictHtml` (Register and Payroll tabs).
 - **Breaks:** `punchedBreakMin`, `breakSummary`, `_breakRowHtml` (a Breaks line under each person in Weekly Actuals). Display only.
 - **Snapshot:** `saveSnapshot` and Download all call `assignTngIds()` before building it.
+
+## Added by FC-00086 (2026-11-23)
+
+- **Register tab:** `renderRegister()` draws one main row per person from `registerPeople()` and a line per entity record (`_regSubRowHtml`), the entity picker (`_regEntityPicker`), Add employee (`_regAddHtml`, `_regAddFromForm`, `regAddEmployee`) and the Paid-without-a-schedule view (`_noSchedSectionHtml` over `registerFlatRows()`). Filters: `_registerVisiblePeople()` (`_registerVisible()` returns its records).
+- **Setters:** `setPersonField`, `getPersonField`, `setPersonActive`, `regSetRate`, `regSetMethod`, `regSetPay`, `regSetFlat`, `regSetDeposit`, `regSetMgmt`, `regSetDepEnt`, `regSetNoSched`, `regToggleEntity`; all through `dispatch` / `_withCheckpoint`.
+- **Names:** record fields `full_name`, `display_name` (`_applyRecordMirror`, History labels); `_setRecordName`; register file columns Full Name and Display Name (last of `PAYROLL_SETTINGS_HEADERS`); preview fields `fullName`, `displayName`; `REGISTER_COLS` adds them after Deposit Entity.
+- **TNG IDs:** `registerRows()` no longer calls `assignTngIds()`; `exportRegisterCsv` and `exportRegisterPdf` do.
+- **Reused with new options:** `addNoSchedPerson(..., {semi})`, `addNewEmployee(..., {deposit, mgmt})`.
+
