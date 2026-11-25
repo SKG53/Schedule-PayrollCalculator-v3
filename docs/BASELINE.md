@@ -736,6 +736,13 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
 
 - **File names:** `_stemFileName(suffix, ext)`; the register's Excel/PDF/CSV are `<stem>_EmployeeRegister.<ext>` (`_EmployeeRegister_WithBreaks.xlsx`), Tool Settings `<stem>_ToolSettings.xlsx`.
 
+## Added by FC-00091 (2026-11-25)
+
+- **Keep your place:** `_keepPlace(host, draw)` / `_kpWrap(host, again)` wrap every full redraw in answer to the owner: `renderRegister`, `renderPayroll`, `renderPayrollEntityContent`, `renderBonusPanel`, `renderFc00013PreviewPanel`, `renderDownloadsPanel`, `renderWowPanel`, `renderIntake`, `refreshReviewTable`, `renderOcrFileList`, `renderTable`, `renderScheduleContent`, `_rerenderAll`, `renderHistoryPanel`, `_renderStageOverlay`, `_renderNewEmp`, `_renderPayGate`, `_renderWeekDrop`. They put back folded parts, scroll boxes (offsets noted by a document `scroll` listener, `_kpNoteScroll`), the page scroll and the cursor (`_kpKey`/`_kpFind`: id, else tag, type, name and handlers plus place).
+- **Cursor rules:** Enter stays in the box with its caret; Tab / Shift+Tab go to the box the browser was moving to; a mouse press on a box the redraw replaced gives it the cursor; a press on empty space leaves it (`_kpHold` notes the press; `_kpPending` covers a box drawn by a second redraw in the same press). A redraw not from the box itself puts back unsaved typing and sends `change` when the box is left.
+- **Removed:** the timers in `setWage`, `setFlatAmount`, `setSplitDepositForRow` and `setRowBreakOverride` that re-focused the box just left.
+- **Browser check:** `tests/browser/fc00091_keep_your_place.pw.js` (needs Playwright and `SNAP=`; not in `npm test`).
+
 ## Added by FC-00092 (2026-11-25)
 
 - **On accountant file:** record field `acct_file` ('Always', 'Never'; absent = Auto), one value per person (`PERSON_FIELDS`, `setPersonField`, `linkSamePerson` and `regToggleEntity` carry it). `ACCT_FILE_CHOICES`, `_normAcctFile`, `acctFileChoice(rec)`, `setAcctFileChoice(rec, val, screen)` (one record, used by the register import), `_regAcctFileSel(p)` (the dropdown on the register main row, column "On accountant file" after Type). History label "On accountant file". `registerPeople` `acctFile`; `showAcct` also when Always.

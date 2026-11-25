@@ -1,6 +1,6 @@
 # FC-00091 — The screen never jumps and boxes never lose what you are typing
 
-**Date:** 2026-11-25 · **Slice:** M · **Risk:** Low · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-25 · **Slice:** M · **Risk:** Low · **Status:** done · **Affected entities:** All
 
 ## What
 Most screens are redrawn whole after every change. The redraw threw away the box being typed in and put the page, or the scroll box inside it, back at the top. Now every redraw keeps the owner's place:
@@ -55,3 +55,21 @@ None.
 
 ## Tests
 `tests/fc00091_keep_your_place.test.js`; browser check `tests/browser/fc00091_keep_your_place.pw.js` (`SNAP=<snapshot.json> node tests/browser/fc00091_keep_your_place.pw.js`).
+
+## As built (2026-11-25)
+- **One helper.** `_keepPlace(host, draw)` runs a redraw and puts back, in this order: folded parts (`_kpDetailsSave`/`_kpDetailsRestore`: by the first box inside, else class and place), scroll boxes inside host (`_kpScrollSave`/`_kpScrollRestore`: by id, else tag, class and place; the offsets are noted by a `scroll` listener, `_kpNoteScroll`, because reading them before a redraw made the browser lay out the whole screen first), the page (`window.scrollTo` only when it moved), then the cursor (`_kpRestore`). `_kpWrap(host, again)` is the one-line form for a render function; a redraw inside one already running is left to the outer one (`_kpStack`).
+- **Finding a box again:** `_kpKey` / `_kpFind`: its id, else tag, type, name, `data-rbox`, `data-where` and handlers (`oninput`, `onchange`, `onblur`, `onclick`, `onkeydown`, which carry the record id), plus its place among boxes like it. A box that is gone is not focused; nothing throws.
+- **Which box gets the cursor:** `_kpHold` notes the key or mouse press being handled (Tab, Shift+Tab, mouse press; cleared when that press is done). Tab: the box the browser was moving to, worked out on the screen as it was before the redraw. Mouse press on a box the redraw replaced: that box, caret at the end. Mouse press on empty space: none. Otherwise the same box, with its caret and selection. When the box is drawn by a second redraw in the same press (Payroll redraws the tab, then the bonus panel), `_kpPending` places it then.
+- **Typed, not saved:** when the redraw does not come from the box itself (`window.event`), its typed value is put back and a `change` is sent when the box is left without another change.
+- **Covered (the audit: every function that sets a large container's innerHTML in answer to the owner):**
+  - Schedules: `renderScheduleContent`, `renderTable` (host: the Schedules tab).
+  - Actuals Intake: `renderIntake`, `refreshReviewTable` (after FC-00054's own refocus; adds tick boxes and lists), `renderOcrFileList`.
+  - Payroll: `renderPayroll` (host: the Payroll tab), `renderPayrollEntityContent` (Time Card Data, Payroll Calculation, Stats, Labor Cost, paid without a schedule, short week and one-rate panels), `renderBonusPanel`, `renderFc00013PreviewPanel` (export preview and report columns), `renderDownloadsPanel` (Exports, accountant card and notes), `renderWowPanel`.
+  - Employee Register: `renderRegister` (search, filters, every row box, entity lists, Add employee, paid without a schedule).
+  - Whole screen: `_rerenderAll` (Undo, snapshot, settings Apply).
+  - Dialogs: `renderHistoryPanel`, `_renderStageOverlay` (settings-file check), `_renderNewEmp`, `_renderPayGate`, `_renderWeekDrop` (week-folder sort; keeps its own panel scroll and "Images read at once" box).
+  - Left as they are (no boxes, or redrawn only inside a covered one): `renderUndoBar`, `renderEntityTabBar`, `renderSettingsFirstBar`, `renderPayrollEntityTabBar`, `renderInfoBar`, `renderFlags`, `renderCalendar`, `renderStatsTable`, `renderLaborCostPanel`, the payroll grids, `_renderOcrRunBar` (keeps its own box), the merge preview and break-change dialogs (drawn once when opened).
+- **Cursor pulled back:** `setWage`, `setFlatAmount`, `setSplitDepositForRow` and `setRowBreakOverride` re-focused the box just left on a timer, which took the cursor back from the box Tab or a click had moved to. Removed; the helper keeps the cursor in the box after Enter.
+- **Browser check on the real snapshots (private):** `tests/browser/fc00091_keep_your_place.pw.js`, 45 checks. This week: Schedules 3/3, Actuals Intake 7/7, Payroll 22/22, Employee Register 13/13 pass (before this card: 7 of 45 passed; the Register 0 of 13). Last week's: all pass, 2 skipped (nobody paid without a schedule). Opening this week's snapshot still gives the expected deposit, cash, contract check and 41 TNG IDs; no page errors. Two checks pass because the box is gone after the change (a review row moved to another person; History's Revert line) and the page stays put.
+- **Speed:** the Register's redraw per letter typed is about 58 ms (42 ms before); Payroll and Actuals Intake within a few ms of before.
+- Pay identical on every reference week (regress and tie checks). Tests: 688 of 688 pass.
