@@ -599,6 +599,8 @@ function loadApp(opts) {
       noSchedOnPayroll, _payrollEmpCount, _nsPayRow, _nsPaysText, _nsPayrollSectionHtml, _nsPayrollCards, _nsPayrollChipsHtml, _nsPayrollReminderHtml, renderPayrollEntityTabBar, switchPayrollEntity,
       // FC-00090
       _stemFileName, exportToolSettingsExcel,
+      // FC-00092
+      ACCT_FILE_CHOICES, _normAcctFile, acctFileChoice, setAcctFileChoice, _regAcctFileSel, _acctZeroLine, _acctAbsentRow, _acctTieText, _acctPreviewModel,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078

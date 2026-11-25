@@ -92,9 +92,9 @@ test('test_accountant_fields_round_trip_in_settings_file', async () => {
   await api.exportPayrollSettingsExcel(false);
   const ws = api.__lastExcelWorkbook.worksheets.find(w => w.name === 'Payroll Settings');
   const hdr = ws.rows[4].slice(1).map(c => c.value);
-  assert.deepEqual(hdr.slice(-12, -8), ['Accountant Name', 'Employment Type', 'Accountant Section', 'Accountant Note']); // FC-00078 adds TNG ID and Management after them; FC-00084 three more; FC-00085 Deposit Entity; FC-00086 Full Name, Display Name
+  assert.deepEqual(hdr.slice(-13, -9), ['Accountant Name', 'Employment Type', 'Accountant Section', 'Accountant Note']); // FC-00078 adds TNG ID and Management after them; FC-00084 three more; FC-00085 Deposit Entity; FC-00086 Full Name, Display Name; FC-00092 On Accountant File
   const row = ws.rows.find(r => r && r[2] && r[2].value === 'Avery Atest').slice(1).map(c => c.value);
-  assert.deepEqual(row.slice(-12, -8), ['Avery Q Atest', '1099', 'BETA VENTURES', 'Standing note']);
+  assert.deepEqual(row.slice(-13, -9), ['Avery Q Atest', '1099', 'BETA VENTURES', 'Standing note']);
   const eden = ws.rows.find(r => r && r[2] && r[2].value === 'Eden Etest').slice(1).map(c => c.value);
   const b = setup();
   const cm = {}; hdr.forEach((h, i) => { cm[String(h).toLowerCase()] = i; });

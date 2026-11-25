@@ -32,7 +32,7 @@ test('test_one_row_per_person_with_entity_lines_and_no_ids_on_view', () => {
   assert.equal((h.match(/class="reg-sub[ "]/g) || []).length, 6, 'one line per entity record');
   assert.match(h, /<td class="reg-tng">pending<\/td>/, 'no TNG ID yet: pending');
   assert.ok(Object.values(api.session.roster.byId).every(r => !r.tng), 'showing the register hands out no TNG IDs');
-  assert.match(h, /<th>Full Name<\/th><th>Display Name<\/th><th>Accountant Name<\/th><th>Type<\/th><th>Rate<\/th><th>Active<\/th><th>Standing Note<\/th><th>Entity<\/th>/);
+  assert.match(h, /<th>Full Name<\/th><th>Display Name<\/th><th>Accountant Name<\/th><th>Type<\/th><th>On accountant file<\/th><th>Rate<\/th><th>Active<\/th><th>Standing Note<\/th><th>Entity<\/th>/);
   assert.match(h, /6 people · 6 entity records/);
   assert.match(h, /class="btn btn-green" onclick="exportPayrollSettingsExcel\(false\)"/, 'Excel button like the export cards');
   // Linked: one person, two lines.
@@ -174,7 +174,7 @@ test('test_names_round_trip_through_the_register_file', async () => {
   const ps = wb.worksheets.find(w => w.name === 'Payroll Settings');
   const hi = ps.rows.findIndex(r => r && r[1] && r[1].value === 'Entity');
   const head = ps.rows[hi].slice(1).map(c => c.value);
-  assert.deepEqual(head.slice(-3), ['Deposit Entity', 'Full Name', 'Display Name']);
+  assert.deepEqual(head.slice(-4, -1), ['Deposit Entity', 'Full Name', 'Display Name']); // FC-00092: On Accountant File is last
   const people = wb.worksheets.find(w => w.name === 'People');
   const ph = people.rows[3].slice(1).map(c => c.value);
   assert.deepEqual(ph.slice(12, 15), ['Deposit Entity', 'Full Name', 'Display Name']);

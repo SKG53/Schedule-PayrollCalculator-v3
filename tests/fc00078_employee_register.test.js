@@ -42,7 +42,8 @@ test('test_register_file_round_trip_people_and_info_sheets', async () => {
   api.setManagement(0, 'Eden Etest', true);
   api.setAcctField(0, 'Avery Atest', 'acct_type', 'w2');
   const f = await registerFile(api);
-  assert.deepEqual(f.head.slice(-8), ['TNG ID', 'Management', 'Paid Without Schedule', 'Last Paid', 'Last Paid Week', 'Deposit Entity', 'Full Name', 'Display Name']); // FC-00084, FC-00085, FC-00086
+  assert.deepEqual(f.head.slice(-9, -1), ['TNG ID', 'Management', 'Paid Without Schedule', 'Last Paid', 'Last Paid Week', 'Deposit Entity', 'Full Name', 'Display Name']); // FC-00084, FC-00085, FC-00086; FC-00092: On Accountant File is last
+  assert.equal(f.head.at(-1), 'On Accountant File');
   assert.ok(f.rows.every(r => TNG.test(r[f.cm['tng id']])));
   assert.equal(f.rows.find(r => r[1] === 'Eden Etest')[f.cm['management']], 'Yes');
   const people = f.sheet('People');
