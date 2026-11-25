@@ -389,6 +389,11 @@ img.tc-thumb.tc-thumb-small{cursor:default;outline:1px dashed #F59E0B}
 .reg-muted{color:var(--text3);font-size:12px}
 .reg-tng{font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:12px}
 .reg-former,.reg-code{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)}
+/* FC-00094: the person's TNG ID over the entity's Employee ID */
+.ids-tng{display:block;font-family:'IBM Plex Mono',monospace;font-weight:600;font-size:11px;color:var(--text);white-space:nowrap}
+.ids-tng.ids-pending{font-weight:500;font-style:italic;color:#B45309}
+.ids-emp{display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);white-space:nowrap}
+.ids-sub{font-weight:400;font-size:10px;color:var(--text3);text-transform:none;letter-spacing:0}
 .reg-name{font-weight:600}
 .reg-c{text-align:center}
 .reg-ents{position:relative}
@@ -1332,6 +1337,18 @@ function _rateConflictHtml(){
     [...new Set(p.items.map(i=>i.rate))].map(v=>`<button class="btn btn-small" onclick="setPersonRate('${escJs(p.tng)}',${v})">Use ${escHtml(_fmtUsd(v))}</button>`).join('')+`</div>`).join('')+`</div>`;
 }
 function tngOf(entId,empName){const r=_resolveRecordNoMint(entId,empName);return r&&r.tng?r.tng:'';}
+// FC-00094: what the ID cells on Actuals Intake and the Payroll tab show for the person — the TNG
+// ID, "TNG pending" for a person not numbered yet, '' when the name is nobody. Looks only: never
+// numbers anyone (FC-00088) and never creates a record.
+function tngIdText(entId,empName){const r=_resolveRecordNoMint(entId,empName);return r?(r.tng||'TNG pending'):'';}
+// The cell's two lines: the TNG ID over the entity's Employee ID (as the screen showed it before).
+function _idsCellHtml(entId,empName,empIdText){
+  const t=tngIdText(entId,empName);
+  const tng=t?`<span class="ids-tng${t==='TNG pending'?' ids-pending':''}" title="${t==='TNG pending'?'Not numbered yet: the TNG ID is handed out when the Employee Register or a snapshot is saved':'TNG ID: the person, the same at every entity'}">${escHtml(t)}</span>`:'';
+  return tng+(empIdText?`<span class="ids-emp" title="Employee ID at this entity">${escHtml(empIdText)}</span>`:'');
+}
+// The column heading for those cells.
+const IDS_HEAD='TNG ID<div class="ids-sub">Employee ID</div>';
 // Every record of the same person (same TNG ID), across entities.
 function _personRecords(rec){if(!rec||!rec.tng)return rec?[rec]:[];return Object.keys(session.roster.byId).map(k=>session.roster.byId[k]).filter(r=>r&&r.tng===rec.tng);}
 // Management (FC-00078): a tick on the person's work at one entity.
@@ -6576,7 +6593,7 @@ function renderPayrollGrid(rows,ent,hasActuals,noSchedule){
   if(payrollGridView()==='cost'){renderPayrollCostGrid(rows,ent);return;} // FC-00058
   // Use the original schedule week dates; actuals are filtered against dateLabels too.
   const dLabels=ent.dateLabels;
-  let html='<thead><tr><th style="border-right:2px solid #999">Name</th><th style="border-right:2px solid #999">Employee ID</th>';
+  let html=`<thead><tr><th style="border-right:2px solid #999">Name</th><th style="border-right:2px solid #999">${IDS_HEAD}</th>`; // FC-00094
   for(let d=0;d<7;d++)html+=`<th>${DAYS[d]}</th>`;
   html+='<th style="background:#DAD8D2">Weekly</th></tr><tr>';
   html+='<th class="date-row" style="border-right:2px solid #999"></th><th class="date-row" style="border-right:2px solid #999"></th>';
@@ -6587,7 +6604,7 @@ function renderPayrollGrid(rows,ent,hasActuals,noSchedule){
     const empId=keyName?_empIdText(ent.id,keyName):'';
     const rowCls=r.isOrphan?(noSchedule?' class="orphan-row-quiet"':' class="orphan-row"'):'';
     html+=`<tr${rowCls}><td class="name-cell">${inlineEditableNameHtml(ent.id,keyName,'payroll',()=>renderPayroll())}${_dupFlagHtml(ent.id,keyName)}</td>`;
-    html+=`<td class="name-cell emp-id-cell" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
+    html+=`<td class="name-cell emp-id-cell ids-cell" style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${keyName?_idsCellHtml(ent.id,keyName,empId):''}</td>`; // FC-00094
     for(let d=0;d<7;d++)html+=renderPayDayCell(r.days[d],r.isOrphan,hasActuals);
     const diff=r.actualHours-r.expectedH,absDiff=Math.abs(diff);
     // Blanket pay-centric rule: more hours = red, less hours = green (applied to the entire weekly cell)
@@ -6636,7 +6653,7 @@ function _breakRowHtml(r){
 // ---- TIME CARD DATA sub-tab: name, expected break, expected hours, actual break, actual hours, diff, avg in/out, OT ----
 function renderTimeCardData(rows,hasActuals,ent,noSchedule){
   const table=document.getElementById('timecardDataTable');if(!table)return;
-  let html='<thead><tr><th style="border-right:2px solid #999">Employee Name</th><th style="border-right:2px solid #999">Employee ID</th>';
+  let html=`<thead><tr><th style="border-right:2px solid #999">Employee Name</th><th style="border-right:2px solid #999">${IDS_HEAD}</th>`; // FC-00094
   html+='<th>Expected Break Hrs</th><th>Expected Hours</th>';
   if(hasActuals){
     html+='<th>Actual Break Hrs</th><th>Actual Hours</th><th>Difference</th>';
@@ -6659,7 +6676,7 @@ function renderTimeCardData(rows,hasActuals,ent,noSchedule){
     const empId=keyName?_empIdText(ent.id,keyName):'';
     const rowCls=r.isOrphan?(noSchedule?' class="orphan-row-quiet"':' class="orphan-row"'):'';
     html+=`<tr${rowCls}><td class="name-cell" style="padding:8px 6px">${inlineEditableNameHtml(ent.id,keyName,'payroll',()=>renderPayroll())}${_dupFlagHtml(ent.id,keyName)}</td>`;
-    html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
+    html+=`<td class="name-cell emp-id-cell ids-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${keyName?_idsCellHtml(ent.id,keyName,empId):''}</td>`; // FC-00094
     html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrsCell(r.expectedBreakH)}</td>`;
     html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrsCell(r.expectedH)}</td>`;
     if(hasActuals){
@@ -6698,7 +6715,7 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
   // Total columns = 11 (name + 10 data cols). Date labels for break-detail row chips.
   const dLabels=ent.dateLabels||['','','','','','',''];
   const COLSPAN=13;
-  let html='<thead><tr><th style="border-right:2px solid #999">Employee Name</th><th style="border-right:2px solid #999">Employee ID</th>';
+  let html=`<thead><tr><th style="border-right:2px solid #999">Employee Name</th><th style="border-right:2px solid #999">${IDS_HEAD}</th>`; // FC-00094
   html+='<th style="width:58px" title="Unchecked: left out of this week\'s preview and exports, and not loaded with the next schedule.">Active</th>';
   html+='<th>Actual Break Hrs</th><th>Actual Hours</th>';
   html+='<th>Wage ($/hr)</th><th style="width:110px">Type</th>';
@@ -6729,7 +6746,7 @@ function renderPayrollCalc(rows,hasActuals,ent,noSchedule){
     const actualsOnlyPill=(_fp?'':leftOutPill)+_outPill+((r.isOrphan&&noSchedule)?' <span class="actuals-only-pill" style="display:inline-block;padding:1px 7px;border-radius:10px;background:var(--surface2,#f0efe9);color:var(--text3);font-size:10px;font-weight:600;letter-spacing:0.3px">actuals-only</span>':'');
     html+=`<tr${rowCls}${rowActive?'':' style="opacity:0.6"'}><td class="name-cell" style="padding:8px 6px">${inlineEditableNameHtml(ent.id,keyName,'payroll',()=>renderPayroll())}${actualsOnlyPill}
       <button class="btn btn-small" onclick="openRenameEmployeeModal(${ent.id},'${escJs(keyName)}')" title="Rename Employee" style="margin-left:6px;font-size:10px;padding:2px 6px">Rename Employee</button>${_dupFlagHtml(ent.id,keyName)}</td>`;
-    html+=`<td class="name-cell emp-id-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${empId}</td>`;
+    html+=`<td class="name-cell emp-id-cell ids-cell" style="padding:8px 6px;font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3)">${keyName?_idsCellHtml(ent.id,keyName,empId):''}</td>`; // FC-00094
     html+=`<td style="text-align:center;padding:6px"><input type="checkbox" ${rowActive?'checked':''} onchange="setRowActive(${i},this.checked)" title="${rowActive?'Active — in this week\'s export and loads with the next schedule':'Unchecked — left out of this week\'s export and the next schedule'}" style="width:15px;height:15px;cursor:pointer"></td>`;
     html+=`<td class="num-cell" style="color:var(--text3)">${fmtHrsCell(r.actualBreakH)}</td>`;
     html+=`<td class="num-cell" style="color:var(--text2)">${fmtHrsCell(r.actualHours)}${r.otPaidH>0?`<div class="ot-paid-note" title="Deposit: the hours over 40 are paid at 1.5× (FC-00070)" style="font-size:10px;color:#92400E;font-weight:600">${fmtHrsCell(r.otPaidH)} over 40 at 1.5×</div>`:''}</td>`;
@@ -8969,7 +8986,7 @@ function renderReviewTableHtml(ent,idx){
   html+='<th style="width:38px">Source</th>';
   html+='<th>Image</th>';
   html+='<th>Employee</th>';
-  html+='<th style="width:110px">Employee ID</th>';
+  html+=`<th style="width:110px">${IDS_HEAD}</th>`; // FC-00094
   html+='<th style="width:56px">Day</th>';
   html+='<th>Date</th>';
   html+='<th>In 1</th><th>Out 1</th><th>In 2</th><th>Out 2</th>';
@@ -9043,7 +9060,7 @@ function renderReviewTableHtml(ent,idx){
     // roster record yet).
     if(effectiveMatchesSched||regOff){
       const empId=_empIdText(ent.id,effective);
-      html+=`<td class="emp-id-cell" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">${empId}${_dupFlagHtml(ent.id,effective)}</td>`;
+      html+=`<td class="emp-id-cell ids-cell" style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3)">${_idsCellHtml(ent.id,effective,empId)}${_dupFlagHtml(ent.id,effective)}</td>`; // FC-00094
     }else{
       html+='<td class="emp-id-cell" style="font-size:10px;color:var(--text3)">\u2014</td>';
     }
@@ -14331,12 +14348,12 @@ function _nsPayrollSectionHtml(ent){
   const list=noSchedOnPayroll(ent);if(!list.length)return'';
   const wk=_runWeekStart();
   let h=`<div class="ns-panel ns-pay" id="nsPayPanel"><h4>Paid without a schedule · ${list.length}</h4><div class="dl-desc">Paid every week with no schedule. Each week starts at last week's amount: keep it, change it, or tick "Not paid this week". The same people and amounts as on the Employee Register tab.${wk?'':' Load this week\'s schedules first: the week decides what is kept.'}</div>`;
-  h+='<table class="reg-table ns-table"><thead><tr><th>Name</th><th>Employee ID</th><th>Active</th><th>This week</th><th>Pay Method</th><th>Deposit part</th><th>Mgmt</th><th>Pays</th><th>Status</th><th></th></tr></thead><tbody>';
+  h+=`<table class="reg-table ns-table"><thead><tr><th>Name</th><th>${IDS_HEAD}</th><th>Active</th><th>This week</th><th>Pay Method</th><th>Deposit part</th><th>Mgmt</th><th>Pays</th><th>Status</th><th></th></tr></thead><tbody>`; // FC-00094
   list.forEach(r=>{
     const s=noSchedStatus(r),id=escJs(r.id),nm=escJs(r.canonical_name);
     const m=payMethod[r.id]||'deposit',sp=splitAmounts[r.id],off=rosterActive[r.id]===false;
     h+=`<tr data-ns="${escHtml(r.id)}"${off?' class="reg-inactive"':''}><td class="reg-name">${escHtml(r.canonical_name)}</td>`+
-      `<td class="reg-former">${escHtml(_empIdText(ent.id,r.canonical_name))}</td>`+
+      `<td class="ids-cell">${_idsCellHtml(ent.id,r.canonical_name,_empIdText(ent.id,r.canonical_name))}</td>`+ // FC-00094
       `<td class="reg-c"><input type="checkbox"${off?'':' checked'} onchange="setNoSchedActive('${id}',this.checked)"></td>`+
       `<td><input type="number" min="0" step="0.01" value="${s.amount==null?'':s.amount}" onchange="setNoSchedAmount('${id}',this.value,'payroll')"></td>`+
       `<td><select onchange="setNoSchedMethod('${id}',this.value)">${NS_METHODS.map(v=>`<option value="${v}"${m===v?' selected':''}>${escHtml(_WOW_METHOD[v])}</option>`).join('')}</select></td>`+
