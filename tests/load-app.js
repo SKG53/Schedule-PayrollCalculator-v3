@@ -601,6 +601,8 @@ function loadApp(opts) {
       _stemFileName, exportToolSettingsExcel,
       // FC-00092
       ACCT_FILE_CHOICES, _normAcctFile, acctFileChoice, setAcctFileChoice, _regAcctFileSel, _acctZeroLine, _acctAbsentRow, _acctTieText, _acctPreviewModel,
+      // FC-00093
+      EXP_CARD_ROWS, payDateText, _payDatesBarHtml, _acctDatesLine, _expStatusHtml, _expCardHtml, refreshExportCard, defaultFileBase, exportFileBase, fileNameEdited, setExportFileName, resetExportFileName, _cleanFileBase,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078

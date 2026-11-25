@@ -130,9 +130,9 @@ test('test_never_hides_a_deposit_person_and_the_check_explains_it', () => {
   assert.equal(t.never, avery.deposit);
   assert.deepEqual(t.neverList.map(x => x.name), ['Avery Atest']);
   assert.equal(t.payrollDeposit, Math.round((t.deposit + avery.deposit) * 100) / 100);
-  api.renderDownloadsPanel();
-  const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  assert.ok(html.includes('✓ Alpha Test: Gross Total ' + api._fmtUsd(t.gross) + ' matches this week\'s payroll deposits ' + api._fmtUsd(t.payrollDeposit) + ', less ' + api._fmtUsd(avery.deposit) + ' not on the accountant file (Never: Avery Atest)'), html.match(/acct-tie[^<]*Alpha[^<]*/));
+  // FC-00093 moved the tie lines off the card (one Ready line); the wording lives in _acctTieText.
+  const html = '✓ ' + api._acctTieText(t);
+  assert.ok(html.includes('✓ Alpha Test: Gross Total ' + api._fmtUsd(t.gross) + ' matches this week\'s payroll deposits ' + api._fmtUsd(t.payrollDeposit) + ', less ' + api._fmtUsd(avery.deposit) + ' not on the accountant file (Never: Avery Atest)'), html);
   assert.ok(!api._acctStatusReasons().some(x => /does not match/.test(x)));
   // Every deposit person of an entity set to Never: the entity is still checked, at $0.
   api.setPersonField(idOf(api, 1, 'Fern Ftest'), 'acct_file', 'Never');

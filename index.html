@@ -409,9 +409,6 @@ img.tc-thumb.tc-thumb-small{cursor:default;outline:1px dashed #F59E0B}
 .ns-panel .dl-desc{margin-bottom:8px}
 .ns-st-unchecked{color:#B45309;font-weight:600}.ns-st-changed{color:#1D4ED8;font-weight:600}.ns-st-skip,.ns-st-inactive{color:var(--text3)}.ns-st-kept,.ns-st-new{color:#15803D}
 .ns-remind{background:#FFFBEB;border:1px solid #FCD34D;border-radius:6px;padding:6px 10px;margin:6px 0;font-size:12px;color:#92400E}
-.acct-card-dates label{display:block;margin:3px 0;font-size:12px}
-.acct-card-notes{margin-top:6px;font-size:12px}.acct-card-notes summary{cursor:pointer}
-.acct-card-notes input{width:100%;min-width:160px}
 .reg-empty{text-align:center;color:var(--text3);padding:20px}
 .ocr-retry-all{display:flex;align-items:center;gap:10px;padding:6px 10px;border-bottom:1px solid var(--border)}
 .ocr-retry-all .retry-all-btn,.ocr-run-line .retry-all-btn{margin-left:8px;font-weight:600}
@@ -513,17 +510,40 @@ table.review td.low-conf{background:rgba(217,119,6,0.08)}
 /* FC-00042: per-box edit marker and the re-read comparison line */
 table.review input.box-edited{background:#BFDBFE;border-color:#2563EB;color:#1E3A8A;font-weight:600}
 /* FC-00059: Exports panel — one card per report */
-.exp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:10px;margin:10px 0}
-.exp-card{border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface);display:flex;flex-direction:column;gap:4px}
+.exp-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));column-gap:10px;row-gap:0;margin:10px 0}
+/* FC-00093: each card spans seven shared rows (heading, description, options, file name, buttons,
+   in batch, status), so every row lines up across the cards on a line. */
+.exp-card{border:1px solid var(--border);border-radius:8px;padding:10px 12px;background:var(--surface);display:grid;grid-template-rows:subgrid;grid-row:span 7;row-gap:6px;margin-bottom:10px;align-items:start;min-width:0}
+@supports not (grid-template-rows:subgrid){.exp-card{display:flex;flex-direction:column;gap:6px}}
+.exp-card>*{min-width:0}
 .exp-card.exp-card-entity{background:#FAFAF7}
 .exp-card .exp-title{font-weight:700;font-size:14px}
-.exp-card .exp-ents{font-size:12px;color:var(--text2)}
+.exp-card .exp-desc{line-height:1.45;display:flex;flex-direction:column}
+.exp-card .exp-desc .exp-sep{display:none}
+.exp-card .exp-desc .exp-who,.exp-card .exp-desc .exp-when{color:var(--text3)}
+.exp-card .exp-opts{font-size:12px;color:var(--text2);display:flex;flex-direction:column;gap:3px}
+.exp-card .exp-opts:empty{display:block}
 .exp-card .exp-ents label{margin-right:8px;white-space:nowrap}
-.exp-card .exp-btns{display:flex;gap:6px;margin-top:4px}
+.exp-card .exp-fname{display:flex;flex-direction:column;gap:3px}
+.exp-card .exp-fname-input{width:100%;box-sizing:border-box;resize:none;overflow:hidden;font-family:'IBM Plex Mono',monospace;font-size:11px;line-height:1.4;padding:4px 6px;border:1px solid var(--border);border-radius:6px;background:#fff;color:var(--text);overflow-wrap:anywhere}
+.exp-card .exp-fname-foot{display:flex;align-items:center;justify-content:space-between;gap:6px}
+.exp-card .exp-reset{padding:1px 8px;font-size:11px}
+.exp-card .exp-fname-input.edited{border-color:var(--amber)}
+.exp-card .exp-ext{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text3);white-space:nowrap}
+.exp-card .exp-btns{display:flex;gap:6px;align-items:center}
 .exp-card .exp-btns .btn{min-width:72px}
+.exp-card .exp-btns .exp-refresh{margin-left:auto;min-width:0}
 .exp-card .exp-batch{font-size:11px;color:var(--text3)}
+.exp-card .exp-status{font-size:11px}
 .exp-card .dl-ok{font-size:11px;color:var(--green)}
 .exp-card .dl-warn{font-size:11px;color:var(--amber)}
+.exp-card .exp-checked{color:var(--text3);font-weight:400}
+.exp-card .exp-more summary{cursor:pointer}
+.exp-settings{display:flex;flex-direction:column;gap:6px;margin:6px 0 4px}
+.paydates-bar{display:flex;flex-wrap:wrap;align-items:center;gap:6px 18px;padding:8px 14px;background:var(--surface);border:1px solid var(--border);border-radius:8px;margin-bottom:10px;font-size:13px}
+.paydates-bar .paydate{display:inline-flex;align-items:center;gap:6px}
+.paydates-bar .paydate-unset .acct-src{color:var(--amber);font-weight:600}
+.paydates-note{font-size:11px;color:var(--text3)}
 /* FC-00057: every day of the pay week, with day and week hours */
 table.review tr.day-head td{background:#F4F3EE;border-top:2px solid #D6D3CD;font-size:12px;padding:5px 8px;color:var(--text2)}
 table.review tr.day-head td b{color:var(--text);font-size:13px}
@@ -2849,7 +2869,13 @@ function _fileStem(ids){
 }
 // FC-00090: the register's and tool settings' own buttons name their files like every other export:
 // <entities>_<week>_<Suffix>.<ext>, the same names the Exports cards and Download all give them.
-function _stemFileName(suffix,ext){const s=_fileStem();return (s?s+'_':'TNG_')+suffix+'.'+ext;}
+// FC-00093: a name edited on the Employee Register or Tool Settings card is used here too.
+const _STEM_CARD={EmployeeRegister:'settings',EmployeeRegister_WithBreaks:'settings',ToolSettings:'toolsettings'};
+function _stemFileName(suffix,ext){
+  const ck=_STEM_CARD[suffix];
+  if(ck&&typeof fileNameEdited==='function'&&fileNameEdited(ck))return exportFileBase(ck)+(/_WithBreaks$/.test(suffix)?'_WithBreaks':'')+'.'+ext;
+  const s=_fileStem();return (s?s+'_':'TNG_')+suffix+'.'+ext;
+}
 function _downloadText(text,filename,mime){
   if(_dlCapture){_dlCapture.push({name:filename,data:text,type:mime||'application/json'});return;}
   const blob=new Blob([text],{type:mime||'application/json'});
@@ -3101,6 +3127,8 @@ function _toolSettingLabel(k){
   if(acn){const r=session.roster&&session.roster.byId&&session.roster.byId[acn[1]];return'Accountant note this week · '+(r?r.canonical_name:acn[1])+' · week of '+_fmtIsoShort(acn[2]);}
   const nsw=/^nsWeek:(.+)\|(\d{4}-\d{2}-\d{2})$/.exec(String(k)); // FC-00084
   if(nsw){const r=session.roster&&session.roster.byId&&session.roster.byId[nsw[1]];return'Paid without a schedule · '+(r?r.canonical_name:nsw[1])+' · week of '+_fmtIsoShort(nsw[2]);}
+  const fnk=/^fileName:(.+)\|(\d{4}-\d{2}-\d{2}|none)$/.exec(String(k)); // FC-00093
+  if(fnk){const d=DOWNLOADS.find(x=>x.key===fnk[1]);return'File name · '+(d?d.label:fnk[1])+(fnk[2]==='none'?'':' · week of '+_fmtIsoShort(fnk[2]));}
   const swk=/^swDep:(.+)\|(\d{4}-\d{2}-\d{2})$/.exec(String(k)); // FC-00085
   if(swk){const r=session.roster&&session.roster.byId&&session.roster.byId[swk[1]];return'Short-week deposit · '+(r?r.canonical_name:swk[1])+' · week of '+_fmtIsoShort(swk[2]);}
   return k;
@@ -3913,20 +3941,30 @@ function _scopeOfKey(key){
   if(m){const e=entities.find(x=>String(x.id)===m[1]);return e?[e.id]:[];}
   return null;
 }
+// FC-00093: every card's description is three short parts in the same order: what the file is ·
+// who it is for · when it is ready. desc is the three joined (one line).
+function _dlDesc(what,who,when){return{what,who,when,desc:what+' · '+who+' · '+when};}
 function _syncDownloads(){
   const list=[
-    {key:'payroll',label:'Payroll report — combined',desc:'Every ticked entity on one report: hours (decimal and h:mm), rate, deposit and cash, with subtotals and a grand total. The Excel also has the Hours, Stats and Labor Cost sheets.',formats:{xlsx:true,pdf:true},suffix:'AllEmployeesPayroll',run:{xlsx:()=>_exportExcel('combined'),pdf:()=>_exportPdf('combined')}}
+    Object.assign({key:'payroll',label:'Payroll report — combined',formats:{xlsx:true,pdf:true},suffix:'AllEmployeesPayroll',run:{xlsx:()=>_exportExcel('combined'),pdf:()=>_exportPdf('combined')}},
+      _dlDesc('Hours and pay for every ticked entity, with totals','For you, to pay everyone','Ready when every row is approved and every rate is set'))
   ];
   _payrollEntityIds().forEach(id=>{
     const e=entities.find(x=>x.id===id);if(!e)return;
-    list.push({key:'payroll:'+id,label:'Payroll report — '+(e.name||'Entity'),desc:'This entity on its own: the same columns, colors and totals as the combined report.',formats:{xlsx:false,pdf:false},suffix:'AllEmployeesPayroll',entityId:id,run:{xlsx:()=>_exportExcel('combined'),pdf:()=>_exportPdf('combined')}});
+    list.push(Object.assign({key:'payroll:'+id,label:'Payroll report — '+(e.name||'Entity'),formats:{xlsx:false,pdf:false},suffix:'AllEmployeesPayroll',entityId:id,run:{xlsx:()=>_exportExcel('combined'),pdf:()=>_exportPdf('combined')}},
+      _dlDesc('This entity\'s hours and pay on its own','For sending this entity separately','Ready when its rows are approved and its rates are set')));
   });
   list.push(
-    {key:'timecards',label:'Reviewed timecards',desc:'Every punch row with its approval, times as real Excel times — re-importable on Actuals Intake.',formats:{xlsx:true},suffix:'AllEmployeesTimecards',run:{xlsx:()=>exportActualsIntakeExcel(),pdf:()=>exportActualsIntakePdf()}},
-    {key:'accountant',label:'Accountant file',desc:'Everyone paid by deposit, by entity, Employees and Management, with the pay period and the deposit pay date. Only what the accountant needs: no cash, no checks. "On accountant file" on the Employee Register adds someone at $0 (Always) or leaves someone off (Never).',formats:{xlsx:true,pdf:false},suffix:'AccountantFile',run:{xlsx:()=>exportAccountantFile(),pdf:()=>exportAccountantPdf()}}, // FC-00074, FC-00081
-    {key:'settings',label:'Employee Register',desc:'Employees only: every person\'s TNG ID, name, type, and each entity\'s rate, pay method, Management and Active; their bonuses, each with its week; the days already paid; the highest IDs. Save it every week and load it first next week. Also on the Employee Register tab (PDF, CSV).',formats:{xlsx:true},suffix:'EmployeeRegister',run:{xlsx:()=>exportPayrollSettingsExcel(_settingsWithBreaks())}},
-    {key:'toolsettings',label:'Tool Settings',desc:'The report\'s columns, the week-over-week warning levels, the file labels and how names print. No employees. Save it when you change a setting; load it with the same Load button.',formats:{xlsx:false},suffix:'ToolSettings',run:{xlsx:()=>exportToolSettingsExcel()}}, // FC-00083
-    {key:'snapshot',label:'Snapshot',desc:'The whole session in one file, to reopen every screen exactly as it is now.',formats:{json:true},suffix:'Snapshot'}
+    Object.assign({key:'timecards',label:'Reviewed timecards',formats:{xlsx:true},suffix:'AllEmployeesTimecards',run:{xlsx:()=>exportActualsIntakeExcel(),pdf:()=>exportActualsIntakePdf()}},
+      _dlDesc('Every punch row with its approval','For your records; it loads back on Actuals Intake','Ready when every row is approved')),
+    Object.assign({key:'accountant',label:'Accountant file',formats:{xlsx:true,pdf:false},suffix:'AccountantFile',run:{xlsx:()=>exportAccountantFile(),pdf:()=>exportAccountantPdf()}}, // FC-00074, FC-00081
+      _dlDesc('Everyone paid by deposit, by entity; no cash, no checks. "On accountant file" on the Employee Register adds someone at $0 (Always) or leaves someone off (Never)','For the accountant','Ready when the deposit pay date is set and everyone has a type and a rate')),
+    Object.assign({key:'settings',label:'Employee Register',formats:{xlsx:true},suffix:'EmployeeRegister',run:{xlsx:()=>exportPayrollSettingsExcel(_settingsWithBreaks())}},
+      _dlDesc('Every employee: TNG ID, rates, pay methods, bonuses, days paid','For you: load it first next week','Ready when there are employees')),
+    Object.assign({key:'toolsettings',label:'Tool Settings',formats:{xlsx:false},suffix:'ToolSettings',run:{xlsx:()=>exportToolSettingsExcel()}}, // FC-00083
+      _dlDesc('Report columns, warning levels, file labels, name style; no employees','For you: load it with the same Load button','Ready any time; save it when you change a setting')),
+    Object.assign({key:'snapshot',label:'Snapshot',formats:{json:true},suffix:'Snapshot'},
+      _dlDesc('The whole session in one file','For you, to reopen every screen as it is now','Ready when nothing is running'))
   );
   DOWNLOADS.length=0;list.forEach(d=>DOWNLOADS.push(d));
   return DOWNLOADS;
@@ -3940,17 +3978,51 @@ function _dlTick(key,fmt){const t=_dlTicks[key];if(t&&fmt in t)return!!t[fmt];co
 function setDownloadTick(key,fmt,on){_syncDownloads();const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled||!(fmt in d.formats))return;_dlTicks[key]=Object.assign({},_dlTicks[key],{[fmt]:!!on});renderDownloadsPanel();}
 _registerSnapshotPart('downloadTicks',()=>_cloneState(_dlTicks),v=>{_dlTicks=v&&typeof v==='object'?_cloneState(v):{};});
 function _managerEntities(){return entities.map((e,i)=>({e,i})).filter(x=>(x.e.employees||[]).length>0);}
+// ================================================================
+// FC-00093 — a card's file name can be edited, for this week only
+// ================================================================
+// The standard name is <entities>_<week>_<Suffix> (FC-00040, FC-00059, FC-00090). An edit is kept
+// as the tool-state key fileName:<card>|<week start> (Undo, History and the snapshot carry it; not
+// in either settings file), so a new week starts with the standard names again. The extension is
+// never edited. The card's buttons, Download batch and the register's own buttons all use it.
+function _fileNameWeek(){const wk=_runWeekIsos();return wk?wk.start:'none';}
+function _fileNameKey(key){return'fileName:'+key+'|'+_fileNameWeek();}
+function defaultFileBase(key){
+  _syncDownloads();
+  const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled)return'';
+  const sc=_scopeOfKey(key);
+  return _fileStem(sc&&sc.length?sc:null)+'_'+d.suffix;
+}
+function fileNameEdited(key){const v=(session.toolSettings||{})[_fileNameKey(key)];return typeof v==='string'&&v!=='';}
+function exportFileBase(key){return fileNameEdited(key)?session.toolSettings[_fileNameKey(key)]:defaultFileBase(key);}
+const _NAME_EXTS=['xlsx','xls','pdf','json','csv','zip'];
+function _cleanFileBase(v){
+  let s=String(v==null?'':v).replace(/\s+/g,' ').replace(/[\u0000-\u001f\\/:*?"<>|]+/g,'').replace(/ {2,}/g,' ').trim();
+  let m;while((m=/\.([A-Za-z0-9]+)$/.exec(s))&&_NAME_EXTS.includes(m[1].toLowerCase()))s=s.slice(0,-m[0].length).trim(); // the extension is fixed
+  return s.replace(/[. ]+$/,'');
+}
+function setExportFileName(key,val){
+  _syncDownloads();
+  const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled)return false;
+  let v=_cleanFileBase(val);
+  if(v===defaultFileBase(key))v=''; // '' = the standard name
+  const k=_fileNameKey(key),from=(session.toolSettings||{})[k]||'';
+  let ok=false;
+  if(from!==v){ok=setToolSetting(k,v,'payroll');if(!v&&session.toolSettings)delete session.toolSettings[k];}
+  if(!_simulating)renderDownloadsPanel(); // also puts a refused or unchanged box back
+  return ok;
+}
+function resetExportFileName(key){return setExportFileName(key,'');}
 // Exact file name(s) a line will save.
 function downloadFileNames(key,allFormats){
   _syncDownloads();
   const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled)return[];
-  const sc=_scopeOfKey(key);
-  const stem=_fileStem(sc&&sc.length?sc:null);
+  const base=exportFileBase(key); // FC-00093
   const out=[];
   Object.keys(d.formats).forEach(f=>{
     if(!allFormats&&!_dlTick(key,f))return;
     if(d.perEntity)_managerEntities().forEach(({e})=>{const r=_mmddRange(e.newDateLabels&&e.newDateLabels.some(Boolean)?e.newDateLabels:e.dateLabels);out.push(_entityFileLabel(e)+(r?'_'+r:'')+'_ManagerReport.'+_FMT_EXT[f]);});
-    else out.push(stem+'_'+d.suffix+'.'+_FMT_EXT[f]);
+    else out.push(base+'.'+_FMT_EXT[f]);
   });
   return out;
 }
@@ -4021,6 +4093,9 @@ function _downloadStatusInner(key,sc){
       else if(r.semiByHand)semiNotes.push(r._empName+': '+(r.semiPaid?'paid':'not paid')+' this run, set by hand (the rule says '+(info.paid?'paid':'not paid')+')');}));
     if(semiNotes.length)reasons.push('Semi-monthly: '+semiNotes.join('; '));
     const uc=_unconfirmedNames();if(uc.length)reasons.push('Not on the schedule and not confirmed: '+uc.join(', ')+' (add them as new employees or match them to someone)'); // FC-00049
+    // FC-00093: the report prints the deposit date; say so before it prints "(date not set)".
+    if(_runWeekIsos()&&!payDates().deposit&&_memo('depPeople',()=>_collectExportData().some(d=>d.rows.some(r=>r._breakdown&&(ACCT_DEPOSIT_METHODS.includes(r._breakdown.method)||payParts(r._breakdown).deposit>0)))))
+      reasons.push('Deposit pay date not set — set it on the Payroll tab (Pay dates)');
   }else if(key==='accountant'){
     _acctStatusReasons().forEach(x=>reasons.push(x)); // FC-00074
   }else if(key==='timecards'){
@@ -4065,11 +4140,11 @@ async function _buildFilesNow(list,cont){
   for(const {key,fmt:f} of list){
     const d=DOWNLOADS.find(x=>x.key===key);if(!d||d.disabled||!(f in d.formats))continue;
     const sc=_scopeOfKey(key);
-    const stem=_fileStem(sc&&sc.length?sc:null);
+    const base=exportFileBase(key); // FC-00093: the card's name, edited or standard
     if(d.key==='snapshot'){
       if(_busyForSnapshot()){showToast('Snapshot skipped: an action is still running','err');continue;}
       assignTngIds(); // FC-00085
-      files.push({name:stem+'_Snapshot.json',data:JSON.stringify(await buildSnapshot()),type:'application/json',snapshot:true});
+      files.push({name:base+'.json',data:JSON.stringify(await buildSnapshot()),type:'application/json',snapshot:true});
       continue;
     }
     if(d.perEntity){
@@ -4082,7 +4157,7 @@ async function _buildFilesNow(list,cont){
     }
     if(sc&&!sc.length){showToast(d.label+': no entity ticked','err');continue;}
     const cap=await _withExportScope(sc,()=>_captureOne(d.run[f]));
-    cap.forEach((c,j)=>files.push({name:stem+'_'+d.suffix+(j?'_'+(j+1):'')+'.'+_FMT_EXT[f],data:c.data,type:c.type}));
+    cap.forEach((c,j)=>files.push({name:base+(j?'_'+(j+1):'')+'.'+_FMT_EXT[f],data:c.data,type:c.type}));
   }
   // Review fix: two files with one name (two entities with the same file label) would overwrite
   // each other in the zip; the later one gets _2, _3 before the extension.
@@ -4145,32 +4220,67 @@ function _downloadsHtml(){
   _dlMemo={};
   try{return _downloadsHtmlInner();}finally{_dlMemo=null;}
 }
+// FC-00093: every card has the same seven rows in the same order (heading, description, options,
+// file name, buttons, in batch, status); .exp-cards lines each row up across the cards (subgrid).
+const EXP_CARD_ROWS=7;
+function _expStatusHtml(st,detail,checked){
+  const when=checked?`<span class="exp-checked"> · checked ${escHtml(checked)}</span>`:'';
+  if(!st)return`<div class="exp-status">${when}</div>`;
+  if(st.ok)return`<div class="exp-status dl-ok">✓ Ready${when}</div>`;
+  const r=st.reasons||[],more=r.slice(1);
+  const tip=(detail&&detail.length?detail:r).join('\n');
+  return`<div class="exp-status dl-warn" title="${escHtml(tip)}">⚠ Not ready: ${escHtml(r[0]||'')}${when}`+
+    (more.length?`<details class="exp-more"><summary>${more.length} more</summary>⚠ ${more.map(escHtml).join('<br>⚠ ')}</details>`:'')+'</div>';
+}
+let _dlChecked={}; // card key -> time of its last Refresh (memory only)
+function _expCardHtml(d){
+  const key=d.key,k=escJs(key),st=d.disabled?null:downloadStatus(key);
+  let opts='';
+  if(key==='payroll'){
+    const ids=_payrollEntityIds();
+    opts+='<div class="exp-ents">Entities: '+ids.map(id=>{const e=entities.find(x=>x.id===id);return`<label><input type="checkbox" ${_combinedOff[id]?'':'checked'} onchange="setCombinedEntity(${JSON.stringify(id).replace(/"/g,'&quot;')},this.checked)"> ${escHtml((e&&e.name)||'Entity')}</label>`;}).join(' ')+'</div>';
+    opts+=_lineNameSelectHtml('payroll');
+  }
+  if(key==='payroll'||key.startsWith('payroll:'))opts+=`<div class="dl-desc report-cols-note">${escHtml(_reportColsNoteText())}</div>`; // FC-00077: chosen on the export preview
+  if(key==='settings')opts+=`<label class="dl-fmt"><input type="checkbox" id="settingsIncludeBreaksToggle" ${_settingsBreaksPref?'checked':''} onchange="setSettingsBreaksPref(this.checked)"> Include per-day breaks</label>`;
+  const exts=Object.keys(d.formats).map(f=>'.'+_FMT_EXT[f]).join(' / ');
+  const edited=fileNameEdited(key),base=exportFileBase(key);
+  // A two-line box so the whole name shows; Enter keeps it (no line breaks in a file name).
+  const fname=`<div class="exp-fname"><textarea rows="2" spellcheck="false" class="exp-fname-input${edited?' edited':''}" title="File name for this week. The extension stays ${escHtml(exts)}." onkeydown="if(event.key==='Enter'){event.preventDefault();this.blur();}" onchange="setExportFileName('${k}',this.value)" ${d.disabled?'disabled':''}>${escHtml(base)}</textarea><div class="exp-fname-foot"><span class="exp-ext">File name · ${escHtml(exts)}${edited?' · edited for this week':''}</span><button class="btn btn-small exp-reset" onclick="resetExportFileName('${k}')" ${edited?'':'disabled'} title="Back to the standard name: ${escHtml(defaultFileBase(key))}">Reset</button></div></div>`;
+  const btns=Object.keys(d.formats).map(f=>`<button class="btn ${f==='xlsx'?'btn-green':''}" onclick="exportCardNow('${k}','${f}')" ${d.disabled?'disabled':''}>${f==='json'?'Save snapshot':_FMT_LABEL[f]}</button>`).join('')+
+    `<button class="btn exp-refresh" onclick="refreshExportCard('${k}')" title="Check this card again with the tool's current data">Refresh</button>`;
+  const ticks=Object.keys(d.formats).map(f=>`<label class="dl-fmt"><input type="checkbox" ${_dlTick(key,f)?'checked':''} onchange="setDownloadTick('${k}','${f}',this.checked)"> ${_FMT_LABEL[f]}</label>`).join(' ');
+  // What the file is, who it is for, when it is ready: one short line each, in that order.
+  const desc=`<div class="dl-desc exp-desc"><span class="exp-what">${escHtml(d.what||d.desc||'')}</span>${d.who?`<span class="exp-sep"> · </span><span class="exp-who">${escHtml(d.who)}</span>`:''}${d.when?`<span class="exp-sep"> · </span><span class="exp-when">${escHtml(d.when)}</span>`:''}</div>`;
+  const status=key==='accountant'?_acctCardHtml(st,_dlChecked[key]):_expStatusHtml(st,null,_dlChecked[key]);
+  return`<div class="exp-card${key.startsWith('payroll:')?' exp-card-entity':''}" data-key="${escHtml(key)}"><div class="exp-title">${escHtml(d.label)}</div>${desc}<div class="exp-opts">${opts}</div>${fname}<div class="exp-btns">${btns}</div><div class="exp-batch">In batch: ${ticks}</div>${status}</div>`;
+}
 function _downloadsHtmlInner(){
   _syncDownloads();
-  let h='<div class="dl-panel exp-panel"><div class="wow-head"><h3>Exports</h3><span class="wow-src">Every report downloads on its own with its Excel or PDF button. The payroll reports first ask about any row that is not approved. To get several files at once, tick "in batch" and use the buttons at the bottom.</span></div>';
-  h+=_nameControlsHtml();
-  h+='<div class="dl-labels">File labels: '+entities.map((e,i)=>`<label>${escHtml(e.name||'Entity '+(i+1))} <input type="text" value="${escHtml(_entityFileLabel(e))}" onchange="setEntityFileLabel(${i},this.value)"></label>`).join(' ')+'</div>';
+  let h='<div class="dl-panel exp-panel"><div class="wow-head"><h3>Exports</h3><span class="wow-src">Each card is one file. Download it with its own buttons, or tick "In batch" and use the buttons at the bottom. Payroll files first ask about any row that is not approved. Changed something elsewhere? Press Refresh on the card.</span></div>';
+  h+='<div class="exp-settings">'+_nameControlsHtml();
+  h+='<div class="dl-labels">File labels: '+entities.map((e,i)=>`<label>${escHtml(e.name||'Entity '+(i+1))} <input type="text" value="${escHtml(_entityFileLabel(e))}" onchange="setEntityFileLabel(${i},this.value)"></label>`).join(' ')+'</div></div>';
   h+='<div class="exp-cards">';
-  DOWNLOADS.forEach(d=>{
-    const st=d.disabled?null:downloadStatus(d.key);
-    const names=downloadFileNames(d.key,true);
-    let ents='';
-    if(d.key==='payroll'){
-      const ids=_payrollEntityIds();
-      ents='<div class="exp-ents">Entities: '+ids.map(id=>{const e=entities.find(x=>x.id===id);return`<label><input type="checkbox" ${_combinedOff[id]?'':'checked'} onchange="setCombinedEntity(${JSON.stringify(id).replace(/"/g,'&quot;')},this.checked)"> ${escHtml((e&&e.name)||'Entity')}</label>`;}).join(' ')+'</div>';
-    }
-    const btns=Object.keys(d.formats).map(f=>`<button class="btn ${f==='xlsx'?'btn-green':''}" onclick="exportCardNow('${escJs(d.key)}','${f}')" ${d.disabled?'disabled':''}>${f==='json'?'Save snapshot':_FMT_LABEL[f]}</button>`).join('');
-    const ticks=Object.keys(d.formats).map(f=>`<label class="dl-fmt"><input type="checkbox" ${_dlTick(d.key,f)?'checked':''} onchange="setDownloadTick('${escJs(d.key)}','${f}',this.checked)"> ${_FMT_LABEL[f]}</label>`).join(' ');
-    const extra=d.key==='settings'?`<label class="dl-fmt" style="display:block;margin-top:4px"><input type="checkbox" id="settingsIncludeBreaksToggle" ${_settingsBreaksPref?'checked':''} onchange="setSettingsBreaksPref(this.checked)"> Include per-day breaks</label>`
-      :(d.key==='payroll'||d.key.startsWith('payroll:'))?`<div class="dl-desc report-cols-note">${escHtml(_reportColsNoteText())}</div>` // FC-00077: chosen on the export preview
-      :d.key==='accountant'?_acctCardHtml():''; // FC-00084: the accountant section lives on its card
-    h+=`<div class="exp-card${d.key.startsWith('payroll:')?' exp-card-entity':''}" data-key="${escHtml(d.key)}"><div class="exp-title">${escHtml(d.label)}</div><div class="dl-desc">${escHtml(d.desc)}</div>${ents}${d.key==='payroll'?_lineNameSelectHtml('payroll'):''}${names.length?'<div class="dl-files">'+names.map(escHtml).join('<br>')+'</div>':''}${extra}<div class="exp-btns">${btns}</div><div class="exp-batch">In batch: ${ticks}</div>`;
-    if(st)h+=st.ok?'<div class="dl-ok">✓ Ready</div>':'<div class="dl-warn">⚠ '+st.reasons.map(escHtml).join('<br>⚠ ')+'</div>';
-    h+='</div>';
-  });
-  h+='</div><div class="dl-actions"><span style="font-size:12px;color:var(--text3)">Batch: everything ticked "in batch" above</span><button class="btn btn-green" onclick="downloadSelected()">Download batch as files</button><button class="btn btn-primary" onclick="downloadZip()">Download batch as one zip</button></div>';
+  DOWNLOADS.forEach(d=>{h+=_expCardHtml(d);});
+  h+='</div><div class="dl-actions"><span style="font-size:12px;color:var(--text3)">Batch: everything ticked "In batch" above</span><button class="btn btn-green" onclick="downloadSelected()">Download batch as files</button><button class="btn btn-primary" onclick="downloadZip()">Download batch as one zip</button></div>';
   h+='</div>';
   return h;
+}
+// FC-00093: Refresh rebuilds one card from the tool's current data: the list of cards (entities
+// come and go), its file name and its status, and the payroll preview, then draws the panel again.
+// It changes no data.
+function refreshExportCard(key){
+  _syncDownloads();
+  const d=DOWNLOADS.find(x=>x.key===key);
+  if(!d){if(!_simulating){renderDownloadsPanel();showToast('That card is gone: the entities changed','err');}return null;}
+  const st=downloadStatus(key);
+  const t=new Date();_dlChecked[key]=t.toLocaleTimeString([], {hour:'numeric',minute:'2-digit'});
+  if(!_simulating){
+    if(_isPayrollKey(key)||key==='accountant')renderFc00013PreviewPanel();
+    renderDownloadsPanel();
+    showToast(d.label+': '+(st.ok?'ready':'not ready: '+st.reasons[0]),st.ok?'ok':'err');
+  }
+  return{key,ok:st.ok,reasons:st.reasons.slice(),names:downloadFileNames(key,true)};
 }
 let _settingsBreaksPref=false;
 // One setting, two boxes (beside Import and on the Settings file card): ticking one ticks both.
@@ -5678,6 +5788,7 @@ function renderPayrollEntityContent(idx){
 
   const _fc32Calc=computePayrollForEntity(idx);
   container.innerHTML=`
+    ${_payDatesBarHtml()}
     ${_dupBannerHtml()}
     ${_nsPayrollReminderHtml()}
     ${_shortWeekHtml()}
@@ -5808,7 +5919,7 @@ function _fc13PreviewModelInner(){
   const rows=[];
   rows.push({kind:'title',entityId:null,cells:[titleFull],bgs:[''],tips:[tdTitle]});
   const _pdl=_payDatesLine(); // FC-00073
-  if(_pdl)rows.push({kind:'note',entityId:null,cells:[_pdl],bgs:[''],tips:['Set on the Accountant file card (Exports)']});
+  if(_pdl)rows.push({kind:'note',entityId:null,cells:[_pdl],bgs:[''],tips:['Set under Pay dates at the top of the Payroll tab']}); // FC-00093
   // FC-00080: the same blocks as the files (entity band, Employees, Management, totals).
   const RC=REPORT_COLORS,cashI=C.cash!=null?C.cash:-1;
   rows.push({kind:'hdr',entityId:null,cells:spec.headers.slice(),bgs:spec.headers.map((h,ci)=>ci===cashI?argbToCss(RC.cashData):'#FFFFFF'),tips:fill(tdAuto)});
@@ -11221,7 +11332,7 @@ function setReportFinalDiff(on){return _setFinalDiffOn(on,'payroll');} // FC-000
 // The run's pay date for one row (FC-00073): deposit date, cash date, or both for Deposit + Cash.
 function _rowPayDateText(r){
   const p=payDates();if(!p.run)return'';
-  const dep=p.deposit?_fmtPayDate(p.deposit.iso):'not set',cash=_fmtPayDate(p.cash.iso);
+  const dep=payDateText('deposit'),cash=payDateText('cash'); // FC-00093: the same words as the report and the accountant file
   const m=r._breakdown.method;
   if(m==='both')return dep+' + '+cash;
   return(m==='deposit'||m==='exec')?dep:cash;
@@ -11274,17 +11385,38 @@ function setPayDateByHand(kind,iso){
   if((cur?cur.iso:'')===iso)return false;
   const to=iso?_fmtPayDate(iso):(kind==='cash'?_fmtPayDate(_fridayAfter(p.end))+' (the Friday after the week)':'not set');
   if(!confirm('⚠ '+PAY_DATE_KINDS[kind]+' pay date\n\n'+PAY_DATE_WARNING[kind]+'\n\nChange it from '+(cur?_fmtPayDate(cur.iso):'not set')+' to '+to+'?')){
-    if(!_simulating)renderDownloadsPanel();
+    _afterPayDateChange(); // FC-00093: puts the box back
     return false;
   }
   const ok=_setPayDate(kind,iso,'hand');
-  if(!_simulating){renderDownloadsPanel();renderFc00013PreviewPanel();}
+  _afterPayDateChange();
   return ok;
 }
+// FC-00093: one way to print a pay date, for every file and screen. A date that is not set reads
+// the same everywhere.
+const PAY_DATE_NOT_SET='(date not set)';
+function payDateText(kind){const d=payDates()[kind];return d?_fmtPayDate(d.iso):PAY_DATE_NOT_SET;}
 function _payDatesLine(){
   const p=payDates();if(!p.run)return'';
   // FC-00080: the line under the report's title.
-  return'Deposit paid '+(p.deposit?_fmtPayDate(p.deposit.iso):'(date not set)')+'   |   Cash and Check paid '+_fmtPayDate(p.cash.iso);
+  return'Deposit paid '+payDateText('deposit')+'   |   Cash and Check paid '+payDateText('cash');
+}
+// FC-00093: the pay dates are set here, at the top of the Payroll tab (they were on the
+// Accountant file card). Same warning, same storage (FC-00073).
+function _payDatesBarHtml(){
+  const p=payDates();
+  if(!p.run)return'<div class="paydates-bar"><b>Pay dates</b> <span class="paydates-note">Load a schedule with dates first: pay dates belong to the pay week.</span></div>';
+  const src=d=>!d?'not set':(d.src==='auto'?'the Friday after the week':'set');
+  let h='<div class="paydates-bar"><b>Pay dates</b> <span class="paydates-note">week of '+escHtml(_fmtIsoShort(p.run))+' – '+escHtml(_fmtIsoShort(p.end))+'</span>';
+  ['deposit','cash'].forEach(k=>{const d=p[k];
+    h+=`<label class="paydate${d?'':' paydate-unset'}">${escHtml(PAY_DATE_KINDS[k])} <input type="date" value="${d?d.iso:''}" onchange="setPayDateByHand('${k}',this.value)"> <span class="acct-src">${escHtml(payDateText(k))} · ${escHtml(src(d))}</span></label>`;});
+  h+='<span class="paydates-note">Printed on the payroll report and the accountant file.</span></div>';
+  return h;
+}
+function _afterPayDateChange(){
+  if(_simulating)return;
+  if(typeof currentTab!=='undefined'&&currentTab==='payroll')renderPayroll();else renderDownloadsPanel();
+  renderFc00013PreviewPanel();
 }
 // Each person's name, employment type, section and standing note as the accountant has them.
 // Kept on the roster record (acct_name, acct_type, acct_section, acct_note) and in the settings
@@ -11363,7 +11495,7 @@ function _anyDepositElsewhere(){return Object.keys((session.roster||{}).byId||{}
 function acctBlockers(data){
   data=data||_acctData();
   const out=[],p=payDates();
-  if(!p.deposit)out.push('Deposit pay date not set: set it on the Accountant file card');
+  if(!p.deposit)out.push('Deposit pay date not set: set it on the Payroll tab (Pay dates)'); // FC-00093: set on the Payroll tab
   const noType=[],noRate=[];
   data.forEach(d=>d.rows.forEach(r=>{if(!r._acct.type)noType.push(r._acct.name);if(r._acct.noRate)noRate.push(r._acct.name);}));
   if(noType.length)out.push('Employment type not set (Employee Register tab): '+noType.join(', '));
@@ -11464,7 +11596,7 @@ function _acctData(){
   return out;
 }
 function _acctPeriodLabel(){const p=_exportPeriodStr();return p?p.replace(/^PERIOD\s+/,''):'';}
-function _acctDatesLine(){const p=payDates();return'Deposit paid '+(p.deposit?_fmtPayDate(p.deposit.iso):'(date not set)');}
+function _acctDatesLine(){return'Deposit paid '+payDateText('deposit');} // FC-00093: the same date and words as the payroll report
 // A report spec (FC-00080's writers draw it) with the accountant's columns.
 function _acctSpec(){
   const num=(v,money)=>_numCell(Math.round((v||0)*100)/100,money?XL_FMT_MONEY_BLANK0:XL_FMT_HOURS_BLANK0,v?(money?_fmtUsd(v):(Math.round(v*100)/100).toFixed(2)):'');
@@ -11589,58 +11721,35 @@ async function exportAccountantPdf(){
   _pdfHeadingEveryPage(doc,_acctTitle(),_acctDatesLine()); // FC-00082
   _savePdf(doc,_fileStem()+'_AccountantFile.pdf');
 }
-function _acctStatusReasons(){
+// FC-00093: the card's reasons, short ("2 deposit people have no employment type — fix on the
+// Employee Register"); detail=true adds who (the card's tooltip). What blocks the file is still
+// acctBlockers and the self-check; only the words changed.
+function _acctStatusReasons(detail){
   const out=[];
   const data=_acctData();
   if(!data.length){out.push('No one is paid by deposit this week');return out;}
   const p=payDates();
-  if(!p.run)out.push('No schedule dates: the pay period is unknown');
-  else if(!p.deposit)out.push('Deposit pay date not set: set it on this card');
+  if(!p.run)out.push('No schedule dates, so the pay period is unknown');
+  else if(!p.deposit)out.push('Deposit pay date not set — set it on the Payroll tab');
   const noType=[],noRate=[];
   data.forEach(d=>d.rows.forEach(r=>{if(!r._acct.type)noType.push(r._acct.name);if(r._acct.noRate)noRate.push(r._acct.name);}));
-  if(noType.length)out.push('Employment type not set (Employee Register tab): '+noType.join(', '));
-  if(noRate.length)out.push('Rate missing: '+noRate.join(', '));
+  const who=list=>detail?' ('+list.join(', ')+')':'';
+  const ppl=(n,what)=>n+' deposit '+(n===1?'person has':'people have')+' '+what;
+  if(noType.length)out.push(ppl(noType.length,'no employment type')+who(noType)+' — fix on the Employee Register');
+  if(noRate.length)out.push(ppl(noRate.length,'no rate')+who(noRate)+' — fix on the Payroll tab');
   const swu=shortWeekUndecided(); // FC-00085
-  if(swu.length)out.push('Short-week deposit not decided (Payroll tab): '+swu.map(x=>x.name).join(', '));
+  if(swu.length)out.push(swu.length+' short-week deposit'+(swu.length===1?'':'s')+' not decided'+who(swu.map(x=>x.name))+' — decide on the Payroll tab');
   const sc=acctSelfCheck(data);
-  if(!sc.ok)out.push('Does not check out on its own: '+sc.problems.slice(0,3).join('; ')+(sc.problems.length>3?' …':''));
-  sc.noteWarnings.forEach(w=>out.push(w+': the accountant will see it'));
-  acctTieOut(data).filter(t=>!t.ok).forEach(t=>out.push(t.entityName+': Gross Total '+_fmtUsd(t.gross)+' does not match this week\'s payroll deposits '+_fmtUsd(t.deposit)));
+  if(!sc.ok)out.push('The file does not add up on its own, so it will not be written'+(detail?': '+sc.problems.slice(0,3).join('; ')+(sc.problems.length>3?' …':''):''));
+  if(sc.noteWarnings.length)out.push(sc.noteWarnings.length+' note'+(sc.noteWarnings.length===1?' mentions':'s mention')+' cash, checks or our files'+(detail?' ('+sc.noteWarnings.join('; ')+')':'')+' — the accountant will see '+(sc.noteWarnings.length===1?'it':'them'));
+  acctTieOut(data).filter(t=>!t.ok).forEach(t=>out.push(t.entityName+': the file\'s total does not match this week\'s payroll deposits'+(detail?' ('+_fmtUsd(t.gross)+' vs '+_fmtUsd(t.deposit)+')':'')));
   return out;
 }
-// FC-00084: the accountant file's pay dates, its check and this week's notes are on its Exports
-// card; the accountant name, employment type and standing note are edited on the Employee
-// Register tab. Who is on the file: everyone paid by deposit, unless the register's
-// "On accountant file" says Always or Never (FC-00092).
-let _acctNotesOpen=false;
-function _acctCardHtml(){
-  const p=payDates();
-  const srcTxt=d=>!d?'not set':(d.src==='hand'||d.src==='file'?'set':'the Friday after the week');
-  let h='<div class="acct-card-dates">';
-  ['deposit','cash'].forEach(k=>{const d=p[k];h+=`<label class="acct-date">${escHtml(PAY_DATE_KINDS[k])} pay date <input type="date" value="${d?d.iso:''}" ${p.run?'':'disabled'} onchange="setPayDateByHand('${k}',this.value)"> <span class="acct-src">${escHtml(srcTxt(d))}${d?' · '+escHtml(_fmtPayDate(d.iso)):''}</span></label>`;});
-  if(!p.run)h+='<div class="dl-desc">Pay dates: no schedule dates yet</div>';
-  h+='</div>';
-  const ties=acctTieOut();
-  if(ties.length){const bl=acctBlockers();if(bl.length)h+=`<div class="dl-warn acct-tie">⚠ Not written until complete: ${escHtml(bl.join('; '))}</div>`;} // FC-00085
-  if(ties.length){
-    h+='<div class="acct-check">';
-    const sc=acctSelfCheck();
-    h+=sc.ok?'<div class="dl-ok acct-tie">✓ The file checks out on its own: every row from its own columns, every total from the lines above it.</div>':`<div class="dl-warn acct-tie">⚠ The file does not check out on its own, so it will not be written: ${escHtml(sc.problems.slice(0,3).join('; '))}</div>`;
-    ties.forEach(t=>{h+=t.ok?`<div class="dl-ok acct-tie">✓ ${escHtml(_acctTieText(t))}</div>`:`<div class="dl-warn acct-tie">⚠ ${escHtml(_acctTieText(t))}</div>`;}); // FC-00092: names a deposit left off by Never
-    h+='</div>';
-  }
-  const rows=[];
-  acctFileModel().entities.forEach(e=>e.rows.forEach(r=>rows.push(Object.assign({entityName:e.entityName},r))));
-  if(rows.length){
-    const n=rows.filter(r=>getAcctWeekNote(r.entityId,r.empName)).length;
-    h+=`<details class="acct-card-notes"${_acctNotesOpen?' open':''} ontoggle="_acctNotesOpen=this.open"><summary>Notes for the accountant this week${n?' ('+n+')':''}</summary><table class="history-table acct-table"><tbody>`;
-    rows.forEach(r=>{
-      const id=escHtml(escJs(r.empName));
-      h+=`<tr><td>${escHtml(r.entityName)}</td><td>${escHtml(r.name)}</td><td><input type="text" class="acct-note acct-week-note" value="${escHtml(getAcctWeekNote(r.entityId,r.empName))}" title="Prints this week only" onchange="setAcctWeekNote(${r.entityId},'${id}',this.value)"></td></tr>`;
-    });
-    h+='</tbody></table></details>';
-  }
-  return h;
+// FC-00093: the Accountant file card shows only the single Ready / Not ready line every card has.
+// The pay dates are on the Payroll tab; the standing notes come from the Employee Register; this
+// week's notes (FC-00081) are no longer added here (one already set still prints).
+function _acctCardHtml(st,checked){
+  return _expStatusHtml(st||downloadStatus('accountant'),_acctStatusReasons(true),checked);
 }
 // FC-00075's loaded accountant file is retired; an older snapshot that carries one opens without it.
 _registerSnapshotPart('acctFile',()=>null,()=>{});

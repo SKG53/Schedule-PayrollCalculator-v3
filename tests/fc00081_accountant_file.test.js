@@ -53,9 +53,11 @@ test('test_ties_to_the_report_deposit', () => {
   const m = api._fc13PreviewModel(), C = api.COMBINED_COLS;
   const dep = m.rows.filter(r => r.kind === 'enttotal').map(r => r.cells[C.deposit]);
   assert.deepEqual(dep, ['$2,307.00', '$320.00']);
+  // FC-00093: the card no longer lists the tie-out; it is still checked (a mismatch makes it Not ready).
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  assert.match(html, /✓ Alpha Test: Gross Total \$2,307\.00 matches this week's payroll deposits/);
+  assert.doesNotMatch(html, /matches this week's payroll deposits/);
+  assert.ok(!api.downloadStatus('accountant').reasons.some(r => /does not match this week's payroll deposits/.test(r)));
 });
 
 test('test_excel_layout_and_formulas', async () => {
@@ -125,15 +127,17 @@ test('test_card_status_and_panel', () => {
   const d = api.DOWNLOADS.find(x => x.key === 'accountant');
   assert.deepEqual(Object.keys(d.formats), ['xlsx', 'pdf']);
   const st = api.downloadStatus('accountant');
-  assert.ok(st.reasons.includes('Deposit pay date not set: set it on this card'), st.reasons.join(' | ')); // FC-00084
-  assert.ok(st.reasons.some(x => /^Employment type not set \(Employee Register tab\): /.test(x)));
+  assert.ok(st.reasons.includes('Deposit pay date not set — set it on the Payroll tab'), st.reasons.join(' | ')); // FC-00093: set on the Payroll tab
+  assert.ok(st.reasons.some(x => /^\d+ deposit (person has|people have) no employment type — fix on the Employee Register$/.test(x)));
   assert.ok(!st.reasons.some(x => /accountant's file is not loaded/.test(x)), 'nothing to load any more');
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
   assert.match(html, /<div class="exp-title">Accountant file<\/div>/); // FC-00084: on its card, no page section
   assert.doesNotMatch(html, /Load the accountant's file/);
-  assert.match(html, /onchange="setPayDateByHand\('deposit',this.value\)"/);
-  assert.match(html, /class="acct-note acct-week-note"/);
+  // FC-00093: no pay dates and no week notes on the card; the dates are on the Payroll tab.
+  assert.doesNotMatch(html, /onchange="setPayDateByHand\('deposit',this.value\)"/);
+  assert.doesNotMatch(html, /class="acct-note acct-week-note"/);
+  assert.match(api._payDatesBarHtml(), /onchange="setPayDateByHand\('deposit',this.value\)"/);
 });
 
 test('test_week_note_is_undoable_and_kept_out_of_the_settings_file', async () => {

@@ -194,7 +194,8 @@ test('test_a_row_that_does_not_check_out_blocks_the_file', async () => {
   await api.exportAccountantFile();
   assert.equal(api.__lastExcelWorkbook, before, 'no file');
   assert.match(alerts[0], /^The accountant file was not written: it does not check out on its own\./);
-  assert.ok(api.downloadStatus('accountant').reasons.some(r => /^Does not check out on its own: Eden Etest/.test(r)));
+  assert.ok(api.downloadStatus('accountant').reasons.some(r => /^The file does not add up on its own, so it will not be written$/.test(r))); // FC-00093: short
+  assert.ok(api._acctStatusReasons(true).some(r => /^The file does not add up on its own, so it will not be written: Eden Etest/.test(r)), 'who is in the tooltip');
 });
 
 test('test_no_process_words_on_the_accountant_file', async () => {
@@ -210,7 +211,8 @@ test('test_no_process_words_on_the_accountant_file', async () => {
   const c = api.acctSelfCheck();
   assert.equal(c.ok, true);
   assert.deepEqual(c.noteWarnings, ['Avery Atest\'s note mentions "cash"']);
-  assert.ok(api.downloadStatus('accountant').reasons.includes('Avery Atest\'s note mentions "cash": the accountant will see it'));
+  assert.ok(api.downloadStatus('accountant').reasons.includes('1 note mentions cash, checks or our files — the accountant will see it')); // FC-00093: short
+  assert.ok(api._acctStatusReasons(true).some(r => r.includes('Avery Atest\'s note mentions "cash"')), 'who is in the tooltip');
 });
 
 test('test_tie_check_ignores_the_check_column_choice', () => {
@@ -220,7 +222,8 @@ test('test_tie_check_ignores_the_check_column_choice', () => {
   assert.deepEqual(api.acctTieOut().map(t => [t.gross, t.deposit, t.ok]), a, 'contract checks are never counted as deposits');
   api.renderDownloadsPanel();
   const html = api.__sandbox.document.getElementById('downloadsHost').innerHTML;
-  assert.match(html, /✓ The file checks out on its own/);
-  assert.match(html, /matches this week's payroll deposits/);
+  // FC-00093: the card shows one status line; the self-check and the tie-out still run.
+  assert.equal(api.acctSelfCheck().ok, true);
+  assert.ok(!api.downloadStatus('accountant').reasons.some(r => /does not add up|does not match/.test(r)));
   assert.doesNotMatch(html, /payroll report's Deposit/);
 });

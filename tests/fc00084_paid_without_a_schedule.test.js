@@ -171,10 +171,12 @@ test('test_accountant_card_and_no_page_section', () => {
   assert.doesNotMatch(html, /class="acct-panel"/, 'the page section is gone');
   const card = html.slice(html.indexOf('data-key="accountant"'));
   const one = card.slice(0, card.indexOf('<div class="exp-card', 10) > 0 ? card.indexOf('<div class="exp-card', 10) : undefined);
-  assert.match(one, /class="acct-card-dates"/);
-  assert.match(one, /Deposit pay date <input type="date"/);
-  assert.match(one, /matches this week's payroll deposits/);
-  assert.match(one, /<summary>Notes for the accountant this week<\/summary>/);
+  // FC-00093: no pay dates, no checks list and no week notes on the card; one status line.
+  assert.doesNotMatch(one, /class="acct-card-dates"/);
+  assert.doesNotMatch(one, /<input type="date"/);
+  assert.doesNotMatch(one, /matches this week's payroll deposits/);
+  assert.doesNotMatch(one, /Notes for the accountant this week/);
+  assert.equal((one.match(/class="exp-status/g) || []).length, 1);
   api.setAcctWeekNote(0, 'Avery Atest', 'Back pay included');
-  assert.match(api._acctCardHtml(), /<summary>Notes for the accountant this week \(1\)<\/summary>/);
+  assert.doesNotMatch(api._acctCardHtml(), /Notes for the accountant/);
 });

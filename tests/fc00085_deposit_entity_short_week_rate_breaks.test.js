@@ -156,7 +156,7 @@ test('test_accountant_file_blocked_until_complete', async () => {
   // An undecided short week stops it again.
   shortCora(api);
   assert.match(api.acctBlockers().join(' | '), /Short-week deposit not decided \(Payroll tab\): Cora Ctest/);
-  assert.match(api._acctCardHtml(), /Not written until complete/);
+  assert.match(api._acctCardHtml(), /⚠ Not ready: 1 short-week deposit not decided — decide on the Payroll tab/); // FC-00093: one short line
   api.setShortWeekChoice(0, 'Cora Ctest', 'hours');
   assert.deepEqual(api.acctBlockers(), []);
 });

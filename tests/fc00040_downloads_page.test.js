@@ -91,7 +91,7 @@ test('test_status_reports_unapproved_and_exclusions', () => {
   assert.ok(st.reasons.includes('Break not confirmed: NIRVANA 11TH'), st.reasons.join(' | '));
   assert.deepEqual(api.downloadStatus('timecards').reasons, ['ZION: 1 row not approved']);
   api.renderDownloadsPanel();
-  assert.match(api.__sandbox.document.getElementById('downloadsHost').innerHTML, /⚠ ZION: 1 row not approved/); // the timecards line keeps the count
+  assert.match(api.__sandbox.document.getElementById('downloadsHost').innerHTML, /⚠ Not ready: ZION: 1 row not approved/); // the timecards line keeps the count (FC-00093: "Not ready:" first)
 });
 
 test('test_download_selected_writes_each_file', async () => {
