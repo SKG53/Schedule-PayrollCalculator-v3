@@ -605,6 +605,8 @@ function loadApp(opts) {
       EXP_CARD_ROWS, payDateText, _payDatesBarHtml, _acctDatesLine, _expStatusHtml, _expCardHtml, refreshExportCard, defaultFileBase, exportFileBase, fileNameEdited, setExportFileName, resetExportFileName, _cleanFileBase,
       // FC-00094
       tngIdText, _idsCellHtml, IDS_HEAD, renderPayrollCalc, renderTimeCardData, renderPayrollGrid,
+      // FC-00095
+      imageColourShare, imageKindFromShare, localImageKind, classifyTimecardImage, IMG_SORT_EC_MIN, IMG_SORT_TC_MAX,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078

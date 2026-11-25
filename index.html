@@ -7643,6 +7643,7 @@ async function retryOcrJob(idx,jobIdx,maxAttempts,opts){
         job.detail='Classifying image type…';
         renderOcrFileList(idx,jobs);
         effectiveKind=await classifyTimecardImage(job.file,apiKey);
+        if(effectiveKind!=='EC')effectiveKind='TC'; // FC-00095: this path has no Unsure; it reads as a timecard, as before
         job.kind=effectiveKind;
         job.detail=`Classified as ${effectiveKind==='TC'?'Timecard':'EasyClocking'} — extracting…`;
         renderOcrFileList(idx,jobs);
@@ -8006,6 +8007,7 @@ async function _runOcrForEntityImpl(idx){
           job.detail='Classifying image type…';
           renderOcrFileList(idx,jobs);
           effectiveKind=await classifyTimecardImage(job.file,apiKey);
+          if(effectiveKind!=='EC')effectiveKind='TC'; // FC-00095
           job.kind=effectiveKind; // update for display and retry
           job.detail=`Classified as ${effectiveKind==='TC'?'Timecard':'EasyClocking'} — extracting…`;
           renderOcrFileList(idx,jobs);
@@ -8289,25 +8291,64 @@ function buildScheduleAnchors(ent){
   return lines.join('\n');
 }
 
-// Auto-classify an image as 'TC' (physical timecard) or 'EC' (EasyClocking screenshot)
+// FC-00095: sort an image as 'TC' (paper timecard photo), 'EC' (EasyClocking screenshot) or 'UNSURE'.
+// 1) A picture check that needs no API: a screenshot is drawn in a handful of exact colours (flat grey
+//    rows, white, black text), so the 8 most common colours cover most of it; a phone photo of a card
+//    has thousands of colours and no colour covers much. On 500 of the owner's own images (138
+//    screenshots, 362 photos) the share was 0.69–0.83 for every screenshot and 0.02–0.26 for every
+//    photo, so the cut-offs below leave a wide margin on both sides.
+// 2) Only an image in between is sent to Gemini, with a current model; an unclear answer is 'UNSURE'
+//    (the owner decides) instead of guessing Timecard.
+const IMG_SORT_EC_MIN=0.5, IMG_SORT_TC_MAX=0.4;
+function imageColourShare(data){ // RGBA bytes → share of pixels in the 8 most common exact colours
+  const counts=new Map();let n=0;
+  for(let i=0;i+3<data.length;i+=4){
+    if(data[i+3]<8)continue; // transparent
+    const k=(data[i]<<16)|(data[i+1]<<8)|data[i+2];
+    counts.set(k,(counts.get(k)||0)+1);n++;
+  }
+  if(!n)return null;
+  const top=[...counts.values()].sort((a,b)=>b-a).slice(0,8).reduce((a,b)=>a+b,0);
+  return top/n;
+}
+function imageKindFromShare(share){
+  if(share==null||!isFinite(share))return null;
+  if(share>=IMG_SORT_EC_MIN)return 'EC';
+  if(share<=IMG_SORT_TC_MAX)return 'TC';
+  return null;
+}
+async function localImageKind(file){
+  try{
+    const bitmap=await createImageBitmap(file);
+    const scale=Math.min(1,256/Math.max(bitmap.width,bitmap.height));
+    const w=Math.max(1,Math.round(bitmap.width*scale)),h=Math.max(1,Math.round(bitmap.height*scale));
+    const canvas=document.createElement('canvas');canvas.width=w;canvas.height=h;
+    const ctx=canvas.getContext('2d');ctx.imageSmoothingEnabled=false; // keep exact colours
+    ctx.drawImage(bitmap,0,0,w,h);bitmap.close&&bitmap.close();
+    return imageKindFromShare(imageColourShare(ctx.getImageData(0,0,w,h).data));
+  }catch(e){return null;}
+}
+const IMG_SORT_MODEL='gemini-2.5-flash-lite';
 async function classifyTimecardImage(file,apiKey){
+  const local=await localImageKind(file);
+  if(local)return local;
+  if(!apiKey)return 'UNSURE';
   const {b64,mime}=await prepareImageForOcr(file,1024); // smaller is fine for classification
-  const prompt=`Look at this image and determine if it is:
-1. A PHYSICAL TIMECARD (paper card with machine-stamped or handwritten times, typically yellow/tan card, rotated text, "TOPS" brand, IN/OUT columns)
-2. An EASYCLOCKING SCREENSHOT (digital screenshot of a time-tracking software with columns like Name, Day, Time In, Time Out, etc. on a gray/white background)
-
-Respond with ONLY one word: "TC" for physical timecard or "EC" for EasyClocking screenshot.`;
+  const prompt=`Look at this image and decide which one it is:
+TC = a PHOTO of a PAPER timecard (a tan or white card with IN/OUT rows and machine-stamped or handwritten times, often "TOPS"), taken with a phone camera.
+EC = a SCREENSHOT of time-tracking software (EasyClocking): a digital table with columns like Name, Day, Time In, Time Out, Regular, Total.
+Answer with exactly one word: TC, EC, or UNSURE if you cannot tell.`;
   const body={
     contents:[{role:'user',parts:[{text:prompt},{inline_data:{mime_type:mime,data:b64}}]}],
-    generationConfig:{temperature:0,maxOutputTokens:5}
+    generationConfig:{temperature:0,maxOutputTokens:16,thinkingConfig:{thinkingBudget:0}}
   };
-  const url=`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-lite:generateContent?key=${encodeURIComponent(apiKey)}`;
+  const url=`https://generativelanguage.googleapis.com/v1beta/models/${IMG_SORT_MODEL}:generateContent?key=${encodeURIComponent(apiKey)}`;
   const resp=await fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(!resp.ok)throw new Error('Classification API error '+resp.status);
   const data=await resp.json();
-  const text=(data.candidates[0].content.parts[0].text||'').trim().toUpperCase();
-  if(text.includes('EC'))return 'EC';
-  return 'TC'; // default to TC if ambiguous
+  let text='';try{text=((data.candidates[0].content.parts||[]).map(p=>p.text||'').join(' ')).trim().toUpperCase();}catch(e){text='';}
+  const w=(text.match(/\b(TC|EC|UNSURE)\b/)||[])[1];
+  return w==='TC'||w==='EC'?w:'UNSURE';
 }
 
 // Shared low-level Gemini vision call: downsizes the image, posts it + a prompt (with an
@@ -10538,7 +10579,7 @@ function _writeLaborCostSheet(ewb,data){
 // FC-00053 — drop the whole week folder (or the Drive zip); every image classified by looking
 // ================================================================
 // Files arrive with their path inside the folder. Each top-level subfolder is an entity. Every
-// image is classified as Timecard or EasyClocking by Gemini looking at it (classifyTimecardImage);
+// image is classified as Timecard or EasyClocking by looking at its pixels (FC-00095), Gemini only when unclear (classifyTimecardImage);
 // the file type is never used. The owner checks the sort, then Start OCR queues each image to
 // its entity's typed list, exactly as dropping it in that entity's typed zone does.
 const FOLDER_MAP_PREF='pv26_folder_map';
@@ -10635,6 +10676,7 @@ async function _classifyOne(it,apiKey){
     try{
       const k=_classifyImpl?await _classifyImpl(it.file):await classifyTimecardImage(it.file,apiKey);
       if(k==='TC'||k==='EC'){delete it._retry;return k;}
+      if(k==='UNSURE'){delete it._retry;return null;} // FC-00095: a real answer, not a failure: no retry
     }catch(_){if(a<3)await new Promise(r=>setTimeout(r,_classifyImpl?0:2000));}
   }
   delete it._retry;
@@ -10643,7 +10685,7 @@ async function _classifyOne(it,apiKey){
 async function weekDropClassifyAll(){
   const wd=_weekDrop;if(!wd)return;
   const apiKey=_prefGet('pv26_api_key');
-  if(!apiKey&&!_classifyImpl){wd.items.forEach(it=>{if(!it.kind){it.status='unsure';}});wd.note='No Gemini API key: sort the images by hand, or add the key in Settings and drop the folder again.';_renderWeekDrop(true);return;}
+  if(!apiKey&&!_classifyImpl)wd.note='No Gemini API key: images the picture check cannot place are left as Unsure for you to sort.'; // FC-00095: the picture check needs no key
   const queue=wd.items.filter(it=>!it.kind);
   const run=async()=>{while(queue.length){const it=queue.shift();it.status='classifying';_renderWeekDrop(true);const k=await _classifyOne(it,apiKey);if(_weekDrop!==wd)return;if(it.byHand){if(it.status==='classifying')it.status=it.kind?'done':'unsure';}else if(k){it.kind=k;it.status='done';}else it.status='unsure';_renderWeekDrop(true);}};
   await Promise.all(Array.from({length:Math.max(1,Math.min(ocrParallel(),queue.length))},run)); // FC-00068
@@ -10730,7 +10772,7 @@ function weekDropProgress(){
     return{state:'working',step:'look',label:`Looking at the images · ${done} of ${total}`,done,total,ents,retrying};
   }
   const needs=[];
-  if(wd.note&&!_prefGet('pv26_api_key')&&!_classifyImpl)needs.push({kind:'key',text:'no Gemini key: sort by hand'});
+  if(wd.note&&!_prefGet('pv26_api_key')&&!_classifyImpl&&wd.items.some(it=>!it.kind&&it.status==='unsure'))needs.push({kind:'key',text:'no Gemini key: sort the Unsure ones by hand'});
   const unmapped=[...new Set(live.filter(it=>it.entIdx===-1).map(it=>it.folder))];
   if(unmapped.length)needs.push({kind:'folder',text:`${unmapped.length} folder${unmapped.length===1?' needs':'s need'} an entity`});
   const un=live.filter(it=>it.entIdx>=0&&!it.kind);

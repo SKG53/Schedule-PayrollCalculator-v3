@@ -118,7 +118,7 @@ test('test_no_api_key_waiting_state', async () => {
   await api.weekDropAddFiles(FILES());
   const pr = api.weekDropProgress();
   assert.equal(pr.state, 'waiting', 'nothing is looked at: no fake progress');
-  assert.ok(pr.needs.some(n => n.text === 'no Gemini key: sort by hand'));
+  assert.ok(pr.needs.some(n => n.text === 'no Gemini key: sort the Unsure ones by hand')); // FC-00095
 });
 
 test('test_duplicates_still_skipped', async () => {
