@@ -1,6 +1,6 @@
 # FC-00094 — Show the person's TNG ID next to the entity Employee ID on Actuals Intake and the Payroll tab
 
-**Date:** 2026-11-25 · **Slice:** S · **Risk:** Low · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-25 · **Slice:** S · **Risk:** Low · **Status:** done · **Affected entities:** All
 
 ## What
 1. **Actuals Intake.** The review table's Employee ID cell shows two lines: the person's TNG ID on top (for example `TNG00014`), the entity's Employee ID under it, smaller and grey (for example `EMP_ALP_00001`). The column heading reads "TNG ID" with "Employee ID" under it. A row that matches nobody still shows "—".
@@ -44,3 +44,12 @@ None.
 
 ## Tests
 `tests/fc00094_tng_id_on_intake_and_payroll.test.js`.
+
+## As built (2026-11-25)
+- `tngIdText(entId, name)`: the record found by `_resolveRecordNoMint`; its `tng`, else "TNG pending"; '' when the name is nobody. Never calls `assignTngIds`, never calls `ensureRosterRecord`.
+- `_idsCellHtml(entId, name, empIdText)`: `<span class="ids-tng">` (class `ids-pending` when not numbered) over `<span class="ids-emp">`. The Employee ID text is still `_empIdText`, unchanged ("ID pending" before a register is loaded).
+- `IDS_HEAD`: the heading "TNG ID" over a small "Employee ID" (`.ids-sub`).
+- Used in `renderReviewTableHtml` (cell class `emp-id-cell ids-cell`, the duplicate-name flag still after it), `renderPayrollGrid` (Hours view), `renderTimeCardData`, `renderPayrollCalc` and `_nsPayrollSectionHtml`. The Cost view, the summary cards, the Schedules tab and every export are unchanged.
+- **Checked in the browser on the real Nov 15–21 snapshot (private):** deposit, cash and contract check as expected; 41 people with TNG IDs. Actuals Intake: every matched row's cell shows a TNG ID and the Employee ID. Payroll tab, all three entities: every ID cell shows a TNG ID and the Employee ID. A person at two entities shows the same TNG ID on both entities' rows. An invented person added without a number shows "TNG pending" in the Paid-without-a-schedule table and nobody was numbered. No page errors.
+- Real-week regression: 6 weeks, 0 pay differences; tie-out: 0 bad.
+- Tests: 672 of 672 pass.
