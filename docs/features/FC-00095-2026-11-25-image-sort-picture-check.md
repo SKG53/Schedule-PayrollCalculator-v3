@@ -1,6 +1,6 @@
 # FC-00095 — Images are sorted by a picture check, not a retired model
 
-**Date:** 2026-11-25 · **Slice:** S · **Risk:** Low · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-25 · **Slice:** S · **Risk:** Low · **Status:** done · **Affected entities:** All
 
 ## What
 When the week folder is dropped, each image is sorted as Timecard (a phone photo of a paper card) or EasyClocking (a screenshot):
@@ -43,3 +43,11 @@ None.
 
 ## Tests
 `tests/fc00095_image_sort_picture_check.test.js`.
+
+## As built (2026-11-25)
+- `imageColourShare(rgba)`: share of non-transparent pixels in the 8 most common exact colours. `imageKindFromShare`: ≥ `IMG_SORT_EC_MIN` (0.5) → EC, ≤ `IMG_SORT_TC_MAX` (0.4) → TC, else null. `localImageKind(file)`: 256 px, `imageSmoothingEnabled=false`.
+- `classifyTimecardImage(file, apiKey)` returns `'TC' | 'EC' | 'UNSURE'`: picture check, then (key only) `gemini-2.5-flash-lite` with `thinkingBudget: 0`; anything but TC/EC → UNSURE. Network errors still throw (retried as before).
+- `_classifyOne`: UNSURE returns at once (no retries). `weekDropClassifyAll` runs without a key. The two mixed-drop OCR paths map anything but EC to TC, as before.
+- `tests/fc00067_sort_progress.test.js`: the no-key reminder text changed to "no Gemini key: sort the Unsure ones by hand".
+- **Measured on the owner's real images (private, not committed):** 500 past images (138 screenshots, 362 photos) in Python: screenshots 0.69–0.83, photos 0.02–0.26. In Chromium with the tool's own function on 74 images from the last three weeks: 74 right, 0 wrong, 0 Unsure; screenshots 0.94–0.96, photos 0.02–0.08.
+- Tests: 670 of 670 pass.

@@ -753,3 +753,6 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
 
 - **TNG ID beside the Employee ID:** `tngIdText(entId, name)` (TNG ID, "TNG pending", or ''; resolves with `_resolveRecordNoMint`, never numbers, never creates a record), `_idsCellHtml(entId, name, empIdText)` (TNG ID line over the Employee ID line, classes `ids-tng` / `ids-pending` / `ids-emp`), `IDS_HEAD` (heading "TNG ID" over "Employee ID").
 - **Where:** Actuals Intake review table; Payroll tab Weekly Actuals (Hours view), Time Card Data, Payroll Calculation and Paid without a schedule. Display only; exports unchanged.
+## Added by FC-00095 (2026-11-25)
+
+- **Image sort:** `imageColourShare`, `imageKindFromShare`, `localImageKind`; `classifyTimecardImage` returns TC/EC/UNSURE (picture check, then `gemini-2.5-flash-lite`); UNSURE is not retried; sorting works without a key.
