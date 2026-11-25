@@ -607,6 +607,8 @@ function loadApp(opts) {
       tngIdText, _idsCellHtml, IDS_HEAD, renderPayrollCalc, renderTimeCardData, renderPayrollGrid,
       // FC-00095
       imageColourShare, imageKindFromShare, localImageKind, classifyTimecardImage, IMG_SORT_EC_MIN, IMG_SORT_TC_MAX,
+      // FC-00091
+      _keepPlace, _kpWrap, _kpHold, _kpKey, _kpFind, _kpNoteScroll, getKpMove: () => _kpMove, getKpPending: () => _kpPending,
       // FC-00079
       addBonus, updateBonus, removeBonus, setBonuses, getBonuses, bonusesThisRun, bonusTotals, payParts, openBonusEditor, renderBonusPanel, _ingestBonusRows,
       // FC-00078

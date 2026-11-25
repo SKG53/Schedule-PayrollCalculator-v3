@@ -2206,6 +2206,7 @@ function openBonusEditor(entId,name){_bonusEdit={entId,name};renderBonusPanel();
 function closeBonusEditor(){_bonusEdit=null;renderBonusPanel();}
 function renderBonusPanel(){
   const host=document.getElementById('bonusPanel');if(!host)return;
+  if(_kpWrap(host,()=>renderBonusPanel()))return; // FC-00091
   // Everyone with a bonus this run, plus the person being edited.
   const people=[];
   entities.forEach(e=>Object.keys(session.roster.byId).forEach(k=>{const r=session.roster.byId[k];if(r&&r.entity===e.id&&bonusesThisRun(e.id,r.canonical_name).length)people.push({entId:e.id,name:r.canonical_name,ent:e.name||''});}));
@@ -2516,6 +2517,7 @@ function _restoreState(st,opts){
 }
 // Redraws every screen from state. Never reads the DOM back into state (that would undo the restore).
 function _rerenderAll(){
+  if(_kpWrap(document.getElementById('appContainer'),()=>_rerenderAll()))return; // FC-00091
   if(activeEntityIdx>=entities.length)activeEntityIdx=entities.length-1;
   renderEntityTabBar();syncEntityHeader();renderScheduleContent();
   ['schedule','intake','payroll'].forEach(t=>{
@@ -2809,7 +2811,7 @@ function _historyHtml(){
   });
   return html+'</tbody></table>';
 }
-function renderHistoryPanel(){const b=document.getElementById('historyBody');if(b)b.innerHTML=_historyHtml();}
+function renderHistoryPanel(){const b=document.getElementById('historyBody');if(b)_keepPlace(b,()=>{b.innerHTML=_historyHtml();});} // FC-00091
 function openHistory(){_historyOpen=true;document.getElementById('historyOverlay').style.display='flex';renderHistoryPanel();}
 function closeHistory(){_historyOpen=false;document.getElementById('historyOverlay').style.display='none';}
 function _refreshHistoryIfOpen(){if(_historyOpen&&!_simulating)renderHistoryPanel();}
@@ -3393,7 +3395,7 @@ function _wowPanelHtml(){
 }
 function renderWowPanel(){
   const host=document.getElementById('wowHost');
-  if(host)host.innerHTML=_wowPanelHtml();
+  if(host)_keepPlace(host,()=>{host.innerHTML=_wowPanelHtml();}); // FC-00091
 }
 
 // ================================================================
@@ -3909,7 +3911,7 @@ function _stageHtml(){
 function _renderStageOverlay(open){
   const ov=document.getElementById('stageOverlay');if(!ov)return;
   if(open===false||!_staged){ov.style.display='none';return;}
-  document.getElementById('stageBody').innerHTML=_stageHtml();
+  {const sb=document.getElementById('stageBody');_keepPlace(sb,()=>{sb.innerHTML=_stageHtml();});} // FC-00091
   ov.style.display='flex';
 }
 
@@ -4397,7 +4399,7 @@ function _lineNameSelectHtml(key){
   const v=exportNameMode(key);
   return`<div class="dl-line-names">Names <select onchange="setExportNameMode('${key}',this.value)">${Object.keys(NAME_MODE_LABEL).map(c=>`<option value="${c}" ${c===v?'selected':''}>${NAME_MODE_LABEL[c]}</option>`).join('')}</select></div>`;
 }
-function renderDownloadsPanel(){const host=document.getElementById('downloadsHost');if(host)host.innerHTML=_downloadsHtml();}
+function renderDownloadsPanel(){const host=document.getElementById('downloadsHost');if(host)_keepPlace(host,()=>{host.innerHTML=_downloadsHtml();});} // FC-00091
 function recompute(opts){
   const idx=entities.findIndex(e=>e.id===(opts&&opts.entity));
   if(idx<0)return null;
@@ -4646,6 +4648,7 @@ function _closeOpenedEntities(list){
 }
 
 function renderScheduleContent(){
+  if(_kpWrap(document.getElementById('scheduleTab'),()=>renderScheduleContent()))return; // FC-00091
   renderSettingsFirstBar();
   const ent=entities[activeEntityIdx];
   const dz=document.getElementById('dropZone');
@@ -4934,6 +4937,7 @@ function styleInput(inp){const v=inp.value.trim().toUpperCase();inp.classList.re
 function onTableChange(){readTableState();renderTable(activeEntityIdx)}
 
 function renderTable(idx){
+  if(_kpWrap(document.getElementById('scheduleTab'),()=>renderTable(idx)))return; // FC-00091
   const ent=entities[idx];
   const table=document.getElementById('schedTable');
   document.getElementById('schedWrap').style.display='block';
@@ -5762,6 +5766,7 @@ function switchPayrollEntity(idx){
 }
 
 function renderPayroll(){
+  if(_kpWrap(document.getElementById('payrollTab'),()=>renderPayroll()))return; // FC-00091
   const hasSchedule=entities.some(e=>e.employees.length>0);
   document.getElementById('payrollNoSchedule').style.display=hasSchedule?'none':'block';
   // Combined upload zone: visible only in combined mode
@@ -5782,6 +5787,7 @@ function renderPayroll(){
 
 function renderPayrollEntityContent(idx){
   const container=document.getElementById('payrollEntityContent');
+  if(_kpWrap(container,()=>renderPayrollEntityContent(idx)))return; // FC-00091
   const ent=entities[idx];
   if(!ent){container.innerHTML='';return}
 
@@ -6016,6 +6022,7 @@ function renderPayrollExportPreviewHtml(){
 }
 
 function renderFc00013PreviewPanel(){
+  if(_kpWrap(document.getElementById('payrollTab'),()=>renderFc00013PreviewPanel()))return; // FC-00091
   let host=document.getElementById('fc13PreviewHost');
   if(!host){
     host=document.createElement('div');
@@ -6904,8 +6911,7 @@ function setWage(rowIdx,val){
     // FC-00085: one rate per person — their other entities follow, in one Undo.
     if(_rateSiblings(entId,nm).length)_withCheckpoint('Rate change (every entity)',go);else go();
   }
-  renderPayrollEntityContent(item.entityIdx);
-  setTimeout(()=>{const inp=document.querySelectorAll('.wage-input');if(inp[rowIdx])inp[rowIdx].focus();},0);
+  renderPayrollEntityContent(item.entityIdx); // FC-00091: the redraw keeps the cursor (it no longer pulls it back here after Tab or a click)
 }
 function setRounding(rowIdx,val){/* no-op — rounding is now driven by pay method (cash=0dp, deposit=2dp) */}
 function toggleFlat(rowIdx){
@@ -6941,8 +6947,7 @@ function setFlatAmount(rowIdx,val){
   const amt=parseFloat(val);if(isNaN(amt)||amt<0)return;
   const keyName=_rowKey(item);
   dispatch({type:'flatWage',screen:'payroll',target:{kind:'employee',entity:ent.id,id:wKey(ent.id,keyName),field:'flatWage'},from:flatWages[wKey(ent.id,keyName)],to:amt,meta:{empName:keyName,displayName:item.row.name}});
-  renderPayrollEntityContent(item.entityIdx);
-  setTimeout(()=>{const inp=document.querySelectorAll('.flat-input');if(inp[rowIdx])inp[rowIdx].focus();},0);
+  renderPayrollEntityContent(item.entityIdx); // FC-00091: the redraw keeps the cursor
 }
 
 function setRowAliases(rowIdx,val){
@@ -7016,8 +7021,7 @@ function setSplitDepositForRow(rowIdx,val){
   // Whole-number detection: no '.' in raw, OR cents are zero (e.g. "50.00" treated as whole per task spec).
   const isWhole=!/\./.test(raw)||Math.abs(Math.round(amt)-amt)<1e-9;
   setSplitDeposit(ent.id,_rowKey(item),amt,{typed:true,isWhole});
-  renderPayrollEntityContent(item.entityIdx);
-  setTimeout(()=>{const inp=document.querySelectorAll('.split-input');if(inp[rowIdx])inp[rowIdx].focus();},0);
+  renderPayrollEntityContent(item.entityIdx); // FC-00091: the redraw keeps the cursor
 }
 
 function setPayrollSubTab(entityIdx,tab){
@@ -7039,12 +7043,7 @@ function setRowBreakOverride(rowIdx,dayIdx,val){
     if(isNaN(m)||m<0){renderPayrollEntityContent(item.entityIdx);return;}
     setBreakOverride(ent.id,keyName,dayIdx,m);
   }
-  renderPayrollEntityContent(item.entityIdx);
-  // Re-focus the same input so the user can keep typing.
-  setTimeout(()=>{
-    const sel=document.querySelector(`input.break-day-input[data-row="${rowIdx}"][data-day="${dayIdx}"]`);
-    if(sel)sel.focus();
-  },0);
+  renderPayrollEntityContent(item.entityIdx); // FC-00091: the redraw keeps the cursor in this box after Enter, and lets Tab or a click move it
 }
 function resetRowBreakOverride(rowIdx,dayIdx){
   const item=_flatRows[rowIdx];if(!item)return;
@@ -7185,6 +7184,7 @@ function ensureIntakeState(ent){
 // ================================================================
 function renderIntake(){
   const container=document.getElementById('intakeContent');
+  if(_kpWrap(container,()=>renderIntake()))return; // FC-00091
   if(entities.length===0){
     container.innerHTML='<div class="payroll-warning">Add an entity in the <strong>Schedules</strong> tab (just a name is enough) before using Actuals Intake.</div>';
     return;
@@ -7580,6 +7580,7 @@ async function _retryAllFailedImpl(list){
 
 function renderOcrFileList(idx, jobs){
   const el=document.getElementById('ocrFileList_'+idx);if(!el)return;
+  if(_kpWrap(el,()=>renderOcrFileList(idx,jobs)))return; // FC-00091
   if(!jobs||jobs.length===0){el.className='ocr-file-list';el.innerHTML='';return;}
   // Persist jobs on the entity so per-file retry can find them after re-render. FC-00030:
   // jobs ACCUMULATE across batches (FC-00011 append) — replacing the list dropped earlier
@@ -8876,7 +8877,7 @@ function _renderNewEmpPreview(){const el=document.getElementById('newEmpPreview'
 function _renderNewEmp(open){
   const ov=document.getElementById('newEmpOverlay');if(!ov)return;
   if(!open||!_newEmp){ov.style.display='none';return;}
-  document.getElementById('newEmpBody').innerHTML=_newEmpHtml();
+  {const nb=document.getElementById('newEmpBody');_keepPlace(nb,()=>{nb.innerHTML=_newEmpHtml();});} // FC-00091
   ov.style.display='flex';
 }
 // Returns the new person's record, or null with the reason shown in the dialog.
@@ -9426,6 +9427,234 @@ if(typeof document!=='undefined'&&document.addEventListener){
   if(typeof window!=='undefined'&&window.addEventListener)window.addEventListener('blur',_ptrUp);
 }
 
+// ================================================================
+// FC-00091 — keep your place
+// ================================================================
+// Most screens are redrawn whole (host.innerHTML=…) after a change. That threw away the box being
+// typed in and put every scroll box inside the redrawn part back at the top. _keepPlace(host,draw)
+// runs a redraw and then puts back the page's scroll, the scroll of every scroll box inside host,
+// and the cursor: the same box, with the same caret and selection. When the redraw comes from
+// leaving a box (Tab, or a mouse press on another box), the cursor goes to the box the owner was
+// moving to instead. Folded parts stay open or closed. A box or scroll box that is gone after the
+// redraw is left alone.
+// A box is found again by its id, else by what it is (tag, type, name, handlers) and its place
+// among the boxes like it in host; a scroll box by its id, else its tag, class and place.
+// Pay never passes through here: this only reads and sets scroll, focus and selection.
+let _kpMove=null;   // the key or mouse press being handled now: {kind:'tab',back,el} or {kind:'ptr',el}
+const _kpStack=[];  // hosts being redrawn now; a redraw inside one of them is left to the outer one
+const _KP_FOCUSABLE='input,select,textarea,button,a[href],[tabindex],[contenteditable]';
+const _KP_TEXT_TYPES=/^(text|search|tel|url|email|password|number)$/;
+function _kpSig(el){
+  const a=n=>(el.getAttribute&&el.getAttribute(n))||'';
+  return[el.tagName,el.type||'',a('name'),a('data-rbox'),a('data-where'),a('oninput'),a('onchange'),a('onblur'),a('onclick'),a('onkeydown')].join('\u0001');
+}
+function _kpKey(el,host){
+  try{
+    if(!el||!host||el===host||!host.contains||!host.contains(el))return null;
+    if(el.id)return{id:el.id};
+    const sig=_kpSig(el),tag=el.tagName;let n=0;
+    for(const e of host.querySelectorAll(tag)){if(e===el)return{tag,sig,n};if(_kpSig(e)===sig)n++;}
+  }catch(_){}
+  return null;
+}
+function _kpFind(key,host){
+  try{
+    if(!key||!host)return null;
+    if(key.id){const e=document.getElementById(key.id);return e&&host.contains(e)?e:null;}
+    let n=0;
+    for(const e of host.querySelectorAll(key.tag)){if(_kpSig(e)===key.sig){if(n===key.n)return e;n++;}}
+  }catch(_){}
+  return null;
+}
+// Where each scroll box was scrolled to, noted by the scroll event itself. Reading a scroll box's
+// offset just before a redraw makes the browser finish laying out the screen first (tens of
+// milliseconds on the register, on every letter typed), so the offsets are noted as they happen.
+const _kpScrollPos=new Map();
+function _kpNoteScroll(e){
+  if(!e||e.nodeType!==1)return;
+  const top=e.scrollTop||0,left=e.scrollLeft||0;
+  if(top||left)_kpScrollPos.set(e,{top,left});else _kpScrollPos.delete(e);
+}
+const _kpCls=e=>typeof e.className==='string'?e.className:'';
+// A scroll box's place among the boxes in host with its tag and class (host itself is place -1).
+function _kpBoxN(host,e){if(e===host)return-1;const c=_kpCls(e);let n=0;for(const x of host.querySelectorAll(e.tagName)){if(x===e)return n;if(_kpCls(x)===c)n++;}return-1;}
+function _kpScrollSave(host){
+  const out=[];
+  try{
+    for(const [e,pos] of _kpScrollPos){
+      if(e.isConnected===false){_kpScrollPos.delete(e);continue;}
+      if(e!==host&&!(host.contains&&host.contains(e)))continue;
+      out.push({id:e.id||'',tag:e.tagName,cls:_kpCls(e),n:_kpBoxN(host,e),top:pos.top,left:pos.left});
+    }
+  }catch(_){}
+  return out;
+}
+function _kpScrollRestore(host,list){
+  if(!list||!list.length)return;
+  try{
+    list.forEach(x=>{
+      let e=null;
+      if(x.n<0)e=host;
+      else if(x.id){e=document.getElementById(x.id);if(e&&!host.contains(e))e=null;}
+      if(!e){let n=0;for(const y of host.querySelectorAll(x.tag)){if(_kpCls(y)===x.cls){if(n===x.n){e=y;break;}n++;}}}
+      if(!e)return;
+      e.scrollTop=x.top;e.scrollLeft=x.left;
+      _kpScrollPos.set(e,{top:x.top,left:x.left}); // a second redraw in the same click finds it
+    });
+  }catch(_){}
+}
+// Folded parts (<details>) stay open or closed as the owner left them. One holding a box is found
+// again by its first box (a person's entity list by that person's tick box); one without boxes by
+// its class and place. Not by its heading: a heading can change with the very tick that redrew it.
+function _kpDetSig(d){
+  const cls=typeof d.className==='string'?d.className:'';
+  let c='';try{const x=d.querySelector('input,select,textarea,button');c=x?_kpSig(x):'';}catch(_){}
+  return{cls,c};
+}
+function _kpDetailsSave(host){
+  const out=[];
+  try{const seen=new Map();for(const d of host.querySelectorAll('details')){const g=_kpDetSig(d),n=seen.get(g.cls)||0;seen.set(g.cls,n+1);out.push({cls:g.cls,c:g.c,n,open:!!d.open});}}catch(_){}
+  return out;
+}
+function _kpDetailsRestore(host,list){
+  if(!list||!list.length)return;
+  try{
+    const byC=new Map(),byN=new Map(),seen=new Map();
+    for(const d of host.querySelectorAll('details')){const g=_kpDetSig(d),n=seen.get(g.cls)||0;seen.set(g.cls,n+1);if(g.c)byC.set(g.cls+'\u0001'+g.c,d);else byN.set(g.cls+'\u0001'+n,d);}
+    list.forEach(x=>{const d=x.c?byC.get(x.cls+'\u0001'+x.c):byN.get(x.cls+'\u0001'+x.n);if(d&&!!d.open!==x.open)d.open=x.open;});
+  }catch(_){}
+}
+function _kpCovered(host){return _kpStack.some(h=>h===host||(h.contains&&h.contains(host)));}
+function _kpTextLike(el){return!!el&&(el.tagName==='TEXTAREA'||(el.tagName==='INPUT'&&_KP_TEXT_TYPES.test(el.type||'text')));}
+function _kpSave(host){
+  const st={win:null,sc:_kpScrollSave(host),det:_kpDetailsSave(host),focus:null,move:_kpMove,ptrKey:null};
+  // A second redraw from the same press: the first one already moved the cursor where it goes.
+  if(st.move&&st.move.el&&st.move.el.isConnected===false)st.move=null;
+  try{if(typeof window!=='undefined'&&window&&window.scrollY!=null)st.win={x:window.scrollX||0,y:window.scrollY||0};}catch(_){}
+  try{
+    const a=document.activeElement;
+    const k=a&&a!==document.body?_kpKey(a,host):null;
+    if(k){
+      let s=null,e=null,dir=null;try{s=a.selectionStart;e=a.selectionEnd;dir=a.selectionDirection;}catch(_){}
+      // The redraw comes from this box's own typing or saving: the redrawn box shows what was saved.
+      // Anything else (a timer, another box): what is typed here and not yet saved is put back.
+      let own=false;try{const ev=typeof window!=='undefined'&&window?window.event:null;own=!!(ev&&ev.target===a);}catch(_){}
+      st.focus={key:k,value:a.value,s,e,dir,own,el:a};
+    }
+    // While Tab is leaving a box the browser has already let go of it: the box is the key's target.
+    if(!st.focus&&st.move&&st.move.kind==='tab'&&st.move.el){const k2=_kpKey(st.move.el,host);if(k2)st.focus={key:k2,value:st.move.el.value,s:null,e:null,dir:null,own:true,el:st.move.el};}
+    // Tab: the box the browser was moving to, found on the screen as it was before this redraw.
+    if(st.focus&&st.move&&st.move.kind==='tab'&&st.move.el){
+      const nx=_kpNextTabbable(st.move.el,st.move.back);
+      if(nx){st.tabKey=_kpKey(nx,host);st.tabEl=st.tabKey?null:nx;}
+    }
+    if(st.move&&st.move.kind==='ptr'&&st.move.el){
+      const p=st.move.el;
+      let t=p.closest?p.closest(_KP_FOCUSABLE):null;
+      if(!t&&p.closest){const l=p.closest('label');t=l&&l.control||null;}
+      st.ptrKey=t?_kpKey(t,host):null;
+    }
+  }catch(_){}
+  return st;
+}
+function _kpTabbables(){
+  return[...document.querySelectorAll(_KP_FOCUSABLE)].filter(e=>e.tabIndex>=0&&!e.disabled&&e.type!=='hidden'&&!(e.type==='radio'&&!e.checked&&e.name)&&(e.offsetParent!==null||(e.getClientRects&&e.getClientRects().length>0)));
+}
+function _kpNextTabbable(from,back){
+  const all=_kpTabbables();let i=all.indexOf(from);
+  if(i<0){all.push(from);all.sort((x,y)=>x===y?0:(x.compareDocumentPosition(y)&4?-1:1));i=all.indexOf(from);} // from itself may not be tabbable
+  return all[back?i-1:i+1]||null;
+}
+function _kpFocus(el,keepScroll){
+  try{el.focus(keepScroll?{preventScroll:true}:undefined);}catch(_){try{el.focus();}catch(__){}}
+}
+// The cursor's target, when a redraw could not place it because the box is drawn by a later redraw
+// in the same click or key press (one handler often redraws twice: the tab, then a panel in it).
+let _kpPending=null;
+function _kpPlace(el,how,st){
+  _kpFocus(el,how!=='tab');
+  if(how==='same'&&_kpTextLike(el)&&st&&st.focus){
+    const f=st.focus,rendered=el.value;
+    if(!f.own&&f.value!=null&&rendered!==f.value){
+      // What was typed and not saved yet is put back, and saved when the box is left, as before.
+      el.value=f.value;
+      let saved=false;const onCh=()=>{saved=true;};
+      el.addEventListener('change',onCh,{once:true});
+      el.addEventListener('blur',()=>{el.removeEventListener('change',onCh);if(!saved&&el.isConnected!==false&&el.value!==rendered)el.dispatchEvent(new Event('change',{bubbles:true}));},{once:true});
+    }
+    try{if(f.s!=null&&el.value===f.value)el.setSelectionRange(f.s,f.e,f.dir||'none');else{const n=String(el.value||'').length;el.setSelectionRange(n,n);}}catch(_){}
+  }else if(how==='tab'&&_kpTextLike(el)&&el.select){
+    try{el.select();}catch(_){} // as the browser does when Tab lands in a box
+  }else if(how==='ptr'&&_kpTextLike(el)){
+    try{const n=String(el.value||'').length;el.setSelectionRange(n,n);}catch(_){}
+  }
+}
+function _kpCursorFree(st){
+  const a=document.activeElement;
+  return!a||a===document.body||a.isConnected===false||!!(st&&st.focus&&a===st.focus.el);
+}
+function _kpTryPending(){
+  const p=_kpPending;if(!p)return false;
+  if(p.host.isConnected===false){_kpPending=null;return false;}
+  const el=p.el&&p.el.isConnected!==false?p.el:_kpFind(p.key,p.host);
+  if(!el||!el.focus)return false;
+  _kpPending=null;_kpPlace(el,p.how,p.st);
+  return true;
+}
+function _kpSetPending(host,key,el,how,st){
+  if(!key&&!el)return;
+  const p=_kpPending={host,key,el,how,st};
+  setTimeout(()=>{if(_kpPending!==p)return;if(_kpCursorFree(null))_kpTryPending();_kpPending=null;},0);
+}
+function _kpRestore(host,st){
+  _kpDetailsRestore(host,st.det);
+  _kpScrollRestore(host,st.sc);
+  try{if(st.win&&window.scrollTo&&(Math.round(window.scrollX||0)!==Math.round(st.win.x)||Math.round(window.scrollY||0)!==Math.round(st.win.y)))window.scrollTo(st.win.x,st.win.y);}catch(_){}
+  try{
+    // Someone else has the cursor (it was never in here, or the redraw put it somewhere on purpose): leave it.
+    if(!_kpCursorFree(st))return;
+    if(_kpPending&&_kpTryPending())return;
+    if(!st.focus&&!st.ptrKey)return;
+    let el=null,how='same',key=null,want=null;
+    if(st.move&&st.move.kind==='ptr'){
+      // A mouse press elsewhere: the box pressed (if this redraw replaced it), never the box left.
+      if(!st.ptrKey)return;
+      key=st.ptrKey;el=_kpFind(key,host);how='ptr';
+    }else if(st.move&&st.move.kind==='tab'){
+      how='tab';key=st.tabKey||null;want=st.tabEl||null;
+      el=key?_kpFind(key,host):(want&&want.isConnected!==false?want:null);
+      if(!el&&!key&&!want){const from=_kpFind(st.focus.key,host);el=from?_kpNextTabbable(from,st.move.back):null;}
+    }else{
+      key=st.focus.key;el=_kpFind(key,host);
+    }
+    if(!el||!el.focus){_kpSetPending(host,key,want,how,st);return;}
+    _kpPlace(el,how,st);
+  }catch(_){}
+}
+// Runs draw() (which redraws host) and keeps the owner's place.
+function _keepPlace(host,draw){
+  if(!host||typeof document==='undefined'||!document||_kpCovered(host))return draw();
+  let st=null;try{st=_kpSave(host);}catch(_){st=null;}
+  _kpStack.push(host);
+  try{return draw();}
+  finally{const i=_kpStack.lastIndexOf(host);if(i>=0)_kpStack.splice(i,1);if(st)try{_kpRestore(host,st);}catch(_){}}
+}
+// For a render function: `if(_kpWrap(host,()=>renderX(args)))return;` as its first line. The
+// first call redraws through _keepPlace (which calls renderX again, now covered); a call made
+// while host or a part holding it is being redrawn just draws.
+function _kpWrap(host,again){
+  if(!host||typeof document==='undefined'||!document||_kpCovered(host))return false;
+  _keepPlace(host,again);
+  return true;
+}
+// The key or mouse press being handled now; it lasts only while that press is handled.
+function _kpHold(m){_kpMove=m;setTimeout(()=>{if(_kpMove===m)_kpMove=null;},0);}
+if(typeof document!=='undefined'&&document&&document.addEventListener){
+  document.addEventListener('keydown',e=>{if(e.key==='Tab'&&!e.ctrlKey&&!e.altKey&&!e.metaKey)_kpHold({kind:'tab',back:!!e.shiftKey,el:e.target});},true);
+  document.addEventListener('mousedown',e=>{if(e.button===0||e.button==null)_kpHold({kind:'ptr',el:e.target});},true);
+  document.addEventListener('scroll',e=>_kpNoteScroll(e.target),{capture:true,passive:true});
+}
+
 function findReviewRow(id){
   for(const ent of entities){
     if(!ent.intake)continue;
@@ -9695,6 +9924,7 @@ function refreshReviewTable(idx){
   const ent=entities[idx];if(!ent)return;
   // FC-00054: never redraw under a mouse press; the click lands first, then the redraw runs.
   if(_ptrDown){_deferredReviewRefresh.add(idx);return;}
+  if(_kpWrap(document.getElementById('reviewTable_'+idx),()=>refreshReviewTable(idx)))return; // FC-00091: tick boxes and lists too
   const _box=_activeBoxState();
   // Preserve scroll position to prevent page jump on blur/commit
   const scrollX=window.scrollX,scrollY=window.scrollY;
@@ -10064,7 +10294,7 @@ function _renderPayGate(open){
   const ov=document.getElementById('payGateOverlay');
   if(!ov)return;
   if(!open){ov.style.display='none';return;}
-  document.getElementById('payGateBody').innerHTML=_payGateHtml();
+  {const gb=document.getElementById('payGateBody');_keepPlace(gb,()=>{gb.innerHTML=_payGateHtml();});} // FC-00091
   ov.style.display='flex';
 }
 function _payGateAfterChange(){
@@ -10879,8 +11109,7 @@ function _renderWeekDrop(open){
   const body=document.getElementById('weekDropBody');
   const panel=body&&body.parentElement;
   const snap=_wdSnap(body),top=panel?panel.scrollTop:0;
-  body.innerHTML=_weekDropHtml();
-  _restoreOcrParFocus('wd',body);
+  _keepPlace(body,()=>{body.innerHTML=_weekDropHtml();_restoreOcrParFocus('wd',body);}); // FC-00091
   ov.style.display='flex';
   if(panel&&top)panel.scrollTop=top;
   _wdFlip(body,snap);
@@ -13976,6 +14205,7 @@ function _regSubRowHtml(r,ents,linked,mainName){
 function renderRegister(){
   const host=document.getElementById('registerHost');if(!host)return;
   if(currentTab!=='register')return; // FC-00078: drawn only when the tab is open
+  if(_kpWrap(host,()=>renderRegister()))return; // FC-00091
   const people=_registerVisiblePeople();
   const ents=entities.filter(e=>e.name);
   const body=people.map(p=>{
