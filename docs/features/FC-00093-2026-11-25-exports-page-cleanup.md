@@ -1,6 +1,6 @@
 # FC-00093 — Exports page: simpler accountant card, Refresh on every card, aligned layout, editable file names
 
-**Date:** 2026-11-25 · **Slice:** M · **Risk:** Low · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-25 · **Slice:** M · **Risk:** Low · **Status:** done · **Affected entities:** All
 
 ## What
 1. **Accountant file card, simpler.**
@@ -55,3 +55,12 @@ None.
 
 ## Tests
 `tests/fc00093_exports_page_cleanup.test.js`.
+
+## As built (2026-11-25)
+- **Pay dates:** the dates were only on the Accountant file card, so they moved to a "Pay dates" bar at the top of every entity's Payroll tab (`_payDatesBarHtml`): Deposit and Cash and Contract Check, each a date box with what it reads and where it came from (set, or the Friday after the week); an unset deposit date shows amber. `setPayDateByHand` is unchanged (same warning) and redraws the Payroll tab (`_afterPayDateChange`). `payDateText(kind)` is the one way a date prints; `_payDatesLine`, `_acctDatesLine` and `_rowPayDateText` all use it, so a missing date reads "(date not set)" everywhere. The payroll cards add "Deposit pay date not set — set it on the Payroll tab (Pay dates)" when someone in the report is paid by deposit (warning only).
+- **Accountant card:** one status line (`_acctCardHtml` → `_expStatusHtml`). `_acctStatusReasons` now gives short reasons with counts ("5 deposit people have no employment type — fix on the Employee Register"); the names are in the status tooltip. `acctBlockers` (wording now points to the Payroll tab), the self-check and the tie-out run as before; a week note set before (an older snapshot) still prints.
+- **Every card:** `_expCardHtml` writes the same seven rows; `.exp-card` is a `subgrid` spanning seven rows of `.exp-cards`, so headings, descriptions, file names, buttons and status line up across each line of cards. The description is three short lines: what · who · when (`_dlDesc`). The file name is a two-line box (the whole name shows; Enter does not add a line), with "File name · .xlsx / .pdf" and Reset under it. Refresh sits at the right end of the buttons row and shows "checked h:mm" in the status after use.
+- **File names:** `fileName:<card>|<week start>` in the tool state; `setExportFileName` drops a typed extension and characters a file name cannot have; the standard name (or blank) clears the edit. `downloadFileNames`, `_buildFilesNow` and `_stemFileName` (the Employee Register tab's own buttons, also `_WithBreaks`) use it.
+- **Older tests whose expectations moved:** `fc00040` (status line now starts "Not ready:"), `fc00081` (reason wording points to the Payroll tab and counts people; no date picker or week-note box on the card; tie-out no longer listed on the card), `fc00082` (self-check and note warnings are short; tie-out/self-check checked through the functions, not the card), `fc00084` (no dates, checks list or notes on the card), `fc00085` (one short "Not ready" line instead of "Not written until complete").
+- **Checked in the browser on the real Nov 15–21 snapshot (private):** totals as expected; the first line of cards lines up to the pixel (heading, description, file name, buttons, status); both files print the same deposit date and, after clearing it on the Payroll tab, both print "(date not set)" and the payroll and accountant cards say Not ready; an edited name was used by the card's Excel button and by Download batch, and Reset gave the standard name back. No page errors. Pay identical on the real-data regression and tie-out.
+
