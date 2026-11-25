@@ -735,3 +735,10 @@ pre-export prompt is the unconfirmed-break `confirm()`, which the user answers.
 ## Added by FC-00090 (2026-11-23)
 
 - **File names:** `_stemFileName(suffix, ext)`; the register's Excel/PDF/CSV are `<stem>_EmployeeRegister.<ext>` (`_EmployeeRegister_WithBreaks.xlsx`), Tool Settings `<stem>_ToolSettings.xlsx`.
+
+## Added by FC-00092 (2026-11-25)
+
+- **On accountant file:** record field `acct_file` ('Always', 'Never'; absent = Auto), one value per person (`PERSON_FIELDS`, `setPersonField`, `linkSamePerson` and `regToggleEntity` carry it). `ACCT_FILE_CHOICES`, `_normAcctFile`, `acctFileChoice(rec)`, `setAcctFileChoice(rec, val, screen)` (one record, used by the register import), `_regAcctFileSel(p)` (the dropdown on the register main row, column "On accountant file" after Type). History label "On accountant file". `registerPeople` `acctFile`; `showAcct` also when Always.
+- **Register file:** `PAYROLL_SETTINGS_HEADERS` ends with On Accountant File (blank = Auto), written in `_gatherPayrollSettingsRows`, read in `_ingestPayrollSettings` only when the column exists. Settings-import preview field `acctFile`.
+- **Accountant file:** `_acctData()` leaves out Never (their deposits in `data.never`) and gives an Always person with no line a $0 line (`_acctZeroLine`; `_acctAbsentRow` for someone not in this week's payroll; Deposit Entity of the first active record), one line per person. `_acctLine` is unchanged (Auto). `_acctSpec` prints a $0 line's Gross Total as $0.00. `acctTieOut(data)` adds `never`, `neverList`, `payrollDeposit` and checks an entity that has only Never people; `_acctTieText` is the card's line.
+- **Export preview:** Show "Accountant file" (`_previewKey` 'accountant', `_acctPreviewModel`); a line names the people left off by Never; no column chips and no editable copy in that view.

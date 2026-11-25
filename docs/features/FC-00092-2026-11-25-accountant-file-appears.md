@@ -1,6 +1,6 @@
 # FC-00092 — Choose who appears on the accountant file: Auto, Always or Never
 
-**Date:** 2026-11-25 · **Slice:** S/M · **Risk:** Low · **Status:** approved · **Affected entities:** All
+**Date:** 2026-11-25 · **Slice:** S/M · **Risk:** Low · **Status:** done · **Affected entities:** All
 
 ## What
 A new per-person setting on the Employee Register: **On accountant file: Auto / Always / Never**.
@@ -56,3 +56,14 @@ None.
 
 ## Tests
 `tests/fc00092_accountant_file_appears.test.js`.
+
+## As built (2026-11-25)
+- Record field `acct_file` ('Always' or 'Never'; Auto = no value), written to every record of the person by `setPersonField` (one Undo step, History "On accountant file"). `linkSamePerson` and ticking a new entity carry it. The register's main row has the dropdown after Type; Always also shows the Accountant Name box for someone not paid by deposit.
+- `_acctData()`: Never people are left out and their would-be lines kept in `data.never`; an Always person with no line gets one $0 line (from their row this week, or from their record when they are not in this week's payroll, the first active record first) in their Deposit Entity's section. Auto goes through the unchanged `_acctLine`.
+- The $0 line's Gross Total is written as $0.00 (Excel format `$#,##0.00`, formula `ROUND(Salary+Bonus,2)`), the rest blank; subtotals and totals are unchanged; the file's own check passes.
+- `acctTieOut` lists every Deposit Entity with a line or a Never deposit; the card says "✓ ENTITY: Gross Total $G matches this week's payroll deposits $P, less $N not on the accountant file (Never: names)".
+- Export preview: Show "Accountant file" draws the file from `_acctSpec` and `_reportModel` (no column chips, no editable copy) with a line naming anyone left off by Never.
+- Register file: On Accountant File is the last Payroll Settings column; an older file without it leaves everyone on Auto. The People sheet, PDF and CSV of the register are unchanged.
+- **Checked in the browser on the real Nov 15–21 snapshot (private):** the one flat person paid without a schedule and ticked "Not paid this week" was off the file; set to Always on the register, he appears in his Deposit Entity's Management section at $0.00 with his accountant name, type and note. The deposit, cash and contract check totals and the accountant file's Gross Total are the same before and after (and equal the expected figures for that week); check and tie-out pass; 41 TNG IDs. Never on a deposit person: the card names the excluded deposit and every line is ✓. Excel and PDF written. No page errors.
+- Real-data regression: pay identical on 6 weeks (0 differences); accountant formulas and tie-out all good.
+- Tests: 672 of 672 pass (7 new; header offsets moved in the FC-00073, FC-00078 and FC-00086 tests).
